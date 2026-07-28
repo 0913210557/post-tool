@@ -323,8 +323,8 @@ function escapeHtml(s){
 
 async function loadGroups(){
   try{
-    const r = await window.storage.get('fb-groups', false);
-    groups = (r && r.value) ? JSON.parse(r.value) : [];
+    const raw = localStorage.getItem('yaci-fb-groups');
+    groups = raw ? JSON.parse(raw) : [];
   }catch(e){
     groups = [];
   }
@@ -347,7 +347,7 @@ function renderGroups(){
 }
 
 async function saveGroups(){
-  try{ await window.storage.set('fb-groups', JSON.stringify(groups), false); }
+  try{ localStorage.setItem('yaci-fb-groups', JSON.stringify(groups)); }
   catch(e){ console.error('儲存社團清單失敗', e); }
 }
 
