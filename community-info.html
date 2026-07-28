@@ -171,7 +171,33 @@
         <div class="info-cell-label">公設在幾樓</div>
         <div class="info-cell-value" id="viewFacilityFloor">—</div>
       </div>
+      <div class="info-cell">
+        <div class="info-cell-label">機車清潔費/月</div>
+        <div class="info-cell-value" id="viewMotorFee">—</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-cell-label">汽車清潔費/月</div>
+        <div class="info-cell-value" id="viewCarFee">—</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-cell-label">管理費/坪/月</div>
+        <div class="info-cell-value" id="viewMgmtFee">—</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-cell-label">建築完工日期</div>
+        <div class="info-cell-value" id="viewCompletionDate">—</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-cell-label">國小學區</div>
+        <div class="info-cell-value" id="viewElementary">—</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-cell-label">國中學區</div>
+        <div class="info-cell-value" id="viewJuniorHigh">—</div>
+      </div>
     </div>
+    <div class="info-cell-label" style="margin-bottom:6px;">建築外觀</div>
+    <div class="facility-list" id="viewExterior" style="margin-bottom:14px;">—</div>
     <div class="info-cell-label" style="margin-bottom:6px;">公設有哪些</div>
     <div class="facility-list" id="viewFacilities">—</div>
     <div class="row-buttons">
@@ -193,6 +219,27 @@
 
     <label class="field-label">公設在幾樓</label>
     <input type="text" id="fFacilityFloor" placeholder="例：2樓、頂樓">
+
+    <label class="field-label">機車清潔費（元/月）</label>
+    <input type="text" id="fMotorFee" placeholder="例：100">
+
+    <label class="field-label">汽車清潔費（元/月）</label>
+    <input type="text" id="fCarFee" placeholder="例：300">
+
+    <label class="field-label">管理費（元/坪/月）</label>
+    <input type="text" id="fMgmtFee" placeholder="例：80">
+
+    <label class="field-label">建築完工日期</label>
+    <input type="text" id="fCompletionDate" placeholder="例：民國108年 或 2019年">
+
+    <label class="field-label">國小學區</label>
+    <input type="text" id="fElementary" placeholder="例：中壢國小">
+
+    <label class="field-label">國中學區</label>
+    <input type="text" id="fJuniorHigh" placeholder="例：中壢國中">
+
+    <label class="field-label">建築外觀</label>
+    <textarea id="fExterior" placeholder="例：石材＋鐵件立面，社區大門氣派挑高"></textarea>
 
     <label class="field-label">公設有哪些</label>
     <textarea id="fFacilities" placeholder="一行一項，例：&#10;健身房&#10;閱覽室&#10;交誼廳&#10;游泳池"></textarea>
@@ -289,6 +336,13 @@ function showCommunity(name){
   document.getElementById('viewBelow').textContent = c.below || '—';
   document.getElementById('viewTrash').textContent = c.trash || '—';
   document.getElementById('viewFacilityFloor').textContent = c.facilityFloor || '—';
+  document.getElementById('viewMotorFee').textContent = c.motorFee || '—';
+  document.getElementById('viewCarFee').textContent = c.carFee || '—';
+  document.getElementById('viewMgmtFee').textContent = c.mgmtFee || '—';
+  document.getElementById('viewCompletionDate').textContent = c.completionDate || '—';
+  document.getElementById('viewElementary').textContent = c.elementary || '—';
+  document.getElementById('viewJuniorHigh').textContent = c.juniorHigh || '—';
+  document.getElementById('viewExterior').textContent = c.exterior || '—';
   document.getElementById('viewFacilities').textContent = c.facilities || '—';
   document.getElementById('viewCard').style.display = 'block';
   document.getElementById('editCard').style.display = 'none';
@@ -301,6 +355,13 @@ function startNewCommunity(name){
   document.getElementById('fBelow').value = '';
   document.getElementById('fTrash').value = '';
   document.getElementById('fFacilityFloor').value = '';
+  document.getElementById('fMotorFee').value = '';
+  document.getElementById('fCarFee').value = '';
+  document.getElementById('fMgmtFee').value = '';
+  document.getElementById('fCompletionDate').value = '';
+  document.getElementById('fElementary').value = '';
+  document.getElementById('fJuniorHigh').value = '';
+  document.getElementById('fExterior').value = '';
   document.getElementById('fFacilities').value = '';
   document.getElementById('viewCard').style.display = 'none';
   document.getElementById('editCard').style.display = 'block';
@@ -314,6 +375,13 @@ function editCommunity(){
   document.getElementById('fBelow').value = c.below || '';
   document.getElementById('fTrash').value = c.trash || '';
   document.getElementById('fFacilityFloor').value = c.facilityFloor || '';
+  document.getElementById('fMotorFee').value = c.motorFee || '';
+  document.getElementById('fCarFee').value = c.carFee || '';
+  document.getElementById('fMgmtFee').value = c.mgmtFee || '';
+  document.getElementById('fCompletionDate').value = c.completionDate || '';
+  document.getElementById('fElementary').value = c.elementary || '';
+  document.getElementById('fJuniorHigh').value = c.juniorHigh || '';
+  document.getElementById('fExterior').value = c.exterior || '';
   document.getElementById('fFacilities').value = c.facilities || '';
   document.getElementById('viewCard').style.display = 'none';
   document.getElementById('editCard').style.display = 'block';
@@ -338,6 +406,13 @@ function saveCommunity(){
     below: document.getElementById('fBelow').value.trim(),
     trash: document.getElementById('fTrash').value.trim(),
     facilityFloor: document.getElementById('fFacilityFloor').value.trim(),
+    motorFee: document.getElementById('fMotorFee').value.trim(),
+    carFee: document.getElementById('fCarFee').value.trim(),
+    mgmtFee: document.getElementById('fMgmtFee').value.trim(),
+    completionDate: document.getElementById('fCompletionDate').value.trim(),
+    elementary: document.getElementById('fElementary').value.trim(),
+    juniorHigh: document.getElementById('fJuniorHigh').value.trim(),
+    exterior: document.getElementById('fExterior').value.trim(),
     facilities: document.getElementById('fFacilities').value.trim(),
   };
   const ok = saveToStorage();
