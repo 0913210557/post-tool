@@ -193,6 +193,40 @@
   }
   .status.ok{color:var(--pine);}
   .status.err{color:var(--danger);}
+
+  .photo-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(84px, 1fr));
+    gap:8px;
+    margin-bottom:4px;
+  }
+  .photo-thumb{
+    position:relative;
+    aspect-ratio:1;
+    border:1px solid var(--line);
+    overflow:hidden;
+    background:#EFE9DC;
+  }
+  .photo-thumb img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:block;
+    cursor:pointer;
+  }
+  .photo-thumb .remove-btn{
+    position:absolute;
+    top:2px;right:2px;
+    width:20px;height:20px;
+    border-radius:50%;
+    background:rgba(0,0,0,.6);
+    color:#fff;
+    border:none;
+    font-size:12px;
+    line-height:1;
+    cursor:pointer;
+    padding:0;
+  }
 </style>
 </head>
 <body>
@@ -215,8 +249,15 @@
     <div class="row-buttons">
       <button class="btn-primary" id="genBtn" onclick="generateDraft()">自動抓取並擷取欄位</button>
     </div>
-    <div class="hint">會固定擷取：標題、售價、地坪、建坪、格局、房屋描述。抓不到的欄位會留空，請手動補上。</div>
+    <div class="hint">會固定擷取：標題、售價、地坪、建坪、格局、房屋描述，以及頁面上的照片。抓不到的欄位會留空，請手動補上。</div>
     <div class="status" id="genStatus"></div>
+  </div>
+
+  <!-- STEP 1.5: photos -->
+  <div class="step" id="photoStep" style="display:none;">
+    <div class="step-label">抓到的照片，點右上角 ✕ 可移除</div>
+    <div class="photo-grid" id="photoGrid"></div>
+    <div class="hint">網頁圖片沒辦法直接幫你傳進 Facebook，選好要用的照片後，點縮圖可在新分頁開啟，手機上長按圖片選「儲存圖片」，再手動上傳到社團貼文裡。</div>
   </div>
 
   <!-- STEP 2: extracted fields -->
@@ -242,6 +283,78 @@
 
     <div class="hint">格局</div>
     <input type="text" id="fLayout" placeholder="例：3房2廳2衛">
+
+    <div class="hint">地址（用來查附近生活機能）</div>
+    <input type="text" id="fAddress" placeholder="例：桃園市中壢區中豐路100號">
+
+    <div class="row-buttons" style="flex-wrap:wrap;margin-top:12px;">
+      <div style="flex:1;min-width:140px;">
+        <div class="hint" style="margin-top:0;">🌳 公園</div>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="fParkNearby" placeholder="填寫附近公園" style="flex:1;">
+          <button type="button" class="btn-outline" style="padding:0 12px;" onclick="openMapSearch('公園')">查</button>
+        </div>
+      </div>
+      <div style="flex:1;min-width:140px;">
+        <div class="hint" style="margin-top:0;">🚌 公車站</div>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="fBusNearby" placeholder="填寫附近公車站" style="flex:1;">
+          <button type="button" class="btn-outline" style="padding:0 12px;" onclick="openMapSearch('公車站')">查</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row-buttons" style="flex-wrap:wrap;">
+      <div style="flex:1;min-width:140px;">
+        <div class="hint" style="margin-top:0;">🏪 超商</div>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="fConvNearby" placeholder="填寫附近超商" style="flex:1;">
+          <button type="button" class="btn-outline" style="padding:0 12px;" onclick="openMapSearch('超商')">查</button>
+        </div>
+      </div>
+      <div style="flex:1;min-width:140px;">
+        <div class="hint" style="margin-top:0;">🛍 賣場</div>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="fMarketNearby" placeholder="填寫附近賣場" style="flex:1;">
+          <button type="button" class="btn-outline" style="padding:0 12px;" onclick="openMapSearch('賣場')">查</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row-buttons" style="flex-wrap:wrap;">
+      <div style="flex:1;min-width:140px;">
+        <div class="hint" style="margin-top:0;">🛒 全聯</div>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="fPxNearby" placeholder="填寫附近全聯" style="flex:1;">
+          <button type="button" class="btn-outline" style="padding:0 12px;" onclick="openMapSearch('全聯')">查</button>
+        </div>
+      </div>
+      <div style="flex:1;min-width:140px;">
+        <div class="hint" style="margin-top:0;">🏫 國小</div>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="fElementaryNearby" placeholder="填寫學區國小" style="flex:1;">
+          <button type="button" class="btn-outline" style="padding:0 12px;" onclick="toggleSchoolZonePanel()">查學區</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row-buttons" style="flex-wrap:wrap;">
+      <div style="flex:1;min-width:140px;">
+        <div class="hint" style="margin-top:0;">🏫 國中</div>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="fJuniorHighNearby" placeholder="填寫學區國中" style="flex:1;">
+          <button type="button" class="btn-outline" style="padding:0 12px;" onclick="toggleSchoolZonePanel()">查學區</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="schoolZonePanel" style="display:none;border:1px solid var(--line);background:#FAF8F3;padding:14px;margin-top:4px;">
+      <div class="hint" style="margin-top:0;font-weight:700;color:var(--pine);">學區查詢（目前只有平鎮區）</div>
+      <div class="hint" style="margin-top:4px;">資料用村里＋鄰劃分，不是路名，地址無法自動比對。不知道村里可以先開<a href="https://easymap.land.moi.gov.tw/P02/" target="_blank" style="color:var(--pine);">門牌查詢地圖</a>查。</div>
+      <input type="text" id="villageInput" placeholder="輸入村里名稱，例如：南勢、廣仁、宋屋..." oninput="renderSchoolZoneResults()" style="margin-top:8px;">
+      <div id="schoolZoneResults" style="margin-top:10px;max-height:260px;overflow-y:auto;"></div>
+      <div class="hint">學區每學年可能調整，這份是112學年度公告，正式提供客戶前務必到<a href="https://www.tyc.edu.tw/News.aspx?n=5208&sms=11286" target="_blank" style="color:var(--pine);">教育局官網</a>核對最新公告。</div>
+    </div>
 
     <div class="hint">房屋描述</div>
     <textarea id="fDesc" style="min-height:110px;" placeholder="屋況、賣點、周邊機能等描述"></textarea>
@@ -387,8 +500,96 @@ const fieldEls = {
   landPing: document.getElementById('fLandPing'),
   buildPing: document.getElementById('fBuildPing'),
   layout: document.getElementById('fLayout'),
+  address: document.getElementById('fAddress'),
+  park: document.getElementById('fParkNearby'),
+  bus: document.getElementById('fBusNearby'),
+  conv: document.getElementById('fConvNearby'),
+  market: document.getElementById('fMarketNearby'),
+  px: document.getElementById('fPxNearby'),
+  elementary: document.getElementById('fElementaryNearby'),
+  juniorHigh: document.getElementById('fJuniorHighNearby'),
   desc: document.getElementById('fDesc'),
 };
+
+function openMapSearch(keyword){
+  const address = fieldEls.address.value.trim();
+  if(!address){
+    alert('請先輸入地址');
+    return;
+  }
+  const q = encodeURIComponent(address + ' 附近' + keyword);
+  window.open('https://www.google.com/maps/search/' + q + '?hl=zh-TW', '_blank');
+}
+
+function toggleSchoolZonePanel(){
+  const panel = document.getElementById('schoolZonePanel');
+  const willShow = panel.style.display === 'none';
+  panel.style.display = willShow ? 'block' : 'none';
+  if(willShow) renderSchoolZoneResults();
+}
+
+const SCHOOL_ZONE_ELEMENTARY = [
+  { school: '宋屋國小', phone: '4933654', zone: '廣仁，平興（1-9、12、32-36、39），宋屋（3-9），平鎮（8-17）、◎平鎮（18、19、30，與瑞埔國小為自由學區），義民（15-16、18-20、21【延平路2段324至348號】、29-30、34-35），新貴（3、26）' },
+  { school: '平興國小', phone: '4029323', zone: '宋屋（1-2、10-33），平興（10-11、13-31、37、38），義民（1-14、27-28、33），復旦（1、25-28），◎復旦（32，與文化國小為自由學區），高雙（1-11、28、29、簡屋部份【高山下143、144、145號】）' },
+  { school: '文化國小', phone: '4921750', zone: '復興，復旦（2-24、29-31），◎復旦（32，與平興國小為自由學區），高雙（11【簡屋部分除外】-27），雙連（43）' },
+  { school: '復旦國小', phone: '4928238', zone: '廣達，廣興（1-29【義民路204號、204-1號、204-2號、206-2號、廣興11號除外】、30、33-43）' },
+  { school: '義興國小', phone: '4913700', zone: '義興，義民（17、21【延平路2段324至348號除外】-26、31-32）' },
+  { school: '新榮國小', phone: '2806200', zone: '廣興（29【義民路204號、204-1號、204-2號、206-2號、廣興11號】、31-32），新勢（13-15）' },
+  { school: '新勢國小', phone: '4937563', zone: '新榮，新英，新富（1-13、15-37），北華（5-9、19），北勢（5-8），新勢（1-12、16-41）' },
+  { school: '北勢國小', phone: '4586472', zone: '北興，北富，北貴，新貴（1、6-17、23、25、27-28），金陵（10-19、23-25），北華（1-4、20-22），新富（14），龍恩（1、11-17）' },
+  { school: '忠貞國小', phone: '4501450', zone: '忠貞，中正，貿易，東社，龍興，龍恩（2-10、20-24、33-43）' },
+  { school: '山豐國小', phone: '4691784', zone: '山峰，莊敬，福林（6-22【6鄰48號、49號、8鄰51號、53至60號除外】、23-24），湧光（1-17、39-44），湧豐（1-8）' },
+  { school: '東勢國小', phone: '4504034', zone: '東勢（9鄰東勢4之6號、4之7號、7號、7之1號至7之20號、34鄰除外），建安（5-32），福林（1-5、6鄰48號、6鄰49號、8鄰51號）' },
+  { school: '南勢國小', phone: '4393724', zone: '南勢，金星，平安，平南，平鎮（1-7、29【第一口橋以東】），區興（21-25），福林（8鄰53至60號），新貴（2、4、5、18-22、24）' },
+  { school: '東安國小', phone: '4509571', zone: '東安，華安，新安，建安（1-4）' },
+  { school: '祥安國小', phone: '4192135', zone: '湧安，湧豐（9-16），湧光（18-38、45），區興（18-20）' },
+  { school: '瑞埔國小（楊梅區）', phone: '4822018', zone: '平鎮（20-28、29【第一口橋以西】、31-32）、◎平鎮（18、19、30，與宋屋國小為自由學區），區興（1-17、26-29）' },
+];
+
+const SCHOOL_ZONE_JUNIOR = [
+  { school: '平鎮國中', phone: '4572151', zone: '新富，新英，新貴，新榮，北興，金陵，北華，北貴，北富，北勢（6-21），福林（1-5、6鄰48號、6鄰49號），新勢（1-2、12、16-41），龍恩（1），建安（19-24、32），東勢（1-9【9鄰東勢4之6號、4之7號、7號、7之1號至7之20號除外】、20-22、26-33、37-38、41）' },
+  { school: '平南國中', phone: '4394147', zone: '金星，平安，平南，莊敬，南勢，山峰，湧光，福林（1-5、6鄰48號、6鄰49號除外），平鎮（1-7、29【第一口橋以東】），區興（21-25），湧豐（1-16），湧安（1-19、21-28）' },
+  { school: '中壢國中', phone: '4223214', zone: '北安，新勢（3-11、13-15），北勢（1-5）' },
+  { school: '平興國中', phone: '4918239', zone: '義民，義興，廣達，廣仁，高雙，復旦，復興，廣興，宋屋，平興，平鎮（8-17），雙連（43）' },
+  { school: '東安國中', phone: '4601407', zone: '東安，華安，新安，東社，東勢（10-19、23-25、35-36、39-40），建安（1-18、25-31）' },
+];
+
+function schoolZoneHighlight(text, keyword){
+  if(!keyword) return text;
+  const idx = text.indexOf(keyword);
+  if(idx === -1) return text;
+  return text.slice(0, idx) + '<mark style="background:#F6E3A1;padding:0 2px;">' + text.slice(idx, idx + keyword.length) + '</mark>' + text.slice(idx + keyword.length);
+}
+
+function renderSchoolZoneResults(){
+  const keyword = document.getElementById('villageInput').value.trim();
+  const container = document.getElementById('schoolZoneResults');
+
+  const buildSection = (title, list) => {
+    const matched = keyword ? list.filter(s => s.zone.includes(keyword)) : [];
+    if(!keyword){
+      return `<div class="hint" style="margin-top:0;">輸入村里名稱後，這裡會列出${title}</div>`;
+    }
+    if(!matched.length) return '';
+    return `<div style="font-weight:700;color:var(--brass);font-size:12.5px;margin:8px 0 4px;">${title}</div>` +
+      matched.map(s => `
+        <div style="border-bottom:1px solid var(--line);padding:8px 0;">
+          <div style="font-weight:700;color:var(--pine);font-size:13.5px;">${s.school}</div>
+          <div style="font-size:12.5px;">${schoolZoneHighlight(s.zone, keyword)}</div>
+          <div style="font-size:11px;color:#8A8377;">☎ ${s.phone}</div>
+        </div>
+      `).join('');
+  };
+
+  const elemHtml = buildSection('國小', SCHOOL_ZONE_ELEMENTARY);
+  const juniorHtml = buildSection('國中', SCHOOL_ZONE_JUNIOR);
+
+  if(keyword && !elemHtml && !juniorHtml){
+    container.innerHTML = `<div class="hint" style="margin-top:0;">沒有找到包含「${keyword}」的村里，可能不在平鎮區學區表內，或村里名稱打法不同。</div>`;
+  } else {
+    container.innerHTML = elemHtml + juniorHtml;
+  }
+}
 
 function composeFromFields(){
   const title = fieldEls.title.value.trim();
@@ -404,10 +605,27 @@ function composeFromFields(){
   if(buildPing) specs.push(`🏗 建坪 ${buildPing}`);
   if(layout) specs.push(`🏠 格局 ${layout}`);
 
+  const nearbyLines = [];
+  const park = fieldEls.park.value.trim();
+  const bus = fieldEls.bus.value.trim();
+  const conv = fieldEls.conv.value.trim();
+  const market = fieldEls.market.value.trim();
+  const px = fieldEls.px.value.trim();
+  const elementary = fieldEls.elementary.value.trim();
+  const juniorHigh = fieldEls.juniorHigh.value.trim();
+  if(park) nearbyLines.push(`🌳 公園：${park}`);
+  if(bus) nearbyLines.push(`🚌 公車站：${bus}`);
+  if(conv) nearbyLines.push(`🏪 超商：${conv}`);
+  if(market) nearbyLines.push(`🛍 賣場：${market}`);
+  if(px) nearbyLines.push(`🛒 全聯：${px}`);
+  if(elementary) nearbyLines.push(`🏫 國小：${elementary}`);
+  if(juniorHigh) nearbyLines.push(`🏫 國中：${juniorHigh}`);
+
   const parts = [];
   if(title) parts.push(`【${title}】`);
   if(specs.length) parts.push(specs.join('\n'));
   if(desc) parts.push(desc);
+  if(nearbyLines.length) parts.push(`📍 生活機能\n${nearbyLines.join('\n')}`);
   parts.push(SIGNOFF);
 
   draftEl.value = parts.join('\n\n');
@@ -422,7 +640,52 @@ function fillFields(f){
   fieldEls.landPing.value = f.land_ping || '';
   fieldEls.buildPing.value = f.building_ping || '';
   fieldEls.layout.value = f.layout || '';
+  fieldEls.address.value = f.address || '';
   fieldEls.desc.value = f.description || '';
+}
+
+let currentPhotos = [];
+
+function extractImageUrls(rawText){
+  const urls = new Set();
+
+  // markdown-style image links, e.g. ![alt](https://.../photo.jpg)
+  for(const m of rawText.matchAll(/!\[[^\]]*\]\((https?:\/\/[^\s\)]+)\)/g)){
+    urls.add(m[1]);
+  }
+  // bare image URLs
+  for(const m of rawText.matchAll(/https?:\/\/[^\s"'<>\)]+?\.(?:jpg|jpeg|png|webp)(?:\?[^\s"'<>\)]*)?/gi)){
+    urls.add(m[0]);
+  }
+
+  return [...urls]
+    .filter(u => !/logo|icon|sprite|avatar|favicon/i.test(u))
+    .slice(0, 24);
+}
+
+function renderPhotoGrid(photos){
+  currentPhotos = photos;
+  const step = document.getElementById('photoStep');
+  const grid = document.getElementById('photoGrid');
+
+  if(!photos.length){
+    step.style.display = 'none';
+    grid.innerHTML = '';
+    return;
+  }
+
+  step.style.display = 'block';
+  grid.innerHTML = photos.map((url, i) => `
+    <div class="photo-thumb" id="photo-${i}">
+      <img src="${url}" loading="lazy" onclick="window.open('${url}','_blank')" onerror="this.closest('.photo-thumb').remove()">
+      <button class="remove-btn" onclick="removePhoto(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+function removePhoto(i){
+  const el = document.getElementById('photo-' + i);
+  if(el) el.remove();
 }
 
 async function fetchReadablePageText(url){
@@ -457,6 +720,10 @@ function extractFieldsWithRegex(rawText){
     rawText.match(/(\d\s*[房室]\s*\d\s*廳)/) ||
     rawText.match(/格局\s*[:：]?\s*([^\n]{2,12}(?:房|室)[^\n]{0,10})/);
 
+  const addressMatch =
+    rawText.match(/地址\s*[:：]?\s*([^\n]{6,40}(?:路|街|大道)[^\n]{0,20}?\d+[^\n]{0,10})/) ||
+    rawText.match(/([\u4e00-\u9fa5]{2,3}[縣市][\u4e00-\u9fa5]{2,4}[區鄉鎮市][^\n]{2,20}(?:路|街|大道)[^\n]{0,20}?\d+[^\n]{0,10})/);
+
   let desc = '';
   // this site's own listings favor ★房屋環境／★房屋交通／★房屋屋況 style headers;
   // grab each starred section and join them, in addition to generic labels.
@@ -487,6 +754,7 @@ function extractFieldsWithRegex(rawText){
     land_ping: landMatch ? landMatch[1].replace(/\s+/g,'') : '',
     building_ping: buildMatch ? buildMatch[1].replace(/\s+/g,'') : '',
     layout: layoutMatch ? layoutMatch[1].replace(/\s+/g,'') : '',
+    address: addressMatch ? addressMatch[1].replace(/\s+/g,'') : '',
     description: desc,
   };
 }
@@ -505,10 +773,11 @@ ${trimmed}
 - land_ping：地坪（含「坪」字）
 - building_ping：建坪（含「坪」字）
 - layout：格局（例如「3房2廳2衛」）
+- address：完整地址（含縣市、區、路名、門牌），找不到就填空字串，絕對不要編造
 - description：房屋描述／屋況／賣點，濃縮成 100-200 字繁體中文
 
 只回傳一個 JSON 物件，不要任何前言、說明或 markdown 符號，格式如下：
-{"title":"","price":"","land_ping":"","building_ping":"","layout":"","description":""}`;
+{"title":"","price":"","land_ping":"","building_ping":"","layout":"","address":"","description":""}`;
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -557,7 +826,10 @@ async function generateDraft(){
     return;
   }
 
-  genStatus.innerHTML = '<span class="spinner"></span>網頁已讀取，正在擷取欄位...';
+  genStatus.innerHTML = '<span class="spinner"></span>網頁已讀取，正在擷取照片與欄位...';
+
+  const photos = extractImageUrls(rawText);
+  renderPhotoGrid(photos);
 
   let fields;
   let usedAI = true;
