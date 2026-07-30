@@ -284,51 +284,16 @@
     <div class="hint">格局</div>
     <input type="text" id="fLayout" placeholder="例：3房2廳2衛">
 
-    <div class="hint">地址（用來查附近生活機能）</div>
+    <div class="hint">地址（用來查學區）</div>
     <input type="text" id="fAddress" placeholder="例：桃園市中壢區中豐路100號">
 
+    <input type="hidden" id="fParkNearby">
+    <input type="hidden" id="fBusNearby">
+    <input type="hidden" id="fConvNearby">
+    <input type="hidden" id="fMarketNearby">
+    <input type="hidden" id="fPxNearby">
+
     <div class="row-buttons" style="flex-wrap:wrap;margin-top:12px;">
-      <div style="flex:1;min-width:140px;">
-        <div class="hint" style="margin-top:0;">🌳 公園</div>
-        <div style="display:flex;gap:6px;">
-          <input type="text" id="fParkNearby" placeholder="填寫附近公園" style="flex:1;">
-          <button type="button" class="btn-outline" style="padding:0 12px;" onclick="openMapSearch('公園')">查</button>
-        </div>
-      </div>
-      <div style="flex:1;min-width:140px;">
-        <div class="hint" style="margin-top:0;">🚌 公車站</div>
-        <div style="display:flex;gap:6px;">
-          <input type="text" id="fBusNearby" placeholder="填寫附近公車站" style="flex:1;">
-          <button type="button" class="btn-outline" style="padding:0 12px;" onclick="openMapSearch('公車站')">查</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="row-buttons" style="flex-wrap:wrap;">
-      <div style="flex:1;min-width:140px;">
-        <div class="hint" style="margin-top:0;">🏪 超商</div>
-        <div style="display:flex;gap:6px;">
-          <input type="text" id="fConvNearby" placeholder="填寫附近超商" style="flex:1;">
-          <button type="button" class="btn-outline" style="padding:0 12px;" onclick="openMapSearch('超商')">查</button>
-        </div>
-      </div>
-      <div style="flex:1;min-width:140px;">
-        <div class="hint" style="margin-top:0;">🛍 賣場</div>
-        <div style="display:flex;gap:6px;">
-          <input type="text" id="fMarketNearby" placeholder="填寫附近賣場" style="flex:1;">
-          <button type="button" class="btn-outline" style="padding:0 12px;" onclick="openMapSearch('賣場')">查</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="row-buttons" style="flex-wrap:wrap;">
-      <div style="flex:1;min-width:140px;">
-        <div class="hint" style="margin-top:0;">🛒 全聯</div>
-        <div style="display:flex;gap:6px;">
-          <input type="text" id="fPxNearby" placeholder="填寫附近全聯" style="flex:1;">
-          <button type="button" class="btn-outline" style="padding:0 12px;" onclick="openMapSearch('全聯')">查</button>
-        </div>
-      </div>
       <div style="flex:1;min-width:140px;">
         <div class="hint" style="margin-top:0;">🏫 國小</div>
         <div style="display:flex;gap:6px;">
@@ -336,9 +301,6 @@
           <button type="button" class="btn-outline" style="padding:0 12px;" onclick="toggleSchoolZonePanel()">查學區</button>
         </div>
       </div>
-    </div>
-
-    <div class="row-buttons" style="flex-wrap:wrap;">
       <div style="flex:1;min-width:140px;">
         <div class="hint" style="margin-top:0;">🏫 國中</div>
         <div style="display:flex;gap:6px;">
@@ -349,7 +311,7 @@
     </div>
 
     <div id="schoolZonePanel" style="display:none;border:1px solid var(--line);background:#FAF8F3;padding:14px;margin-top:4px;">
-      <div class="hint" style="margin-top:0;font-weight:700;color:var(--pine);">學區查詢（目前只有平鎮區）</div>
+      <div class="hint" style="margin-top:0;font-weight:700;color:var(--pine);">學區查詢（目前有平鎮、中壢、龍潭、楊梅，其他區還沒建）</div>
       <div class="hint" style="margin-top:4px;">資料用村里＋鄰劃分，不是路名，地址無法自動比對。不知道村里可以先開<a href="https://easymap.land.moi.gov.tw/P02/" target="_blank" style="color:var(--pine);">門牌查詢地圖</a>查。</div>
       <input type="text" id="villageInput" placeholder="輸入村里名稱，例如：南勢、廣仁、宋屋..." oninput="renderSchoolZoneResults()" style="margin-top:8px;">
       <div id="schoolZoneResults" style="margin-top:10px;max-height:260px;overflow-y:auto;"></div>
@@ -529,30 +491,109 @@ function toggleSchoolZonePanel(){
 }
 
 const SCHOOL_ZONE_ELEMENTARY = [
-  { school: '宋屋國小', phone: '4933654', zone: '廣仁，平興（1-9、12、32-36、39），宋屋（3-9），平鎮（8-17）、◎平鎮（18、19、30，與瑞埔國小為自由學區），義民（15-16、18-20、21【延平路2段324至348號】、29-30、34-35），新貴（3、26）' },
-  { school: '平興國小', phone: '4029323', zone: '宋屋（1-2、10-33），平興（10-11、13-31、37、38），義民（1-14、27-28、33），復旦（1、25-28），◎復旦（32，與文化國小為自由學區），高雙（1-11、28、29、簡屋部份【高山下143、144、145號】）' },
-  { school: '文化國小', phone: '4921750', zone: '復興，復旦（2-24、29-31），◎復旦（32，與平興國小為自由學區），高雙（11【簡屋部分除外】-27），雙連（43）' },
-  { school: '復旦國小', phone: '4928238', zone: '廣達，廣興（1-29【義民路204號、204-1號、204-2號、206-2號、廣興11號除外】、30、33-43）' },
-  { school: '義興國小', phone: '4913700', zone: '義興，義民（17、21【延平路2段324至348號除外】-26、31-32）' },
-  { school: '新榮國小', phone: '2806200', zone: '廣興（29【義民路204號、204-1號、204-2號、206-2號、廣興11號】、31-32），新勢（13-15）' },
-  { school: '新勢國小', phone: '4937563', zone: '新榮，新英，新富（1-13、15-37），北華（5-9、19），北勢（5-8），新勢（1-12、16-41）' },
-  { school: '北勢國小', phone: '4586472', zone: '北興，北富，北貴，新貴（1、6-17、23、25、27-28），金陵（10-19、23-25），北華（1-4、20-22），新富（14），龍恩（1、11-17）' },
-  { school: '忠貞國小', phone: '4501450', zone: '忠貞，中正，貿易，東社，龍興，龍恩（2-10、20-24、33-43）' },
-  { school: '山豐國小', phone: '4691784', zone: '山峰，莊敬，福林（6-22【6鄰48號、49號、8鄰51號、53至60號除外】、23-24），湧光（1-17、39-44），湧豐（1-8）' },
-  { school: '東勢國小', phone: '4504034', zone: '東勢（9鄰東勢4之6號、4之7號、7號、7之1號至7之20號、34鄰除外），建安（5-32），福林（1-5、6鄰48號、6鄰49號、8鄰51號）' },
-  { school: '南勢國小', phone: '4393724', zone: '南勢，金星，平安，平南，平鎮（1-7、29【第一口橋以東】），區興（21-25），福林（8鄰53至60號），新貴（2、4、5、18-22、24）' },
-  { school: '東安國小', phone: '4509571', zone: '東安，華安，新安，建安（1-4）' },
-  { school: '祥安國小', phone: '4192135', zone: '湧安，湧豐（9-16），湧光（18-38、45），區興（18-20）' },
-  { school: '瑞埔國小（楊梅區）', phone: '4822018', zone: '平鎮（20-28、29【第一口橋以西】、31-32）、◎平鎮（18、19、30，與宋屋國小為自由學區），區興（1-17、26-29）' },
+  { district: '平鎮區', school: '宋屋國小', phone: '4933654', zone: '廣仁，平興（1-9、12、32-36、39），宋屋（3-9），平鎮（8-17）、◎平鎮（18、19、30，與瑞埔國小為自由學區），義民（15-16、18-20、21【延平路2段324至348號】、29-30、34-35），新貴（3、26）' },
+  { district: '平鎮區', school: '平興國小', phone: '4029323', zone: '宋屋（1-2、10-33），平興（10-11、13-31、37、38），義民（1-14、27-28、33），復旦（1、25-28），◎復旦（32，與文化國小為自由學區），高雙（1-11、28、29、簡屋部份【高山下143、144、145號】）' },
+  { district: '平鎮區', school: '文化國小', phone: '4921750', zone: '復興，復旦（2-24、29-31），◎復旦（32，與平興國小為自由學區），高雙（11【簡屋部分除外】-27），雙連（43）' },
+  { district: '平鎮區', school: '復旦國小', phone: '4928238', zone: '廣達，廣興（1-29【義民路204號、204-1號、204-2號、206-2號、廣興11號除外】、30、33-43）' },
+  { district: '平鎮區', school: '義興國小', phone: '4913700', zone: '義興，義民（17、21【延平路2段324至348號除外】-26、31-32）' },
+  { district: '平鎮區', school: '新榮國小', phone: '2806200', zone: '廣興（29【義民路204號、204-1號、204-2號、206-2號、廣興11號】、31-32），新勢（13-15）' },
+  { district: '平鎮區', school: '新勢國小', phone: '4937563', zone: '新榮，新英，新富（1-13、15-37），北華（5-9、19），北勢（5-8），新勢（1-12、16-41）' },
+  { district: '平鎮區', school: '北勢國小', phone: '4586472', zone: '北興，北富，北貴，新貴（1、6-17、23、25、27-28），金陵（10-19、23-25），北華（1-4、20-22），新富（14），龍恩（1、11-17）' },
+  { district: '平鎮區', school: '忠貞國小', phone: '4501450', zone: '忠貞，中正，貿易，東社，龍興，龍恩（2-10、20-24、33-43）' },
+  { district: '平鎮區', school: '山豐國小', phone: '4691784', zone: '山峰，莊敬，福林（6-22【6鄰48號、49號、8鄰51號、53至60號除外】、23-24），湧光（1-17、39-44），湧豐（1-8）' },
+  { district: '平鎮區', school: '東勢國小', phone: '4504034', zone: '東勢（9鄰東勢4之6號、4之7號、7號、7之1號至7之20號、34鄰除外），建安（5-32），福林（1-5、6鄰48號、6鄰49號、8鄰51號）' },
+  { district: '平鎮區', school: '南勢國小', phone: '4393724', zone: '南勢，金星，平安，平南，平鎮（1-7、29【第一口橋以東】），區興（21-25），福林（8鄰53至60號），新貴（2、4、5、18-22、24）' },
+  { district: '平鎮區', school: '東安國小', phone: '4509571', zone: '東安，華安，新安，建安（1-4）' },
+  { district: '平鎮區', school: '祥安國小', phone: '4192135', zone: '湧安，湧豐（9-16），湧光（18-38、45），區興（18-20）' },
+  { district: '楊梅區', school: '瑞埔國小', phone: '4822018', zone: '平鎮（20-28、29【第一口橋以西】、31-32）、◎平鎮（18、19、30，與宋屋國小為自由學區），區興（1-17、26-29）' },
+  { district: '中壢區', school: '龍岡國小', phone: '4588582', zone: '振興，龍興，龍德（1-3、5-20），龍慈（1-3），◎後寮（1、19-20，與普仁國小為自由學區）' },
+  { district: '中壢區', school: '普仁國小', phone: '4563830', zone: '普慶，後寮（2-18、21-28），仁美（1-21、27-32），至善（1），龍慈（11-21），龍德（4），◎仁愛（7、21-22，與華勛國小為自由學區），◎仁福（2-6，與富台國小為自由學區），◎後寮（1、19-20），◎龍慈（4-10，與富台國小為自由學區），◎至善（2-5，與富台國小為自由學區）' },
+  { district: '中壢區', school: '富台國小', phone: '4563335', zone: '中堅，龍昌，仁福（1、7-21、24-25），◎仁福（2-6），◎至善（2-5），至善（6-22），◎龍慈（4-10），龍慈（22-24），◎龍東（1-9、23，與忠貞國小為自由學區），◎龍安（1-11，與霄裡國小為自由學區）' },
+  { district: '中壢區', school: '信義國小', phone: '4573780', zone: '信義，正義，東興（1-3），明德（1-24），健行（9、16-25），普強（2-6、8-24），◎健行（1、26，與林森國小為自由學區）' },
+  { district: '中壢區', school: '華勛國小', phone: '4661587', zone: '仁祥，華勛，仁德，仁和，華愛，仁愛（1-6、8-19），仁美（22-26），仁福（22-23），◎仁愛（7、21-22）' },
+  { district: '中壢區', school: '中原國小', phone: '4388200', zone: '普仁，普忠（1-18、20），普強（1、7），仁義（1-8）' },
+  { district: '中壢區', school: '內壢國小', phone: '4635888', zone: '內壢，成功，福德，中原（1-7、10-30），忠孝（1-17、22）' },
+  { district: '中壢區', school: '內定國小', phone: '4524624', zone: '內定（1-8、17-26），◎內定（9-16、27，與忠福國小為自由學區），文化（1-20、22-24）' },
+  { district: '中壢區', school: '自立國小', phone: '4559130', zone: '自立，自信，普忠（19），仁愛（20），莊敬（1-14、18-20），忠義（6-7、10、15）' },
+  { district: '中壢區', school: '興仁國小', phone: '4355753', zone: '興仁，自強，自治，莊敬（15-17、21）' },
+  { district: '中壢區', school: '中正國小', phone: '4559313', zone: '中正，中山，篤行，中興' },
+  { district: '中壢區', school: '元生國小', phone: '4625566', zone: '復華，復興，和平，文化（21、25-36），忠義（8-9），中原（8-9），忠孝（18-21）' },
+  { district: '中壢區', school: '中壢國小', phone: '4255216', zone: '中建，中壢，石頭，中央（3、5-8、22），◎中央（9-12、14-15，與新街國小為自由學區），東興（4-13、20-21），永興（1-5），興南（1-3、5、8-10），中榮（1、4-5、9、12-19）' },
+  { district: '中壢區', school: '新街國小', phone: '4523202', zone: '新街，普義，幸福，德義，中央（1-2、4、13、16-21），◎中央（9-12、14-15），忠福（1-12、22-37、39、41），忠義（1-5、11-14），興南（4、6-7、13、16-17），水尾（2、4-23），仁義（9-23）' },
+  { district: '中壢區', school: '忠福國小', phone: '4340192', zone: '永福，忠福（13-21、38、40），◎內定（9-16、27）' },
+  { district: '中壢區', school: '青埔國小', phone: '4531626', zone: '青埔(4-15)，◎興和（7-14，與興國國小為自由學區），洽溪（7-10、13），水尾（1、3）' },
+  { district: '中壢區', school: '興國國小', phone: '4258158', zone: '興國，興平，金華，興和（1-6、15-18），興南（11-12、14-15、18-25），◎興和（7-14）' },
+  { district: '中壢區', school: '林森國小', phone: '4579213', zone: '健行（2-8、10-15），◎健行（1、26），東興（14-19），新興，林森' },
+  { district: '中壢區', school: '新明國小', phone: '4933262', zone: '◎五權（1-6，與文化國小為自由學區），五權（7-11、23），五福（1-3、10-15、17-24），舊明（1-5、8、16-23），永興（6-12），三民，光明，永光，新明' },
+  { district: '中壢區', school: '芭里國小', phone: '4228086', zone: '芝芭（1-9、11-14）' },
+  { district: '中壢區', school: '大崙國小', phone: '4983424', zone: '山東（1-6、15），過嶺（5-6），芝芭（10），月眉，內厝' },
+  { district: '中壢區', school: '山東國小', phone: '4981323', zone: '山東（7-14）' },
+  { district: '中壢區', school: '中平國小', phone: '4902025', zone: '過嶺（1-4、12-17、19-21），◎過嶺（7-11、18，與頭洲、上大國小為自由學區）' },
+  { district: '中壢區', school: '青園國小', phone: '', zone: '洽溪 (1-6、11-12)，青埔 (1-3)' },
+
+  { district: '龍潭區', school: '雙龍國小', phone: '4991888', zone: '中正，上華，上林（10-18、26-30）' },
+  { district: '龍潭區', school: '龍潭國小', phone: '4792014', zone: '龍潭，上林（1-9、19-25、31），中山（7-9、13-27、33-34、36-41）、◎中山（10-12、35、42-43，與龍星國小為自由學區），龍祥（21-23、30-32），龍星（8-36【8鄰中正路高架橋至龍星國小部分單號門牌除外】），凌雲（5-39），◎龍星(中正路196至364號【不含巷弄】，與龍星國小為自由學區)' },
+  { district: '龍潭區', school: '潛龍國小', phone: '4792153', zone: '烏林，烏樹林，百年，龍祥（1-20、24-29），凌雲（1-4）' },
+  { district: '龍潭區', school: '武漢國小', phone: '4792873', zone: '中興，東興，北興，武漢，黃唐（11、26-30），永興（10-23），九龍（4【4鄰之21、22、22-1、22-2號】、10-33）' },
+  { district: '龍潭區', school: '龍星國小', phone: '4797299', zone: '中山（1-6、28-32）、◎中山（10-12、35、42-43），黃唐（1-10、12-25、31），龍星（1-7、8【中正路高架橋至龍星國小部分單號門牌】），永興（1-9），九龍（1-9【4鄰之21、22、22-1、22-2號除外】），◎龍星(中正路196至364號【不含巷弄】)' },
+  { district: '龍潭區', school: '德龍國小', phone: '4792524', zone: '八德，聖德(1-15鄰)，◎聖德（16-27，與祥安國小為自由學區）' },
+  { district: '龍潭區', school: '石門國小', phone: '4711752', zone: '三林，建林，富林，◎佳安（與三坑國小為自由學區）' },
+  { district: '龍潭區', school: '三坑國小', phone: '4713627', zone: '三坑，大平，◎佳安' },
+  { district: '龍潭區', school: '高原國小', phone: '4717009', zone: '高原，三水（14），三和（3-6【3鄰23號除外】、7鄰10號、15-24）' },
+  { district: '龍潭區', school: '龍源國小', phone: '4717149', zone: '高平' },
+  { district: '龍潭區', school: '三和國小', phone: '4792154', zone: '三水（1-4、8-13），三和（1-2、7-14【7鄰10號、9鄰番子窩12-17之2號除外】、3鄰23號）' },
+
+  { district: '楊梅區', school: '楊梅國小', phone: '4782016', zone: '大平，東流，永寧，秀才，紅梅(3-23)，◎紅梅(1-2，與楊心國小為自由學區)，梅新（1-5、7-10、19-20）、◎梅新（6，與大同國小為自由學區）' },
+  { district: '楊梅區', school: '大同國小', phone: '4782249', zone: '楊梅（8-12、14、16、18-28），◎楊梅（1、30-32，與楊心國小為自由學區），大同（1、3-12、16-23），◎大同（13-15，與楊明國小為自由學區），梅新（11-18），◎梅新（6），中山（5-16），◎中山（1-3，與楊明國小為自由學區），楊江（8-11）' },
+  { district: '楊梅區', school: '楊心國小', phone: '4758680', zone: '楊江（1-7、12-17），水美（1-4、16-20），◎高山（1-8、10、11-15、17，與水美國小為自由學區），◎高山（9，與高榮國小為自由學區），三湖（1-6、11、13-15）、◎三湖（12，與上湖國小為自由學區），頭湖，◎紅梅(1-2)，◎瑞原（23-25），楊梅（2-7、13、15、17、29），◎楊梅（1、30-32），◎上湖（22，與水美、上湖國小為自由學區）' },
+  { district: '楊梅區', school: '四維國小', phone: '4822704', zone: '四維，金龍，光華（17-28、30-31）' },
+  { district: '楊梅區', school: '水美國小', phone: '4782770', zone: '水美（5-15、21-31），瑞原（11、12-18），◎瑞原（23-25），◎上湖（22），◎高山（1-8、10-15、17）' },
+  { district: '楊梅區', school: '上田國小', phone: '4782544', zone: '上田，員本（1），瑞原（1-4、19-22、26）' },
+  { district: '楊梅區', school: '瑞原國小', phone: '4723280', zone: '瑞原（5-10），◎瑞原（23-25），員本（2、4、15-16），富豐（1-2），◎上湖（1-2，與上湖國小為自由學區）' },
+  { district: '楊梅區', school: '富岡國小', phone: '4721193', zone: '豐野，員本（3、5-14、17-21），富豐(3-18、20-23)，富岡' },
+  { district: '楊梅區', school: '高榮國小', phone: '4782314', zone: '青山，高榮（1-3、11-18、21）◎高榮（4-6、19-20，與中平國小為自由學區），高山（16、18、19）、◎高山（9），高上，◎永平（12-17，與瑞梅國小為自由學區）' },
+  { district: '楊梅區', school: '瑞埔國小', phone: '4822018', zone: '埔心，仁美，光華（1-16、29），永平（1-2、18）◎永平（3，與瑞梅國小為自由學區）' },
+  { district: '楊梅區', school: '上湖國小', phone: '4728925', zone: '上湖（3-21、23-29），◎上湖（1-2），◎上湖（22），富豐（19），三湖（7-10），◎三湖（12）' },
+  { district: '楊梅區', school: '瑞梅國小', phone: '4825284', zone: '梅溪，瑞溪（6-13），永平（4-11），◎永平（12-17）◎永平（3）' },
+  { district: '楊梅區', school: '楊明國小', phone: '4754929', zone: '楊明，大同（2、24-25）、◎大同（13-15），中山（4、17-23），◎中山（1-3）' },
+  { district: '楊梅區', school: '瑞塘國小', phone: '4316360', zone: '瑞塘，瑞坪，瑞溪（1-5、14-17）' },
+  { district: '楊梅區', school: '楊光國小', phone: '4827987', zone: '金溪，裕成，三民，裕新' },
+  { district: '中壢區', school: '中平國小', phone: '4902025', zone: '新榮〈1-9，21-23〉，◎新榮（10-20，與頭洲國小為自由學區），雙榮，◎高榮（4-6、19-20），高榮(7-10)' },
 ];
 
 const SCHOOL_ZONE_JUNIOR = [
-  { school: '平鎮國中', phone: '4572151', zone: '新富，新英，新貴，新榮，北興，金陵，北華，北貴，北富，北勢（6-21），福林（1-5、6鄰48號、6鄰49號），新勢（1-2、12、16-41），龍恩（1），建安（19-24、32），東勢（1-9【9鄰東勢4之6號、4之7號、7號、7之1號至7之20號除外】、20-22、26-33、37-38、41）' },
-  { school: '平南國中', phone: '4394147', zone: '金星，平安，平南，莊敬，南勢，山峰，湧光，福林（1-5、6鄰48號、6鄰49號除外），平鎮（1-7、29【第一口橋以東】），區興（21-25），湧豐（1-16），湧安（1-19、21-28）' },
-  { school: '中壢國中', phone: '4223214', zone: '北安，新勢（3-11、13-15），北勢（1-5）' },
-  { school: '平興國中', phone: '4918239', zone: '義民，義興，廣達，廣仁，高雙，復旦，復興，廣興，宋屋，平興，平鎮（8-17），雙連（43）' },
-  { school: '東安國中', phone: '4601407', zone: '東安，華安，新安，東社，東勢（10-19、23-25、35-36、39-40），建安（1-18、25-31）' },
+  { district: '平鎮區', school: '平鎮國中', phone: '4572151', zone: '新富，新英，新貴，新榮，北興，金陵，北華，北貴，北富，北勢（6-21），福林（1-5、6鄰48號、6鄰49號），新勢（1-2、12、16-41），龍恩（1），建安（19-24、32），東勢（1-9【9鄰東勢4之6號、4之7號、7號、7之1號至7之20號除外】、20-22、26-33、37-38、41）' },
+  { district: '平鎮區', school: '平南國中', phone: '4394147', zone: '金星，平安，平南，莊敬，南勢，山峰，湧光，福林（1-5、6鄰48號、6鄰49號除外），平鎮（1-7、29【第一口橋以東】），區興（21-25），湧豐（1-16），湧安（1-19、21-28）' },
+  { district: '平鎮區', school: '中壢國中', phone: '4223214', zone: '（另有中壢區行政區併入，見下方中壢國中條目）北安，新勢（3-11、13-15），北勢（1-5）' },
+  { district: '平鎮區', school: '平興國中', phone: '4918239', zone: '義民，義興，廣達，廣仁，高雙，復旦，復興，廣興，宋屋，平興，平鎮（8-17），雙連（43）' },
+  { district: '平鎮區', school: '東安國中', phone: '4601407', zone: '東安，華安，新安，東社，東勢（10-19、23-25、35-36、39-40），建安（1-18、25-31）' },
+  { district: '中壢區', school: '新明國中', phone: '4936194', zone: '永興，新明，光明，三民，五權(4-27)，五福，永光，舊明' },
+  { district: '中壢區', school: '興南國中', phone: '4629991', zone: '興南，興國，興平，水尾，金華，新街，興和（1-6、15-18鄰），◎興和（7-14，與青埔國中為自由學區），忠福，幸福，永福，◎忠義（1-5、11-14，與內壢國中為自由學區），仁義（12-23）' },
+  { district: '中壢區', school: '內壢國中', phone: '4522494', zone: '內壢，中原，忠孝，內定，成功，福德，復興，復華，文化，和平，普忠（19），◎忠義（1-5、11-14），忠義（6-10、15）' },
+  { district: '中壢區', school: '自強國中', phone: '4553494', zone: '興仁，中正，中山，中興，篤行，自立，自信，自強，莊敬，自治，仁德，仁和，仁祥，華勛，仁愛（1-6、8-20），華愛，仁美（24-25），◎仁美（22-23、26）' },
+  { district: '中壢區', school: '大崙國中', phone: '4982840', zone: '內厝，月眉，山東，◎過嶺（5-7），芝芭（10）' },
+  { district: '中壢區', school: '東興國中', phone: '4583500', zone: '信義，正義，普仁，普強，普忠（1-18、20），明德，仁美（1-15、27-32），仁義（1-11），德義（1-15、20），仁愛（7、21-22），東興（1-3），健行，林森(4-6、8)，◎仁美（22-23、26），◎普慶' },
+  { district: '中壢區', school: '龍岡國中', phone: '4562137', zone: '龍岡(2-15、17-23)，龍東，龍平，龍安，中堅，龍昌（15-18）' },
+  { district: '中壢區', school: '龍興國中', phone: '4575200', zone: '振興，龍德，龍興，至善，後寮，龍慈，龍岡（1、16），龍昌（1-14、19-33），仁福，仁美（16-21），◎仁美（22-23、26），◎普慶，◎林森（10）' },
+  { district: '中壢區', school: '過嶺國中', phone: '4200026', zone: '過嶺（1-4、8-21），◎過嶺（5-7），五權(1-3)' },
+  { district: '中壢區', school: '青埔國中', phone: '2871886', zone: '芝芭(1-9、11-14)，洽溪，青埔，◎興和（7-14）' },
+  { district: '中壢區', school: '中壢國中', phone: '4223214', zone: '中壢，中榮，中建，石頭，中央，林森（1-3、7、9、11-23）、◎林森（10），東興（4-21），普義，德義（16-19），新興' },
+
+  { district: '龍潭區', school: '武漢國中', phone: '4806468', zone: '中興，東興，北興，黃唐，永興，武漢，烏樹林（2-5、11-13、16-17、22-23），九龍（1-4、10-33），中山（10、12）' },
+  { district: '龍潭區', school: '凌雲國中', phone: '4792604', zone: '八德，聖德，高平，高原，凌雲，龍祥，三和，三水(1-4鄰、8-14鄰)，◎三水（5-7，與楊梅國中為自由學區），上林（1-9、21-25），烏林（17-39）' },
+  { district: '龍潭區', school: '龍潭國中', phone: '4792075', zone: '龍潭，百年，中正，龍星，上華，九龍（5-9），上林（10-20、26-31），烏林（1-16、40），烏樹林（1、6-10、14-15、18-21），中山（1-9、11、13-43）' },
+  { district: '龍潭區', school: '石門國中', phone: '4713610', zone: '佳安，三坑，建林，富林，大平，三林' },
+
+  { district: '楊梅區', school: '楊梅國中', phone: '4782024', zone: '紅梅，大平，東流，永寧，楊江，秀才，梅新，中山（1-3），◎中山（5-10，與楊明國中為自由學區），水美（1-7、16-20、31），三湖（1-6、11-15），◎三湖（7-10，與富岡國中為自由學區），頭湖，上湖（1-4、22），◎上湖（9-11、17-18，與富岡國中為自由學區），楊梅（2-21、23-26、29），◎楊梅（1、30-32，與楊明國中為自由學區）' },
+  { district: '楊梅區', school: '仁美國中', phone: '4641123', zone: '埔心，仁美，青山，◎光華（1-14，與瑞坪國中為自由學區），高榮（1-3、11-18、21），高山（16、18-19），◎高山（4、11、17，與楊明國中為自由學區），高上（1-6、8-12、14-18），◎高上（7、13，與楊明國中為自由學區），永平（1-4、10-18），◎永平（5-9，與楊明國中為自由學區）' },
+  { district: '楊梅區', school: '楊明國中', phone: '4781525', zone: '大同，楊明，梅溪，高山（1-3、5-10、12-15），◎高山（4、11、17），◎高上（7、13），中山（4、11-23）、◎中山（5-10），楊梅（22、27-28），◎楊梅（1、30-32），◎永平（5-9）' },
+  { district: '楊梅區', school: '富岡國中', phone: '4721113', zone: '富岡，豐野，富豐，員本（3、5-14、17-21），上湖（5-8、12-16、19-21、23-29），◎上湖（9-11、17-18），◎三湖（7-10）' },
+  { district: '楊梅區', school: '瑞原國中', phone: '4782242', zone: '上田，瑞原，員本（1-2、4、15-16），水美（8-15、21-30）' },
+  { district: '楊梅區', school: '瑞坪國中', phone: '4821468', zone: '金龍，四維，瑞塘，瑞坪，瑞溪，光華（15-31），◎光華（1-14）' },
+  { district: '楊梅區', school: '楊光國中', phone: '4827987', zone: '金溪，裕成，三民，裕新' },
+  { district: '中壢區', school: '過嶺國中', phone: '4200026', zone: '新榮，雙榮，高榮（4-10、19-20）（此為中壢區行政里併入楊梅過嶺國中學區）' },
 ];
+
 
 function schoolZoneHighlight(text, keyword){
   if(!keyword) return text;
@@ -574,7 +615,7 @@ function renderSchoolZoneResults(){
     return `<div style="font-weight:700;color:var(--brass);font-size:12.5px;margin:8px 0 4px;">${title}</div>` +
       matched.map(s => `
         <div style="border-bottom:1px solid var(--line);padding:8px 0;">
-          <div style="font-weight:700;color:var(--pine);font-size:13.5px;">${s.school}</div>
+          <div style="font-weight:700;color:var(--pine);font-size:13.5px;">${s.school}　<span style="font-weight:400;color:#8A8377;font-size:11px;">${s.district}</span></div>
           <div style="font-size:12.5px;">${schoolZoneHighlight(s.zone, keyword)}</div>
           <div style="font-size:11px;color:#8A8377;">☎ ${s.phone}</div>
         </div>
@@ -585,7 +626,7 @@ function renderSchoolZoneResults(){
   const juniorHtml = buildSection('國中', SCHOOL_ZONE_JUNIOR);
 
   if(keyword && !elemHtml && !juniorHtml){
-    container.innerHTML = `<div class="hint" style="margin-top:0;">沒有找到包含「${keyword}」的村里，可能不在平鎮區學區表內，或村里名稱打法不同。</div>`;
+    container.innerHTML = `<div class="hint" style="margin-top:0;">沒有找到包含「${keyword}」的村里，目前資料庫只有平鎮區、中壢區，其他區還沒建，或村里名稱打法不同。</div>`;
   } else {
     container.innerHTML = elemHtml + juniorHtml;
   }
