@@ -733,6 +733,14 @@ function exportExcel(){
       const price = [r.askingPrice?`開價${r.askingPrice}萬`:'', r.bottomPrice?`底價${r.bottomPrice}萬`:''].filter(Boolean).join('/');
       return price ? `${r.content}(${price})` : r.content;
     }).join('、');
+    const serviceLogText = (c.serviceLogs||[]).slice()
+      .sort((a,b)=>((a.date||'')+(a.time||'')).localeCompare((b.date||'')+(b.time||'')))
+      .map(l=>{
+        const parts = [l.date, l.time, l.type].filter(Boolean).join(' ');
+        const extra = formatLogExtraPlainText(l);
+        const noteAndExtra = [l.note, extra].filter(Boolean).join(' / ');
+        return noteAndExtra ? `${parts}:${noteAndExtra}` : parts;
+      }).join('\n');
     return {
       '姓名': c.name || '',
       '電話': getClientPhones(c).map(p=>p.owner ? `${p.number}(${p.owner})` : p.number).join('、'),
@@ -755,6 +763,7 @@ function exportExcel(){
       '已成交物件': byCat('已成交'),
       '賀卡紀錄(年份)': getClientGreetingCards(c).map(g=>(g.date||'').slice(0,4)).join('、'),
       '服務紀錄筆數': (c.serviceLogs||[]).length,
+      '服務紀錄內容': serviceLogText,
       '備註': c.notes || '',
     };
   });
@@ -1724,6 +1733,22 @@ function collectLogExtraFields(type){
     if(el && el.value) extra[f.key] = el.value.trim ? el.value.trim() : el.value;
   });
   return extra;
+}
+
+function formatLogExtraPlainText(l){
+  if(!l.extra) return '';
+  const config = SERVICE_LOG_EXTRA_FIELDS[l.type];
+  if(!config) return '';
+  const renderField = (f, v) => v ? `${f.label}:${v}` : '';
+  if(config.repeating){
+    const items = l.extra.items || [];
+    if(!items.length) return '';
+    return items.map((it,i)=>{
+      const parts = config.fields.map(f=>renderField(f, it[f.key])).filter(Boolean).join(' ');
+      return `第${i+1}筆 ${parts}`;
+    }).join(' ｜ ');
+  }
+  return config.fields.map(f=>renderField(f, l.extra[f.key])).filter(Boolean).join(' ・ ');
 }
 
 function formatLogExtra(l, multiline){
