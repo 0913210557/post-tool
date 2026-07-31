@@ -1061,12 +1061,15 @@ const SERVICE_LOG_EXTRA_FIELDS = {
   '帶看': { repeating: true, fields: [
     {key:'viewOrder', label:'帶看順序'},
     {key:'viewTime', label:'帶看時間', type:'time'},
+    {key:'viewMethod', label:'帶看方式'},
     {key:'url', label:'貼網址'},
     {key:'address', label:'地址'},
     {key:'devCompany', label:'開發公司'},
     {key:'devAgent', label:'開發業務'},
     {key:'devPhone', label:'開發電話'},
     {key:'writtenBottomPrice', label:'書面底價'},
+    {key:'commissionSplit', label:'業績拆法'},
+    {key:'other', label:'其它'},
   ]},
   '收斡': { repeating: false, fields: [
     {key:'url', label:'貼網址'},
@@ -1089,6 +1092,10 @@ const SERVICE_LOG_EXTRA_FIELDS = {
     {key:'devAgent', label:'開發業務'},
     {key:'devPhone', label:'開發電話'},
     {key:'bottomPrice', label:'底價'},
+    {key:'viewTime', label:'帶看時間', type:'time'},
+    {key:'viewMethod', label:'帶看方式'},
+    {key:'commissionSplit', label:'業績拆法'},
+    {key:'other', label:'其它'},
   ]},
 };
 const PROPERTY_RECORD_CATEGORIES = ['待追蹤','已成交','委託中','曾經委託'];
@@ -1753,11 +1760,29 @@ function addServiceLogEntry(force){
   return true;
 }
 
+/* Auto-add a drafted-but-not-yet-added "加入這一筆" item (for 帶看/買方聯絡 style repeating logs). */
+function flushPendingViewingItem(){
+  const typeEl = document.getElementById('logType');
+  if(!typeEl) return;
+  const config = SERVICE_LOG_EXTRA_FIELDS[typeEl.value];
+  if(!config || !config.repeating) return;
+  const item = {};
+  config.fields.forEach(f=>{
+    const el = document.getElementById('viewItem_'+f.key);
+    if(el && el.value) item[f.key] = el.value.trim ? el.value.trim() : el.value;
+  });
+  if(Object.keys(item).length === 0) return;
+  editingCtx.logViewingItems.push({id:uid(), ...item});
+  editingCtx.logDraftTouched = true;
+  config.fields.forEach(f=>{ const el = document.getElementById('viewItem_'+f.key); if(el) el.value=''; });
+}
+
 /* Auto-add any drafted-but-not-yet-added entries just before saving. */
 function flushPendingClientInputs(){
   addPhoneEntry();
   addLineNameEntry();
   addPropertyRecordEntry();
+  flushPendingViewingItem();
   addServiceLogEntry(false);
 }
 
