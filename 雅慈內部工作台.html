@@ -927,6 +927,13 @@ document.getElementById('importExcelInput').onchange = async (e)=>{
       const lineKeyed = cellText(get(row, idx.lineKeyed));
       if(lineKeyed) notesParts.push(`已KEY到LINE:${lineKeyed}`);
 
+      const birthdayRaw = cellText(get(row, idx.birthday));
+      const birthdayNorm = normalizeExcelDate(get(row, idx.birthday));
+      if(birthdayRaw && !birthdayNorm) notesParts.push(`生日(原始資料,格式無法辨識):${birthdayRaw}`);
+      const fileDateRaw = cellText(get(row, idx.fileDate));
+      const fileDateNorm = normalizeExcelDate(get(row, idx.fileDate));
+      if(fileDateRaw && !fileDateNorm) notesParts.push(`建檔日(原始資料,格式無法辨識):${fileDateRaw}`);
+
       const propertyRecords = [];
       const pastEntrusted = cellText(get(row, idx.pastEntrusted));
       if(pastEntrusted) propertyRecords.push({id:uid(), category:'曾經委託', content:pastEntrusted, photoKeys:[]});
