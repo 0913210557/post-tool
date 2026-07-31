@@ -1075,7 +1075,7 @@ function renderDashboard(){
 }
 
 const CLIENT_TYPES = ['買方','賣方','租客','房東'];
-const CLIENT_STATUSES = ['追蹤中','委託中','已成交','已流失'];
+const CLIENT_STATUSES = ['追蹤中','委託中','已成交','已買到','已售出','已流失'];
 const SERVICE_LOG_TYPES = ['帶看','收斡','退斡','買方聯絡','賣方聯絡','復看','簽委託','拍照/實境','續約','拜訪','契變'];
 const SERVICE_LOG_EXTRA_FIELDS = {
   '帶看': { repeating: true, fields: [
@@ -1197,7 +1197,7 @@ function esc(s){
 function statusStamp(status){
   const map = {
     '追蹤中':'stamp-active','在售':'stamp-active','製作中':'stamp-active','草稿':'stamp-pending',
-    '已成交':'stamp-done','已簽約':'stamp-done','已發布':'stamp-done',
+    '已成交':'stamp-done','已簽約':'stamp-done','已發布':'stamp-done','已買到':'stamp-done','已售出':'stamp-done',
     '已流失':'stamp-lost','已下架':'stamp-lost'
   };
   const cls = map[status] || 'stamp-pending';
