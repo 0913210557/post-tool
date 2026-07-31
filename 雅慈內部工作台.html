@@ -674,6 +674,8 @@ function renderDashboard(){
 }
 
 const CLIENT_TYPES = ['買方','賣方','租客','房東'];
+const CLIENT_STATUSES = ['追蹤中','已成交','已流失'];
+const PROPERTY_RECORD_CATEGORIES = ['待追蹤','已成交','委託中'];
 
 function getClientPhones(c){
   if(c.phones && c.phones.length) return c.phones;
@@ -685,9 +687,31 @@ function getClientTypes(c){
   if(c.type) return [c.type];
   return [];
 }
+function getClientStatuses(c){
+  if(c.statuses && c.statuses.length) return c.statuses;
+  if(c.status) return [c.status];
+  return [];
+}
+function getClientLineNames(c){
+  if(c.lineNames && c.lineNames.length) return c.lineNames;
+  if(c.lineName) return [c.lineName];
+  return [];
+}
+function getClientPropertyRecords(c){
+  if(c.propertyRecords) return c.propertyRecords;
+  const recs = [];
+  if(c.pendingTrackProperties) recs.push({id:'legacy-pending', category:'待追蹤', content:c.pendingTrackProperties});
+  if(c.soldProperties) recs.push({id:'legacy-sold', category:'已成交', content:c.soldProperties});
+  if(c.entrustedInfo) recs.push({id:'legacy-entrusted', category:'委託中', content:c.entrustedInfo});
+  return recs;
+}
 function clientTypesTags(c){
   const types = getClientTypes(c);
   return types.length ? types.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ') : '—';
+}
+function clientStatusStamps(c){
+  const statuses = getClientStatuses(c);
+  return statuses.length ? statuses.map(s=>statusStamp(s)).join(' ') : '—';
 }
 function clientPhoneSummary(c){
   const phones = getClientPhones(c);
@@ -698,12 +722,10 @@ function clientPhoneSummary(c){
 }
 
 function renderFollowUpList(){
-  const list = DATA.clients.filter(c=>c.status==='追蹤中')
-    .sort((a,b)=>(a.lastContact||'').localeCompare(b.lastContact||''))
-    .slice(0,5);
+  const list = DATA.clients.filter(c=>getClientStatuses(c).includes('追蹤中')).slice(0,5);
   if(list.length===0) return '<div class="empty-state">目前沒有追蹤中的客戶,新增一筆看看</div>';
-  return `<table><thead><tr><th>客戶</th><th>類型</th><th>最後聯絡</th><th>服務紀錄</th></tr></thead><tbody>
-    ${list.map(c=>`<tr class="row-hover"><td>${esc(c.name)}</td><td>${clientTypesTags(c)}</td><td>${esc(c.lastContact||'—')}</td><td>${(c.serviceLogs||[]).length} 筆</td></tr>`).join('')}
+  return `<table><thead><tr><th>客戶</th><th>類型</th><th>狀態</th><th>服務紀錄</th></tr></thead><tbody>
+    ${list.map(c=>`<tr class="row-hover"><td>${esc(c.name)}</td><td>${clientTypesTags(c)}</td><td>${clientStatusStamps(c)}</td><td>${(c.serviceLogs||[]).length} 筆</td></tr>`).join('')}
   </tbody></table>`;
 }
 
@@ -763,23 +785,22 @@ function drawClientTable(){
   let list = DATA.clients.filter(c=>{
     const phoneText = getClientPhones(c).map(p=>p.number).join(' ');
     const matchQ = !q || (c.name+phoneText+(c.notes||'')).toLowerCase().includes(q);
-    const matchSt = !st || c.status===st;
+    const matchSt = !st || getClientStatuses(c).includes(st);
     return matchQ && matchSt;
   });
   const wrap = document.getElementById('clientTableWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">沒有符合的客戶</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
-    <th>姓名</th><th>電話</th><th>類型</th><th>狀態</th><th>名片</th><th>附件</th><th>服務紀錄</th><th>最後聯絡</th><th></th>
+    <th>姓名</th><th>電話</th><th>類型</th><th>狀態</th><th>名片</th><th>附件</th><th>服務紀錄</th><th></th>
   </tr></thead><tbody>
     ${list.map(c=>`<tr class="row-hover">
       <td>${esc(c.name)}</td>
       <td>${clientPhoneSummary(c)}</td>
       <td>${clientTypesTags(c)}</td>
-      <td>${statusStamp(c.status)}</td>
+      <td>${clientStatusStamps(c)}</td>
       <td>${c.cardPhotoKey ? '<span class="tag-soft">📇 已上傳</span>' : '—'}</td>
       <td>${(c.attachmentKeys&&c.attachmentKeys.length) ? '<span class="tag-soft">📎 '+c.attachmentKeys.length+'</span>' : '—'}</td>
       <td>${(c.serviceLogs||[]).length ? (c.serviceLogs.length + ' 筆') : '—'}</td>
-      <td>${esc(c.lastContact||'—')}</td>
       <td><div class="row-actions">
         <button class="icon-btn" onclick="openClientModal('${c.id}')" title="編輯 / 維護">✎</button>
         <button class="icon-btn" onclick="deleteItem('clients','${c.id}')" title="刪除">🗑</button>
@@ -809,33 +830,36 @@ function renderSoldClients(){
 
 function drawSoldClientTable(){
   const q = (document.getElementById('soldClientSearch').value||'').toLowerCase();
-  let list = DATA.clients.filter(c=>c.status==='已成交').filter(c=>{
+  let list = DATA.clients.filter(c=>getClientStatuses(c).includes('已成交')).filter(c=>{
     const phoneText = getClientPhones(c).map(p=>p.number).join(' ');
-    return !q || (c.name+phoneText+(c.soldProperties||'')).toLowerCase().includes(q);
+    const soldText = getClientPropertyRecords(c).filter(r=>r.category==='已成交').map(r=>r.content).join(' ');
+    return !q || (c.name+phoneText+soldText).toLowerCase().includes(q);
   });
   const wrap = document.getElementById('soldClientTableWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">目前沒有已成交客戶</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
-    <th>姓名</th><th>電話</th><th>已成交物件</th><th>最後聯絡</th><th></th>
+    <th>姓名</th><th>電話</th><th>已成交物件</th><th></th>
   </tr></thead><tbody>
-    ${list.map(c=>`<tr class="row-hover">
+    ${list.map(c=>{
+      const soldItems = getClientPropertyRecords(c).filter(r=>r.category==='已成交').map(r=>r.content).join('、');
+      return `<tr class="row-hover">
       <td>${esc(c.name)}</td>
       <td>${clientPhoneSummary(c)}</td>
-      <td>${esc(c.soldProperties||'—')}</td>
-      <td>${esc(c.lastContact||'—')}</td>
+      <td>${esc(soldItems||'—')}</td>
       <td><div class="row-actions">
         <button class="icon-btn" onclick="openClientModal('${c.id}')" title="編輯">✎</button>
       </div></td>
-    </tr>`).join('')}
+    </tr>`;
+    }).join('')}
   </tbody></table>`;
 }
 
 async function openClientModal(id){
   const item = id ? DATA.clients.find(c=>c.id===id) : {
-    name:'', phones:[], types:[], status:'追蹤中', source:'', lastContact:'', notes:'',
+    name:'', phones:[], types:[], statuses:['追蹤中'], source:'', notes:'',
     birthday:'', fileDate:new Date().toISOString().slice(0,10), propertyAddress:'',
-    lineName:'', lineId:'', fb:'', company:'', idNumber:'', homeAddress:'',
-    pastEntrustedProperties:'', pendingTrackProperties:'', soldProperties:'', entrustedInfo:'',
+    lineNames:[], lineId:'', fb:'', company:'', idNumber:'', homeAddress:'',
+    pastEntrustedProperties:'', propertyRecords:[],
     cardPhotoKey:null, attachmentKeys:[], serviceLogs:[]
   };
   editingCtx = {
@@ -843,14 +867,19 @@ async function openClientModal(id){
     id: id||null,
     tempLogs: JSON.parse(JSON.stringify(item.serviceLogs||[])),
     tempPhones: JSON.parse(JSON.stringify(getClientPhones(item))),
+    tempLineNames: getClientLineNames(item).map(v=>({id:uid(), value:v})),
+    tempPropertyRecords: JSON.parse(JSON.stringify(getClientPropertyRecords(item))),
     cardPhoto: { key: item.cardPhotoKey||null, dataUrl: null },
     removedCardKey: null,
     attachments: [],       // {key, dataUrl}
     removedAttachmentKeys: []
   };
   const types = getClientTypes(item);
+  const statuses = getClientStatuses(item);
   document.getElementById('modalTitle').textContent = id ? '編輯客戶' : '新增客戶';
   document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>建檔日期</label><input type="date" id="f_fileDate" value="${esc(item.fileDate)}"></div>
+
     <div class="field"><label>姓名</label><input id="f_name" value="${esc(item.name)}"></div>
 
     <div class="field field-divider">
@@ -872,38 +901,52 @@ async function openClientModal(id){
       </div>
     </div>
 
-    <div class="field-row">
-      <div class="field"><label>狀態</label>
-        <select id="f_status">${['追蹤中','已成交','已流失'].map(t=>`<option ${item.status===t?'selected':''}>${t}</option>`).join('')}</select>
+    <div class="field">
+      <label>狀態(可複選)</label>
+      <div style="display:flex; gap:16px; flex-wrap:wrap; padding-top:4px;">
+        ${CLIENT_STATUSES.map(s=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
+          <input type="checkbox" class="f_status_cb" value="${s}" ${statuses.includes(s)?'checked':''} style="width:auto;"> ${s}
+        </label>`).join('')}
       </div>
-      <div class="field"><label>最後聯絡日期</label><input type="date" id="f_lastContact" value="${esc(item.lastContact)}"></div>
     </div>
 
-    <div class="field-row">
-      <div class="field"><label>出生年月日</label><input type="date" id="f_birthday" value="${esc(item.birthday)}"></div>
-      <div class="field"><label>建檔日期</label><input type="date" id="f_fileDate" value="${esc(item.fileDate)}"></div>
-    </div>
+    <div class="field"><label>出生年月日</label><input type="date" id="f_birthday" value="${esc(item.birthday)}"></div>
 
     <div class="field"><label>來源(短影音 / 轉介 / 廣告…)</label><input id="f_source" value="${esc(item.source)}"></div>
     <div class="field"><label>物件地址</label><input id="f_propertyAddress" value="${esc(item.propertyAddress)}"></div>
 
-    <div class="field-row">
-      <div class="field"><label>LINE 名</label><input id="f_lineName" value="${esc(item.lineName)}"></div>
-      <div class="field"><label>LINE ID</label><input id="f_lineId" value="${esc(item.lineId)}"></div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>FB</label><input id="f_fb" value="${esc(item.fb)}"></div>
-      <div class="field"><label>公司名稱</label><input id="f_company" value="${esc(item.company)}"></div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>身份證字號</label><input id="f_idNumber" value="${esc(item.idNumber)}"></div>
-      <div class="field"><label>居住地址</label><input id="f_homeAddress" value="${esc(item.homeAddress)}"></div>
+    <div class="field field-divider">
+      <div class="field-sub-title">LINE 名(可新增多個)</div>
+      <div class="log-list" id="lineNameList"></div>
+      <div class="log-add-row">
+        <input type="text" id="lineNameInput" placeholder="LINE 名稱" style="flex:1;">
+        <button class="btn btn-ghost btn-sm" id="lineNameAddBtn">新增</button>
+      </div>
     </div>
 
+    <div class="field-row">
+      <div class="field"><label>LINE ID</label><input id="f_lineId" value="${esc(item.lineId)}"></div>
+      <div class="field"><label>FB</label><input id="f_fb" value="${esc(item.fb)}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>公司名稱</label><input id="f_company" value="${esc(item.company)}"></div>
+      <div class="field"><label>身份證字號</label><input id="f_idNumber" value="${esc(item.idNumber)}"></div>
+    </div>
+    <div class="field"><label>居住地址</label><input id="f_homeAddress" value="${esc(item.homeAddress)}"></div>
+
     <div class="field"><label>曾經委託物件</label><textarea id="f_pastEntrustedProperties">${esc(item.pastEntrustedProperties)}</textarea></div>
-    <div class="field"><label>待追蹤物件</label><textarea id="f_pendingTrackProperties">${esc(item.pendingTrackProperties)}</textarea></div>
-    <div class="field"><label>已成交物件</label><textarea id="f_soldProperties">${esc(item.soldProperties)}</textarea></div>
-    <div class="field"><label>委託中資料</label><textarea id="f_entrustedInfo">${esc(item.entrustedInfo)}</textarea></div>
+
+    <div class="field field-divider">
+      <div class="field-sub-title">物件記錄(待追蹤 / 已成交 / 委託中)</div>
+      <div class="log-list" id="propertyRecordList"></div>
+      <div class="log-add-row">
+        <select id="propertyRecordCategory" style="flex-shrink:0; width:110px;">
+          ${PROPERTY_RECORD_CATEGORIES.map(c=>`<option>${c}</option>`).join('')}
+        </select>
+        <input type="text" id="propertyRecordContent" placeholder="物件內容(地址、備註等)" style="flex:1;">
+        <button class="btn btn-ghost btn-sm" id="propertyRecordAddBtn">新增</button>
+      </div>
+    </div>
 
     <div class="field"><label>備註</label><textarea id="f_notes">${esc(item.notes)}</textarea></div>
 
@@ -932,6 +975,8 @@ async function openClientModal(id){
   `;
   openModal();
   renderPhoneList();
+  renderLineNameList();
+  renderPropertyRecordList();
   renderLogList();
   await renderCardPhotoPreview();
   await renderAttachmentGrid();
@@ -944,6 +989,23 @@ async function openClientModal(id){
     document.getElementById('phoneNumber').value='';
     document.getElementById('phoneOwner').value='';
     renderPhoneList();
+  };
+
+  document.getElementById('lineNameAddBtn').onclick = ()=>{
+    const v = document.getElementById('lineNameInput').value.trim();
+    if(!v){ showToast('請輸入 LINE 名'); return; }
+    editingCtx.tempLineNames.push({id:uid(), value:v});
+    document.getElementById('lineNameInput').value='';
+    renderLineNameList();
+  };
+
+  document.getElementById('propertyRecordAddBtn').onclick = ()=>{
+    const category = document.getElementById('propertyRecordCategory').value;
+    const content = document.getElementById('propertyRecordContent').value.trim();
+    if(!content){ showToast('請輸入物件內容'); return; }
+    editingCtx.tempPropertyRecords.push({id:uid(), category, content});
+    document.getElementById('propertyRecordContent').value='';
+    renderPropertyRecordList();
   };
 
   document.getElementById('clientAttachmentInput').onchange = async (e)=>{
@@ -995,6 +1057,41 @@ function renderPhoneList(){
 function removePhoneEntry(phoneId){
   editingCtx.tempPhones = editingCtx.tempPhones.filter(p=>p.id!==phoneId);
   renderPhoneList();
+}
+
+function renderLineNameList(){
+  const wrap = document.getElementById('lineNameList');
+  if(!wrap) return;
+  const names = editingCtx.tempLineNames || [];
+  if(names.length===0){ wrap.innerHTML = '<div class="empty-state" style="padding:16px;">尚未新增 LINE 名</div>'; return; }
+  wrap.innerHTML = names.map(n=>`
+    <div class="log-entry">
+      <div class="log-entry-note">${esc(n.value)}</div>
+      <button class="rm" onclick="removeLineNameEntry('${n.id}')" title="刪除">✕</button>
+    </div>
+  `).join('');
+}
+function removeLineNameEntry(nameId){
+  editingCtx.tempLineNames = editingCtx.tempLineNames.filter(n=>n.id!==nameId);
+  renderLineNameList();
+}
+
+function renderPropertyRecordList(){
+  const wrap = document.getElementById('propertyRecordList');
+  if(!wrap) return;
+  const records = editingCtx.tempPropertyRecords || [];
+  if(records.length===0){ wrap.innerHTML = '<div class="empty-state" style="padding:16px;">尚無物件記錄</div>'; return; }
+  wrap.innerHTML = records.map(r=>`
+    <div class="log-entry">
+      <div class="log-entry-date">${esc(r.category)}</div>
+      <div class="log-entry-note">${esc(r.content)}</div>
+      <button class="rm" onclick="removePropertyRecord('${r.id}')" title="刪除">✕</button>
+    </div>
+  `).join('');
+}
+function removePropertyRecord(recordId){
+  editingCtx.tempPropertyRecords = editingCtx.tempPropertyRecords.filter(r=>r.id!==recordId);
+  renderPropertyRecordList();
 }
 
 async function renderCardPhotoPreview(){
@@ -1069,26 +1166,24 @@ function removeClientAttachment(idx){
 
 async function saveClient(){
   const typesChecked = Array.from(document.querySelectorAll('.f_type_cb:checked')).map(cb=>cb.value);
+  const statusesChecked = Array.from(document.querySelectorAll('.f_status_cb:checked')).map(cb=>cb.value);
   const vals = {
     name: document.getElementById('f_name').value.trim(),
     phones: editingCtx.tempPhones || [],
     types: typesChecked,
-    status: document.getElementById('f_status').value,
-    lastContact: document.getElementById('f_lastContact').value,
+    statuses: statusesChecked,
     birthday: document.getElementById('f_birthday').value,
     fileDate: document.getElementById('f_fileDate').value,
     source: document.getElementById('f_source').value.trim(),
     propertyAddress: document.getElementById('f_propertyAddress').value.trim(),
-    lineName: document.getElementById('f_lineName').value.trim(),
+    lineNames: (editingCtx.tempLineNames || []).map(n=>n.value),
     lineId: document.getElementById('f_lineId').value.trim(),
     fb: document.getElementById('f_fb').value.trim(),
     company: document.getElementById('f_company').value.trim(),
     idNumber: document.getElementById('f_idNumber').value.trim(),
     homeAddress: document.getElementById('f_homeAddress').value.trim(),
     pastEntrustedProperties: document.getElementById('f_pastEntrustedProperties').value.trim(),
-    pendingTrackProperties: document.getElementById('f_pendingTrackProperties').value.trim(),
-    soldProperties: document.getElementById('f_soldProperties').value.trim(),
-    entrustedInfo: document.getElementById('f_entrustedInfo').value.trim(),
+    propertyRecords: editingCtx.tempPropertyRecords || [],
     notes: document.getElementById('f_notes').value.trim(),
     serviceLogs: editingCtx.tempLogs || [],
   };
