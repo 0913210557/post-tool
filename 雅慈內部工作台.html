@@ -1515,7 +1515,6 @@ async function openClientModal(id){
 
     <div class="field field-divider">
       <div class="field-sub-title">服務紀錄</div>
-      <div class="log-list" id="logList"></div>
       <div class="log-add-row" style="flex-wrap:wrap;">
         <input type="date" id="logDate" value="${new Date().toISOString().slice(0,10)}">
         <input type="time" id="logTime" value="${new Date().toTimeString().slice(0,5)}">
@@ -1528,6 +1527,8 @@ async function openClientModal(id){
       <div style="margin-top:8px;">
         <button class="btn btn-ghost btn-sm" id="logAddBtn">新增</button>
       </div>
+      <div class="pt-hint" style="margin-top:14px;">之前的服務紀錄</div>
+      <div class="log-list" id="logList" style="margin-top:6px;"></div>
     </div>
   `;
   openModal();
