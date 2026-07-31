@@ -3653,9 +3653,6 @@ function closeModal(){
 }
 document.getElementById('modalClose').onclick = closeModal;
 document.getElementById('modalCancel').onclick = closeModal;
-document.getElementById('modalOverlay').addEventListener('click', (e)=>{
-  if(e.target.id==='modalOverlay') closeModal();
-});
 document.getElementById('modalSave').onclick = async ()=>{
   if(!editingCtx) return;
   const saveBtn = document.getElementById('modalSave');
