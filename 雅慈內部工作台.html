@@ -675,7 +675,7 @@ function renderDashboard(){
 
 const CLIENT_TYPES = ['買方','賣方','租客','房東'];
 const CLIENT_STATUSES = ['追蹤中','已成交','已流失'];
-const PROPERTY_RECORD_CATEGORIES = ['待追蹤','已成交','委託中'];
+const PROPERTY_RECORD_CATEGORIES = ['待追蹤','已成交','委託中','曾經委託'];
 
 function getClientPhones(c){
   if(c.phones && c.phones.length) return c.phones;
@@ -698,11 +698,15 @@ function getClientLineNames(c){
   return [];
 }
 function getClientPropertyRecords(c){
-  if(c.propertyRecords) return c.propertyRecords;
-  const recs = [];
-  if(c.pendingTrackProperties) recs.push({id:'legacy-pending', category:'待追蹤', content:c.pendingTrackProperties});
-  if(c.soldProperties) recs.push({id:'legacy-sold', category:'已成交', content:c.soldProperties});
-  if(c.entrustedInfo) recs.push({id:'legacy-entrusted', category:'委託中', content:c.entrustedInfo});
+  const recs = c.propertyRecords ? [...c.propertyRecords] : [];
+  if(c.propertyRecords === undefined){
+    if(c.pendingTrackProperties) recs.push({id:'legacy-pending', category:'待追蹤', content:c.pendingTrackProperties, photoKeys:[]});
+    if(c.soldProperties) recs.push({id:'legacy-sold', category:'已成交', content:c.soldProperties, photoKeys:[]});
+    if(c.entrustedInfo) recs.push({id:'legacy-entrusted', category:'委託中', content:c.entrustedInfo, photoKeys:[]});
+  }
+  if(c.pastEntrustedProperties && !recs.some(r=>r.id==='legacy-past')){
+    recs.push({id:'legacy-past', category:'曾經委託', content:c.pastEntrustedProperties, photoKeys:[]});
+  }
   return recs;
 }
 function clientTypesTags(c){
@@ -869,6 +873,9 @@ async function openClientModal(id){
     tempPhones: JSON.parse(JSON.stringify(getClientPhones(item))),
     tempLineNames: getClientLineNames(item).map(v=>({id:uid(), value:v})),
     tempPropertyRecords: JSON.parse(JSON.stringify(getClientPropertyRecords(item))),
+    recordPhotosCache: {},   // recordId -> {photos:[{key,dataUrl}], removedKeys:[]}
+    removedRecordPhotoKeys: [],
+    expandedRecordId: null,
     cardPhoto: { key: item.cardPhotoKey||null, dataUrl: null },
     removedCardKey: null,
     attachments: [],       // {key, dataUrl}
@@ -934,10 +941,8 @@ async function openClientModal(id){
     </div>
     <div class="field"><label>居住地址</label><input id="f_homeAddress" value="${esc(item.homeAddress)}"></div>
 
-    <div class="field"><label>曾經委託物件</label><textarea id="f_pastEntrustedProperties">${esc(item.pastEntrustedProperties)}</textarea></div>
-
     <div class="field field-divider">
-      <div class="field-sub-title">物件記錄(待追蹤 / 已成交 / 委託中)</div>
+      <div class="field-sub-title">物件記錄(待追蹤 / 已成交 / 委託中 / 曾經委託)</div>
       <div class="log-list" id="propertyRecordList"></div>
       <div class="log-add-row">
         <select id="propertyRecordCategory" style="flex-shrink:0; width:110px;">
@@ -959,10 +964,12 @@ async function openClientModal(id){
     <div class="field field-divider">
       <div class="field-sub-title">服務紀錄</div>
       <div class="log-list" id="logList"></div>
-      <div class="log-add-row">
+      <div class="log-add-row" style="flex-wrap:wrap;">
         <input type="date" id="logDate" value="${new Date().toISOString().slice(0,10)}">
         <input type="time" id="logTime" value="${new Date().toTimeString().slice(0,5)}">
-        <input type="text" id="logNote" placeholder="例如:帶看信義路物件,反應不錯…">
+      </div>
+      <textarea id="logNote" placeholder="例如:帶看信義路物件,反應不錯…" style="min-height:80px; margin-top:8px;"></textarea>
+      <div style="margin-top:8px;">
         <button class="btn btn-ghost btn-sm" id="logAddBtn">新增</button>
       </div>
     </div>
@@ -1003,7 +1010,7 @@ async function openClientModal(id){
     const category = document.getElementById('propertyRecordCategory').value;
     const content = document.getElementById('propertyRecordContent').value.trim();
     if(!content){ showToast('請輸入物件內容'); return; }
-    editingCtx.tempPropertyRecords.push({id:uid(), category, content});
+    editingCtx.tempPropertyRecords.push({id:uid(), category, content, photoKeys:[]});
     document.getElementById('propertyRecordContent').value='';
     renderPropertyRecordList();
   };
@@ -1081,15 +1088,93 @@ function renderPropertyRecordList(){
   if(!wrap) return;
   const records = editingCtx.tempPropertyRecords || [];
   if(records.length===0){ wrap.innerHTML = '<div class="empty-state" style="padding:16px;">尚無物件記錄</div>'; return; }
-  wrap.innerHTML = records.map(r=>`
-    <div class="log-entry">
-      <div class="log-entry-date">${esc(r.category)}</div>
-      <div class="log-entry-note">${esc(r.content)}</div>
-      <button class="rm" onclick="removePropertyRecord('${r.id}')" title="刪除">✕</button>
+  wrap.innerHTML = records.map(r=>{
+    const cache = editingCtx.recordPhotosCache[r.id];
+    const photoCount = cache ? cache.photos.length : (r.photoKeys||[]).length;
+    const isOpen = editingCtx.expandedRecordId === r.id;
+    return `
+    <div class="log-entry" style="flex-direction:column; align-items:stretch; gap:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+        <div style="flex:1;">
+          <div class="log-entry-date">${esc(r.category)}</div>
+          <div class="log-entry-note">${esc(r.content)}</div>
+        </div>
+        <div style="display:flex; gap:4px; flex-shrink:0;">
+          <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordAlbum('${r.id}')">📷 相簿${photoCount?`(${photoCount})`:''}</button>
+          <button class="rm" onclick="removePropertyRecord('${r.id}')" title="刪除">✕</button>
+        </div>
+      </div>
+      ${isOpen ? `
+        <div class="photo-grid" id="propRecordPhotoGrid-${r.id}"><span class="tag-soft">載入中…</span></div>
+        <input type="file" accept="image/*" multiple id="propRecordPhotoInput-${r.id}" style="display:none;">
+      ` : ''}
     </div>
-  `).join('');
+  `;
+  }).join('');
+
+  if(editingCtx.expandedRecordId){
+    loadPropertyRecordAlbum(editingCtx.expandedRecordId);
+  }
+}
+
+async function togglePropertyRecordAlbum(recordId){
+  editingCtx.expandedRecordId = (editingCtx.expandedRecordId === recordId) ? null : recordId;
+  renderPropertyRecordList();
+}
+
+async function loadPropertyRecordAlbum(recordId){
+  const record = (editingCtx.tempPropertyRecords||[]).find(r=>r.id===recordId);
+  if(!record) return;
+  if(!editingCtx.recordPhotosCache[recordId]){
+    editingCtx.recordPhotosCache[recordId] = { photos: [], removedKeys: [] };
+    for(const k of (record.photoKeys||[])){
+      const dataUrl = await loadPhoto(k);
+      if(dataUrl) editingCtx.recordPhotosCache[recordId].photos.push({key:k, dataUrl});
+    }
+  }
+  drawPropertyRecordAlbumGrid(recordId);
+
+  const input = document.getElementById('propRecordPhotoInput-' + recordId);
+  if(input){
+    input.onchange = async (e)=>{
+      const files = Array.from(e.target.files||[]);
+      for(const file of files){
+        const dataUrl = await resizeImage(file, 1000, 0.72);
+        editingCtx.recordPhotosCache[recordId].photos.push({key:null, dataUrl});
+      }
+      e.target.value = '';
+      renderPropertyRecordList();
+    };
+  }
+}
+
+function drawPropertyRecordAlbumGrid(recordId){
+  const grid = document.getElementById('propRecordPhotoGrid-' + recordId);
+  if(!grid) return;
+  const cache = editingCtx.recordPhotosCache[recordId];
+  const addTile = `<div class="upload-btn" onclick="document.getElementById('propRecordPhotoInput-${recordId}').click()">＋<br>新增照片</div>`;
+  grid.innerHTML = cache.photos.map((p,idx)=>`
+    <div class="photo-chip">
+      <img src="${p.dataUrl}">
+      <button class="rm" onclick="removePropertyRecordPhoto('${recordId}',${idx})" title="移除">✕</button>
+    </div>
+  `).join('') + addTile;
+}
+
+function removePropertyRecordPhoto(recordId, idx){
+  const cache = editingCtx.recordPhotosCache[recordId];
+  const p = cache.photos[idx];
+  if(p.key) cache.removedKeys.push(p.key);
+  cache.photos.splice(idx,1);
+  renderPropertyRecordList();
 }
 function removePropertyRecord(recordId){
+  const record = (editingCtx.tempPropertyRecords||[]).find(r=>r.id===recordId);
+  if(record && record.photoKeys && record.photoKeys.length){
+    editingCtx.removedRecordPhotoKeys.push(...record.photoKeys);
+  }
+  delete editingCtx.recordPhotosCache[recordId];
+  if(editingCtx.expandedRecordId === recordId) editingCtx.expandedRecordId = null;
   editingCtx.tempPropertyRecords = editingCtx.tempPropertyRecords.filter(r=>r.id!==recordId);
   renderPropertyRecordList();
 }
@@ -1182,7 +1267,6 @@ async function saveClient(){
     company: document.getElementById('f_company').value.trim(),
     idNumber: document.getElementById('f_idNumber').value.trim(),
     homeAddress: document.getElementById('f_homeAddress').value.trim(),
-    pastEntrustedProperties: document.getElementById('f_pastEntrustedProperties').value.trim(),
     propertyRecords: editingCtx.tempPropertyRecords || [],
     notes: document.getElementById('f_notes').value.trim(),
     serviceLogs: editingCtx.tempLogs || [],
@@ -1206,6 +1290,21 @@ async function saveClient(){
     }
   }
   vals.attachmentKeys = editingCtx.attachments.map(p=>p.key);
+
+  for(const k of editingCtx.removedRecordPhotoKeys) await deletePhoto(k);
+  for(const record of vals.propertyRecords){
+    const cache = editingCtx.recordPhotosCache[record.id];
+    if(!cache) continue;
+    for(const k of cache.removedKeys) await deletePhoto(k);
+    for(const p of cache.photos){
+      if(!p.key){
+        const newKey = 'photo:property-record:' + uid();
+        await savePhoto(newKey, p.dataUrl);
+        p.key = newKey;
+      }
+    }
+    record.photoKeys = cache.photos.map(p=>p.key);
+  }
 
   if(editingCtx.id){
     const idx = DATA.clients.findIndex(c=>c.id===editingCtx.id);
@@ -2344,6 +2443,7 @@ async function deleteItem(type, id){
   if(item){
     if(type==='clients' && item.cardPhotoKey) await deletePhoto(item.cardPhotoKey);
     if(type==='clients' && item.attachmentKeys) for(const k of item.attachmentKeys) await deletePhoto(k);
+    if(type==='clients' && item.propertyRecords) for(const r of item.propertyRecords) for(const k of (r.photoKeys||[])) await deletePhoto(k);
     if(type==='listings' && item.photoKeys) for(const k of item.photoKeys) await deletePhoto(k);
   }
   DATA[type] = DATA[type].filter(x=>x.id!==id);
