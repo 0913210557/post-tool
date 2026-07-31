@@ -982,6 +982,7 @@ document.getElementById('nav').addEventListener('click', (e)=>{
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   item.classList.add('active');
   currentPage = item.dataset.page;
+  history.replaceState(null, '', '#' + currentPage);
   render();
 });
 
@@ -3448,6 +3449,14 @@ async function deleteItem(type, id){
 /* ===================== Init ===================== */
 window.__appBoot = async function(){
   await loadAll();
+  const validPages = ['dashboard','clients','soldclients','entrusted','posttool','calendar','deals'];
+  const hashPage = location.hash.replace('#','');
+  if(validPages.includes(hashPage)){
+    currentPage = hashPage;
+    document.querySelectorAll('.nav-item').forEach(n=>{
+      n.classList.toggle('active', n.dataset.page === hashPage);
+    });
+  }
   render();
 };
 </script>
