@@ -1113,6 +1113,7 @@ async function openClientModal(id){
     expandedRecordId: null,
     expandedHistoryRecordId: null,
     editingRecordId: null,
+    logDraftTouched: false,
     cardPhoto: { key: item.cardPhotoKey||null, dataUrl: null },
     removedCardKey: null,
     attachments: [],       // {key, dataUrl}
@@ -1271,6 +1272,13 @@ async function openClientModal(id){
   document.getElementById('logAddBtn').onclick = ()=>{
     addServiceLogEntry(true);
   };
+  ['logDate','logTime','logType','logNote'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    const mark = ()=>{ editingCtx.logDraftTouched = true; };
+    el.addEventListener('input', mark);
+    el.addEventListener('change', mark);
+  });
 }
 
 /* Add-row helpers: each returns true if something was added.
@@ -1328,11 +1336,12 @@ function addServiceLogEntry(force){
   const t = document.getElementById('logTime').value;
   const type = document.getElementById('logType').value;
   const n = noteEl.value.trim();
-  const hasSignal = n || type !== SERVICE_LOG_TYPES[0];
+  const hasSignal = n || editingCtx.logDraftTouched;
   if(!force && !hasSignal) return false;
   editingCtx.tempLogs.unshift({id:uid(), date:d, time:t, type, note:n});
   noteEl.value='';
   document.getElementById('logType').value = SERVICE_LOG_TYPES[0];
+  editingCtx.logDraftTouched = false;
   renderLogList();
   return true;
 }
@@ -1593,7 +1602,7 @@ function renderLogList(){
         <div class="log-entry-date">${esc(l.date||'—')}${l.time?' '+esc(l.time):''}</div>
         ${l.type ? `<span class="stamp stamp-pending" style="margin-top:4px;">${esc(l.type)}</span>` : ''}
       </div>
-      <div class="log-entry-note">${esc(l.note)}</div>
+      <div class="log-entry-note">${l.note ? esc(l.note) : '<span style="color:var(--ink-soft);">(無備註)</span>'}</div>
       <button class="rm" onclick="removeLogEntry('${l.id}')" title="刪除">✕</button>
     </div>
   `).join('');
@@ -1837,7 +1846,7 @@ async function viewClientModal(id){
 
   const logs = (item.serviceLogs||[]).slice().sort((a,b)=>((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||'')));
   const logsHtml = logs.length ? `<div class="log-list" style="max-height:220px;">${logs.map(l=>`
-    <div class="log-entry"><div><div class="log-entry-date">${esc(l.date||'—')}${l.time?' '+esc(l.time):''}</div>${l.type ? `<span class="stamp stamp-pending" style="margin-top:4px;">${esc(l.type)}</span>` : ''}</div><div class="log-entry-note">${esc(l.note)}</div></div>
+    <div class="log-entry"><div><div class="log-entry-date">${esc(l.date||'—')}${l.time?' '+esc(l.time):''}</div>${l.type ? `<span class="stamp stamp-pending" style="margin-top:4px;">${esc(l.type)}</span>` : ''}</div><div class="log-entry-note">${l.note ? esc(l.note) : '<span style="color:var(--ink-soft);">(無備註)</span>'}</div></div>
   `).join('')}</div>` : '<div class="empty-state" style="padding:12px;">尚無服務紀錄</div>';
 
   let cardPhotoHtml = '';
