@@ -400,7 +400,6 @@
       <div class="nav-item" data-page="clients"><span class="nav-icon">☰</span>客戶名單</div>
       <div class="nav-item" data-page="soldclients"><span class="nav-icon">✓</span>已成交客戶</div>
       <div class="nav-item" data-page="entrusted"><span class="nav-icon">⌂</span>物件委託</div>
-      <div class="nav-item" data-page="content"><span class="nav-icon">▶</span>內容規劃</div>
       <div class="nav-item" data-page="deals"><span class="nav-icon">印</span>業績成交</div>
       <div class="nav-item" data-page="posttool"><span class="nav-icon">✍</span>貼文小工具</div>
       <div class="nav-item" data-page="calendar"><span class="nav-icon">▦</span>行事曆</div>
@@ -599,6 +598,33 @@ function resizeImage(file, maxDim=900, quality=0.72){
   });
 }
 
+function readFileAsDataUrl(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = e=>resolve(e.target.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function isImageDataUrl(url){
+  return /^data:image\//.test(url||'');
+}
+function mimeExtFromDataUrl(url){
+  const m = /^data:([^;]+);/.exec(url||'');
+  const mime = m ? m[1] : '';
+  const map = {
+    'application/pdf':'.pdf',
+    'application/msword':'.doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document':'.docx',
+    'application/vnd.ms-excel':'.xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'.xlsx',
+    'image/jpeg':'.jpg', 'image/png':'.png', 'image/webp':'.webp', 'image/gif':'.gif',
+    'text/plain':'.txt'
+  };
+  return map[mime] || '';
+}
+
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
 function showToast(msg){
@@ -650,7 +676,6 @@ function render(){
   if(currentPage === 'clients') return renderClients();
   if(currentPage === 'soldclients') return renderSoldClients();
   if(currentPage === 'entrusted') return renderEntrustedProperties();
-  if(currentPage === 'content') return renderContent();
   if(currentPage === 'deals') return renderDeals();
   if(currentPage === 'posttool') return renderPostTool();
   if(currentPage === 'calendar') return renderCalendar();
@@ -661,7 +686,7 @@ function renderDashboard(){
   const main = document.getElementById('main');
   const activeClients = DATA.clients.filter(c=>getClientStatuses(c).includes('追蹤中')).length;
   const entrustedCount = DATA.clients.reduce((sum,c)=>sum + getClientPropertyRecords(c).filter(r=>r.category==='委託中').length, 0);
-  const pendingContent = DATA.content.filter(c=>c.status!=='已發布').length;
+  const soldClientsCount = DATA.clients.filter(c=>getClientStatuses(c).includes('已成交')).length;
   const thisMonth = new Date().toISOString().slice(0,7);
   const monthDeals = DATA.deals.filter(d=>d.closedDate && d.closedDate.startsWith(thisMonth));
   const monthCommission = monthDeals.reduce((s,d)=>s+(Number(d.commission)||0),0);
@@ -677,7 +702,7 @@ function renderDashboard(){
     <div class="stat-row">
       <div class="stat-card"><div class="stat-num">${activeClients}</div><div class="stat-label">追蹤中客戶</div></div>
       <div class="stat-card"><div class="stat-num">${entrustedCount}</div><div class="stat-label">委託中物件</div></div>
-      <div class="stat-card"><div class="stat-num">${pendingContent}</div><div class="stat-label">待完成內容</div></div>
+      <div class="stat-card"><div class="stat-num">${soldClientsCount}</div><div class="stat-label">已成交客戶</div></div>
       <div class="stat-card"><div class="stat-num">$${monthCommission.toLocaleString()}</div><div class="stat-label">本月抽成(元)</div></div>
     </div>
 
@@ -685,13 +710,6 @@ function renderDashboard(){
       <div class="section-block-head">近期需跟進客戶</div>
       <div class="section-block-body">
         ${renderFollowUpList()}
-      </div>
-    </div>
-
-    <div class="section-block">
-      <div class="section-block-head">未發布內容</div>
-      <div class="section-block-body">
-        ${renderPendingContentList()}
       </div>
     </div>
   `;
@@ -856,6 +874,10 @@ function renderSoldClients(){
   drawSoldClientTable();
 }
 
+function getClientGreetingCards(c){
+  return c.greetingCards || [];
+}
+
 function drawSoldClientTable(){
   const q = (document.getElementById('soldClientSearch').value||'').toLowerCase();
   let list = DATA.clients.filter(c=>getClientStatuses(c).includes('已成交')).filter(c=>{
@@ -866,20 +888,55 @@ function drawSoldClientTable(){
   const wrap = document.getElementById('soldClientTableWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">目前沒有已成交客戶</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
-    <th>姓名</th><th>電話</th><th>已成交物件</th><th></th>
+    <th>姓名</th><th>電話</th><th>已成交物件</th><th>賀卡紀錄</th><th></th>
   </tr></thead><tbody>
     ${list.map(c=>{
       const soldItems = getClientPropertyRecords(c).filter(r=>r.category==='已成交').map(r=>r.content).join('、');
+      const cards = getClientGreetingCards(c).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+      const cardsHtml = cards.map(g=>`<span class="tag-soft" style="margin-right:4px; white-space:nowrap;" title="${esc(g.note||'')}">🧧 ${esc((g.date||'').slice(0,4))}<span style="cursor:pointer; margin-left:3px;" onclick="event.stopPropagation(); removeGreetingCard('${c.id}','${g.id}')">✕</span></span>`).join('');
       return `<tr class="row-hover" style="cursor:pointer;" onclick="viewClientModal('${c.id}')">
       <td>${esc(c.name)}</td>
       <td>${clientPhoneSummary(c)}</td>
       <td>${esc(soldItems||'—')}</td>
+      <td onclick="event.stopPropagation()">${cardsHtml}<button class="icon-btn" onclick="openGreetingCardModal('${c.id}')" title="新增賀卡紀錄">🧧＋</button></td>
       <td onclick="event.stopPropagation()"><div class="row-actions">
         <button class="icon-btn" onclick="openClientModal('${c.id}')" title="編輯">✎</button>
       </div></td>
     </tr>`;
     }).join('')}
   </tbody></table>`;
+}
+
+function openGreetingCardModal(clientId){
+  editingCtx = { type:'greetingCard', clientId };
+  document.getElementById('modalTitle').textContent = '新增賀卡紀錄';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>寄送日期</label><input type="date" id="f_cardDate" value="${new Date().toISOString().slice(0,10)}"></div>
+    <div class="field"><label>備註(選填)</label><input id="f_cardNote" placeholder="例如:賀卡+小禮盒"></div>
+  `;
+  openModal();
+}
+
+async function saveGreetingCard(){
+  const date = document.getElementById('f_cardDate').value;
+  const note = document.getElementById('f_cardNote').value.trim();
+  if(!date){ showToast('請選擇日期'); return false; }
+  const idx = DATA.clients.findIndex(c=>c.id===editingCtx.clientId);
+  if(idx===-1) return false;
+  const client = DATA.clients[idx];
+  const cards = getClientGreetingCards(client).concat([{id:uid(), date, note}]);
+  DATA.clients[idx] = {...client, greetingCards:cards};
+  await saveType('clients');
+  return true;
+}
+
+async function removeGreetingCard(clientId, cardId){
+  const idx = DATA.clients.findIndex(c=>c.id===clientId);
+  if(idx===-1) return;
+  const client = DATA.clients[idx];
+  DATA.clients[idx] = {...client, greetingCards: getClientGreetingCards(client).filter(g=>g.id!==cardId)};
+  await saveType('clients');
+  drawSoldClientTable();
 }
 
 /* ===================== Entrusted Properties Page (derived from clients) ===================== */
@@ -1169,13 +1226,13 @@ function renderPropertyRecordList(){
           <div class="log-entry-note">${esc(r.content)}</div>
         </div>
         <div style="display:flex; gap:4px; flex-shrink:0;">
-          <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordAlbum('${r.id}')">📷 相簿${photoCount?`(${photoCount})`:''}</button>
+          <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordAlbum('${r.id}')">📎 相簿/檔案${photoCount?`(${photoCount})`:''}</button>
           <button class="rm" onclick="removePropertyRecord('${r.id}')" title="刪除">✕</button>
         </div>
       </div>
       ${isOpen ? `
         <div class="photo-grid" id="propRecordPhotoGrid-${r.id}"><span class="tag-soft">載入中…</span></div>
-        <input type="file" accept="image/*" multiple id="propRecordPhotoInput-${r.id}" style="display:none;">
+        <input type="file" multiple id="propRecordPhotoInput-${r.id}" style="display:none;">
       ` : ''}
     </div>
   `;
@@ -1208,7 +1265,9 @@ async function loadPropertyRecordAlbum(recordId){
     input.onchange = async (e)=>{
       const files = Array.from(e.target.files||[]);
       for(const file of files){
-        const dataUrl = await resizeImage(file, 1000, 0.72);
+        const dataUrl = file.type.startsWith('image/')
+          ? await resizeImage(file, 1000, 0.72)
+          : await readFileAsDataUrl(file);
         editingCtx.recordPhotosCache[recordId].photos.push({key:null, dataUrl});
       }
       e.target.value = '';
@@ -1221,13 +1280,19 @@ function drawPropertyRecordAlbumGrid(recordId){
   const grid = document.getElementById('propRecordPhotoGrid-' + recordId);
   if(!grid) return;
   const cache = editingCtx.recordPhotosCache[recordId];
-  const addTile = `<div class="upload-btn" onclick="document.getElementById('propRecordPhotoInput-${recordId}').click()">＋<br>新增照片</div>`;
-  grid.innerHTML = cache.photos.map((p,idx)=>`
-    <div class="photo-chip">
-      <img src="${p.dataUrl}">
+  const addTile = `<div class="upload-btn" onclick="document.getElementById('propRecordPhotoInput-${recordId}').click()">＋<br>照片/檔案</div>`;
+  grid.innerHTML = cache.photos.map((p,idx)=>{
+    if(isImageDataUrl(p.dataUrl)){
+      return `<div class="photo-chip">
+        <img src="${p.dataUrl}">
+        <button class="rm" onclick="removePropertyRecordPhoto('${recordId}',${idx})" title="移除">✕</button>
+      </div>`;
+    }
+    return `<div class="photo-chip" style="display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:22px; background:var(--stone); gap:2px;">
+      <span>📄</span><span style="font-size:9px; color:var(--ink-soft);">${mimeExtFromDataUrl(p.dataUrl)||'檔案'}</span>
       <button class="rm" onclick="removePropertyRecordPhoto('${recordId}',${idx})" title="移除">✕</button>
-    </div>
-  `).join('') + addTile;
+    </div>`;
+  }).join('') + addTile;
 }
 
 function removePropertyRecordPhoto(recordId, idx){
@@ -1398,6 +1463,22 @@ function openLightboxByIndex(i){
   if(!p || !p.src) return;
   openLightbox(p.src, p.filename);
 }
+function openOrDownloadFile(i){
+  const p = __lightboxPhotos[i];
+  if(!p || !p.src) return;
+  if(isImageDataUrl(p.src)){
+    openLightbox(p.src, p.filename);
+  }else if(/^data:application\/pdf/.test(p.src)){
+    window.open(p.src, '_blank');
+  }else{
+    const a = document.createElement('a');
+    a.href = p.src;
+    a.download = p.filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+}
 function downloadAllPhotos(indices){
   indices.forEach((idx, i)=>{
     const p = __lightboxPhotos[idx];
@@ -1467,10 +1548,14 @@ async function viewClientModal(id){
     const recordIndices = [];
     const photosHtml = photos.length ? `<div class="photo-grid" style="margin-top:8px;">${photos.map((src,i)=>{
       if(!src) return '';
-      const idx = pushLightboxPhoto(src, `${item.name}-${r.category}-${i+1}.jpg`);
+      const ext = mimeExtFromDataUrl(src) || '.jpg';
+      const idx = pushLightboxPhoto(src, `${item.name}-${r.category}-${i+1}${ext}`);
       recordIndices.push(idx);
-      return `<div class="photo-chip" style="cursor:pointer;" onclick="openLightboxByIndex(${idx})"><img src="${src}"></div>`;
-    }).join('')}</div>${recordIndices.length>1 ? `<button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="downloadAllPhotos([${recordIndices.join(',')}])">⬇ 全部下載(${recordIndices.length}張)</button>` : ''}` : '';
+      if(isImageDataUrl(src)){
+        return `<div class="photo-chip" style="cursor:pointer;" onclick="openOrDownloadFile(${idx})"><img src="${src}"></div>`;
+      }
+      return `<div class="photo-chip" style="cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:22px; background:var(--stone); gap:2px;" onclick="openOrDownloadFile(${idx})" title="點擊開啟/下載"><span>📄</span><span style="font-size:9px; color:var(--ink-soft);">${ext||'檔案'}</span></div>`;
+    }).join('')}</div>${recordIndices.length>1 ? `<button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="downloadAllPhotos([${recordIndices.join(',')}])">⬇ 全部下載(${recordIndices.length}個)</button>` : ''}` : '';
     return `<div style="border:1px solid var(--line); border-radius:2px; padding:10px 12px; margin-bottom:8px;">
       <span class="stamp stamp-pending">${esc(r.category)}</span>
       <div style="font-size:13px; margin-top:6px; color:var(--ink);">${esc(r.content)}</div>
@@ -1500,6 +1585,9 @@ async function viewClientModal(id){
     cardPhotoHtml = `<div style="margin-bottom:16px;"><div class="card-photo-preview" style="width:160px; height:100px; cursor:pointer;" onclick="openLightboxByIndex(${idx})"><img src="${cardPhotoUrl}"></div></div>`;
   }
 
+  const cards = getClientGreetingCards(item).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const cardsHtml = cards.length ? cards.map(g=>`<span class="tag-soft" style="margin-right:6px;">🧧 ${esc(g.date||'')}${g.note?`(${esc(g.note)})`:''}</span>`).join('') : '';
+
   document.getElementById('viewModalBody').innerHTML = `
     ${cardPhotoHtml}
     ${viewInfoRow('姓名', esc(item.name))}
@@ -1517,6 +1605,7 @@ async function viewClientModal(id){
     ${viewInfoRow('身份證字號', esc(item.idNumber))}
     ${viewInfoRow('居住地址', esc(item.homeAddress))}
     ${viewInfoRow('備註', item.notes ? esc(item.notes).replace(/\n/g,'<br>') : '')}
+    ${cardsHtml ? viewInfoRow('賀卡紀錄', cardsHtml) : ''}
 
     <div class="field-sub-title" style="margin-top:16px;">其他附件</div>
     ${attachmentsHtml}
@@ -2649,6 +2738,7 @@ document.getElementById('modalSave').onclick = async ()=>{
   saveBtn.disabled = true;
   let ok = false;
   if(editingCtx.type==='clients') ok = await saveClient();
+  if(editingCtx.type==='greetingCard') ok = await saveGreetingCard();
   if(editingCtx.type==='listings') ok = await saveListing();
   if(editingCtx.type==='content') ok = await saveContent();
   if(editingCtx.type==='deals') ok = await saveDeal();
