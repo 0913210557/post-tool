@@ -701,7 +701,7 @@ async function exportBackup(){
   const backup = { exportedAt: new Date().toISOString(), data: DATA, photos: {} };
   const keys = [];
   DATA.clients.forEach(c=>{
-    if(c.cardPhotoKey) keys.push(c.cardPhotoKey);
+    getClientCardPhotoKeys(c).forEach(k=>keys.push(k));
     if(c.attachmentKeys) keys.push(...c.attachmentKeys);
     getClientPropertyRecords(c).forEach(r=>{ if(r.photoKeys) keys.push(...r.photoKeys); });
   });
@@ -976,7 +976,7 @@ document.getElementById('importExcelInput').onchange = async (e)=>{
         propertyRecords,
         notes: notesParts.join('\n'),
         serviceLogs,
-        cardPhotoKey: null,
+        cardPhotoKeys: [],
         attachmentKeys: [],
       });
     }
@@ -1124,6 +1124,11 @@ function getClientPhones(c){
   if(c.phone) return [{id:'legacy', number:c.phone, owner:''}];
   return [];
 }
+function getClientCardPhotoKeys(c){
+  if(c.cardPhotoKeys && c.cardPhotoKeys.length) return c.cardPhotoKeys;
+  if(c.cardPhotoKey) return [c.cardPhotoKey];
+  return [];
+}
 function getClientTypes(c){
   if(c.types && c.types.length) return c.types;
   if(c.type) return [c.type];
@@ -1265,7 +1270,7 @@ function drawClientTable(){
       <td>${clientPhoneSummary(c)}</td>
       <td>${clientTypesTags(c)}</td>
       <td>${clientStatusStamps(c)}</td>
-      <td>${c.cardPhotoKey ? '<span class="tag-soft">📇 已上傳</span>' : '—'}</td>
+      <td>${(getClientCardPhotoKeys(c).length) ? `<span class="tag-soft">📇 ${getClientCardPhotoKeys(c).length}張</span>` : '—'}</td>
       <td>${(c.attachmentKeys&&c.attachmentKeys.length) ? '<span class="tag-soft">📎 '+c.attachmentKeys.length+'</span>' : '—'}</td>
       <td>${(c.serviceLogs||[]).length ? (c.serviceLogs.length + ' 筆') : '—'}</td>
       <td onclick="event.stopPropagation()"><div class="row-actions">
@@ -1407,7 +1412,7 @@ async function openClientModal(id){
     birthday:'', fileDate:new Date().toISOString().slice(0,10), propertyAddress:'',
     lineNames:[], lineId:'', fb:'', company:'', idNumber:'', homeAddress:'',
     pastEntrustedProperties:'', clientNeeds:'', propertyRecords:[],
-    cardPhotoKey:null, attachmentKeys:[], serviceLogs:[]
+    cardPhotoKeys:[], attachmentKeys:[], serviceLogs:[]
   };
   editingCtx = {
     type:'clients',
@@ -1425,8 +1430,8 @@ async function openClientModal(id){
     logViewingItems: [],
     editingLogId: null,
     editingLogViewingItems: [],
-    cardPhoto: { key: item.cardPhotoKey||null, dataUrl: null },
-    removedCardKey: null,
+    cardPhotos: [],         // {key, dataUrl}
+    removedCardPhotoKeys: [],
     attachments: [],       // {key, dataUrl}
     removedAttachmentKeys: []
   };
@@ -1522,9 +1527,9 @@ async function openClientModal(id){
     <div class="field"><label>備註</label><textarea id="f_notes">${esc(item.notes)}</textarea></div>
 
     <div class="field field-divider">
-      <div class="field-sub-title">客戶名片</div>
-      <div class="card-photo-row" id="cardPhotoRow"><span class="tag-soft">載入中…</span></div>
-      <input type="file" accept="image/*" id="cardPhotoInput" style="display:none;">
+      <div class="field-sub-title">客戶名片(可上傳2~3張)</div>
+      <div class="photo-grid" id="cardPhotoGrid"><span class="tag-soft">載入中…</span></div>
+      <input type="file" accept="image/*" multiple id="cardPhotoInput" style="display:none;">
     </div>
 
     <div class="field field-divider">
@@ -1557,7 +1562,7 @@ async function openClientModal(id){
   renderPropertyRecordList();
   renderLogList();
   renderLogExtraFields();
-  await renderCardPhotoPreview();
+  await renderCardPhotoGrid();
   await renderAttachmentGrid();
 
   document.getElementById('phoneAddBtn').onclick = ()=>{
@@ -1582,17 +1587,18 @@ async function openClientModal(id){
     renderAttachmentGrid();
   };
 
-  document.getElementById('cardPhotoRow').addEventListener('click', (e)=>{
-    if(e.target.closest('.rm')) return;
-    document.getElementById('cardPhotoInput').click();
-  });
   document.getElementById('cardPhotoInput').onchange = async (e)=>{
-    const file = e.target.files[0];
-    if(!file) return;
-    const dataUrl = await resizeImage(file, 900, 0.72);
-    if(editingCtx.cardPhoto.key) editingCtx.removedCardKey = editingCtx.cardPhoto.key;
-    editingCtx.cardPhoto = { key:null, dataUrl };
-    renderCardPhotoPreview();
+    const files = Array.from(e.target.files||[]);
+    const remaining = CARD_PHOTO_MAX - editingCtx.cardPhotos.length;
+    if(files.length > remaining){
+      showToast(`名片最多上傳 ${CARD_PHOTO_MAX} 張,已幫你加入前 ${Math.max(remaining,0)} 張`);
+    }
+    for(const file of files.slice(0, remaining)){
+      const dataUrl = await resizeImage(file, 900, 0.72);
+      editingCtx.cardPhotos.push({key:null, dataUrl});
+    }
+    e.target.value = '';
+    renderCardPhotoGrid();
   };
   document.getElementById('logAddBtn').onclick = ()=>{
     addServiceLogEntry(true);
@@ -2078,25 +2084,40 @@ function removePropertyRecord(recordId){
   renderPropertyRecordList();
 }
 
-async function renderCardPhotoPreview(){
-  const row = document.getElementById('cardPhotoRow');
-  if(!row) return;
-  let src = editingCtx.cardPhoto.dataUrl;
-  if(!src && editingCtx.cardPhoto.key){ src = await loadPhoto(editingCtx.cardPhoto.key); }
-  if(src){
-    row.innerHTML = `
-      <div class="card-photo-preview"><img src="${src}"><button class="rm" id="cardPhotoRemove">✕</button></div>
-      <span class="tag-soft">點圖片可更換</span>
-    `;
-    document.getElementById('cardPhotoRemove').onclick = (e)=>{
-      e.stopPropagation();
-      if(editingCtx.cardPhoto.key) editingCtx.removedCardKey = editingCtx.cardPhoto.key;
-      editingCtx.cardPhoto = { key:null, dataUrl:null };
-      renderCardPhotoPreview();
-    };
-  }else{
-    row.innerHTML = `<div class="card-photo-preview" style="cursor:pointer;">＋ 上傳名片</div>`;
+const CARD_PHOTO_MAX = 3;
+
+async function renderCardPhotoGrid(){
+  const grid = document.getElementById('cardPhotoGrid');
+  if(!grid) return;
+  grid.innerHTML = '<span class="tag-soft">載入中…</span>';
+  if(editingCtx.cardPhotos.length===0 && editingCtx.id){
+    const item = DATA.clients.find(c=>c.id===editingCtx.id);
+    const keys = item ? getClientCardPhotoKeys(item) : [];
+    if(keys.length && !editingCtx._cardPhotosLoaded){
+      editingCtx.cardPhotos = [];
+      for(const k of keys){
+        const dataUrl = await loadPhoto(k);
+        if(dataUrl) editingCtx.cardPhotos.push({key:k, dataUrl});
+      }
+      editingCtx._cardPhotosLoaded = true;
+    }
   }
+  const addTile = editingCtx.cardPhotos.length < CARD_PHOTO_MAX
+    ? `<div class="upload-btn" id="addCardPhotoTile">＋<br>新增名片</div>`
+    : '';
+  grid.innerHTML = editingCtx.cardPhotos.map((p,idx)=>`
+    <div class="photo-chip">
+      <img src="${p.dataUrl}">
+      <button class="rm" onclick="removeCardPhoto(${idx})" title="移除">✕</button>
+    </div>
+  `).join('') + addTile;
+  if(addTile) document.getElementById('addCardPhotoTile').onclick = ()=>document.getElementById('cardPhotoInput').click();
+}
+function removeCardPhoto(idx){
+  const p = editingCtx.cardPhotos[idx];
+  if(p.key) editingCtx.removedCardPhotoKeys.push(p.key);
+  editingCtx.cardPhotos.splice(idx,1);
+  renderCardPhotoGrid();
 }
 
 function renderLogList(){
@@ -2312,13 +2333,15 @@ async function saveClient(){
   };
   if(!vals.name){ showToast('請輸入姓名'); return false; }
 
-  if(editingCtx.removedCardKey) await deletePhoto(editingCtx.removedCardKey);
-  if(editingCtx.cardPhoto.dataUrl && !editingCtx.cardPhoto.key){
-    const newKey = 'photo:client:' + uid();
-    await savePhoto(newKey, editingCtx.cardPhoto.dataUrl);
-    editingCtx.cardPhoto.key = newKey;
+  for(const k of editingCtx.removedCardPhotoKeys) await deletePhoto(k);
+  for(const p of editingCtx.cardPhotos){
+    if(!p.key){
+      const newKey = 'photo:client:' + uid();
+      await savePhoto(newKey, p.dataUrl);
+      p.key = newKey;
+    }
   }
-  vals.cardPhotoKey = editingCtx.cardPhoto.key || null;
+  vals.cardPhotoKeys = editingCtx.cardPhotos.map(p=>p.key);
 
   for(const k of editingCtx.removedAttachmentKeys) await deletePhoto(k);
   for(const p of editingCtx.attachments){
@@ -2434,7 +2457,8 @@ async function viewClientModal(id){
   const lineNames = getClientLineNames(item);
   const records = getClientPropertyRecords(item);
 
-  const cardPhotoUrl = item.cardPhotoKey ? await loadPhoto(item.cardPhotoKey) : null;
+  const cardPhotoKeys = getClientCardPhotoKeys(item);
+  const cardPhotoUrls = cardPhotoKeys.length ? await Promise.all(cardPhotoKeys.map(k=>loadPhoto(k))) : [];
   const attachmentUrls = (item.attachmentKeys && item.attachmentKeys.length)
     ? await Promise.all(item.attachmentKeys.map(k=>loadPhoto(k)))
     : [];
@@ -2497,9 +2521,12 @@ async function viewClientModal(id){
   }).join('')}</div>` : '<div class="empty-state" style="padding:12px;">尚無服務紀錄</div>';
 
   let cardPhotoHtml = '';
-  if(cardPhotoUrl){
-    const idx = pushLightboxPhoto(cardPhotoUrl, `${item.name}-名片.jpg`);
-    cardPhotoHtml = `<div style="margin-bottom:16px;"><div class="card-photo-preview" style="width:160px; height:100px; cursor:pointer;" onclick="openLightboxByIndex(${idx})"><img src="${cardPhotoUrl}"></div></div>`;
+  if(cardPhotoUrls.length){
+    cardPhotoHtml = `<div style="margin-bottom:16px; display:flex; gap:8px; flex-wrap:wrap;">${cardPhotoUrls.map((src,i)=>{
+      if(!src) return '';
+      const idx = pushLightboxPhoto(src, `${item.name}-名片${i+1}.jpg`);
+      return `<div class="card-photo-preview" style="width:140px; height:88px; cursor:pointer;" onclick="openLightboxByIndex(${idx})"><img src="${src}"></div>`;
+    }).join('')}</div>`;
   }
 
   const cards = getClientGreetingCards(item).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
@@ -3682,7 +3709,7 @@ async function deleteItem(type, id){
   if(!confirm('確定要刪除這筆資料嗎?相關照片也會一併移除。')) return;
   const item = DATA[type].find(x=>x.id===id);
   if(item){
-    if(type==='clients' && item.cardPhotoKey) await deletePhoto(item.cardPhotoKey);
+    if(type==='clients') for(const k of getClientCardPhotoKeys(item)) await deletePhoto(k);
     if(type==='clients' && item.attachmentKeys) for(const k of item.attachmentKeys) await deletePhoto(k);
     if(type==='clients' && item.propertyRecords) for(const r of item.propertyRecords) for(const k of (r.photoKeys||[])) await deletePhoto(k);
     if(type==='listings' && item.photoKeys) for(const k of item.photoKeys) await deletePhoto(k);
