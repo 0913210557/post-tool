@@ -1062,7 +1062,7 @@ const SERVICE_LOG_EXTRA_FIELDS = {
     {key:'viewOrder', label:'帶看順序'},
     {key:'viewTime', label:'帶看時間', type:'time'},
     {key:'viewMethod', label:'帶看方式'},
-    {key:'url', label:'貼網址'},
+    {key:'url', label:'網址'},
     {key:'address', label:'地址'},
     {key:'devCompany', label:'開發公司'},
     {key:'devAgent', label:'開發業務'},
@@ -1072,7 +1072,7 @@ const SERVICE_LOG_EXTRA_FIELDS = {
     {key:'other', label:'其它'},
   ]},
   '收斡': { repeating: false, fields: [
-    {key:'url', label:'貼網址'},
+    {key:'url', label:'網址'},
     {key:'address', label:'地址'},
     {key:'devCompany', label:'開發公司'},
     {key:'devAgent', label:'開發業務'},
@@ -1086,13 +1086,12 @@ const SERVICE_LOG_EXTRA_FIELDS = {
     {key:'entrustAddress', label:'簽委託地址'},
   ]},
   '買方聯絡': { repeating: true, fields: [
-    {key:'url', label:'貼網址'},
+    {key:'url', label:'網址'},
     {key:'address', label:'地址'},
     {key:'devCompany', label:'開發公司'},
     {key:'devAgent', label:'開發業務'},
     {key:'devPhone', label:'開發電話'},
     {key:'bottomPrice', label:'底價'},
-    {key:'viewTime', label:'帶看時間', type:'time'},
     {key:'viewMethod', label:'帶看方式'},
     {key:'commissionSplit', label:'業績拆法'},
     {key:'other', label:'其它'},
@@ -1722,24 +1721,38 @@ function collectLogExtraFields(type){
   return extra;
 }
 
-function formatLogExtra(l){
+function formatLogExtra(l, multiline){
   if(!l.extra) return '';
   const config = SERVICE_LOG_EXTRA_FIELDS[l.type];
   if(!config) return '';
+
+  const renderField = (f, v) => {
+    if(!v) return '';
+    if(f.key === 'url'){
+      const href = /^https?:\/\//i.test(v) ? v : 'https://' + v;
+      return `${esc(f.label)}:<a href="${esc(href)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--jade-deep); text-decoration:underline;">${esc(v)}</a>`;
+    }
+    return `${esc(f.label)}:${esc(v)}`;
+  };
+
+  const fieldSep = multiline ? '<br>' : ' ';
+  const itemSep = multiline ? '<br>' : ' ｜ ';
+  const flatSep = multiline ? '<br>' : ' ・ ';
+
   if(config.repeating){
     const items = l.extra.items || [];
     if(!items.length) return '';
     return items.map((it,i)=>{
-      const parts = config.fields.map(f=> it[f.key] ? `${f.label}:${it[f.key]}` : '').filter(Boolean).join(' ');
-      return `第${i+1}間 ${parts}`;
-    }).join(' ｜ ');
+      const parts = config.fields.map(f=>renderField(f, it[f.key])).filter(Boolean).join(fieldSep);
+      return `第${i+1}筆${multiline?'<br>':' '}${parts}`;
+    }).join(itemSep);
   }
   const parts = [];
   config.fields.forEach(f=>{
-    const v = l.extra[f.key];
-    if(v) parts.push(`${f.label}:${v}`);
+    const html = renderField(f, l.extra[f.key]);
+    if(html) parts.push(html);
   });
-  return parts.join(' ・ ');
+  return parts.join(flatSep);
 }
 
 function addServiceLogEntry(force){
@@ -2072,7 +2085,7 @@ function renderLogList(){
       </div>
       <div class="log-entry-note">
         ${l.note ? esc(l.note) : '<span style="color:var(--ink-soft);">(無備註)</span>'}
-        ${extraText ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">${esc(extraText)}</div>` : ''}
+        ${extraText ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">${extraText}</div>` : ''}
       </div>
       <div style="display:flex; gap:4px; flex-shrink:0;">
         <button class="btn btn-ghost btn-sm" onclick="startLogEdit('${l.id}')">✎</button>
@@ -2430,8 +2443,8 @@ async function viewClientModal(id){
 
   const logs = (item.serviceLogs||[]).slice().sort((a,b)=>((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||'')));
   const logsHtml = logs.length ? `<div class="log-list">${logs.map(l=>{
-    const extraText = formatLogExtra(l);
-    return `<div class="log-entry"><div><div class="log-entry-date">${esc(l.date||'—')}${l.time?' '+esc(l.time):''}</div>${l.type ? `<span class="stamp stamp-pending" style="margin-top:4px;">${esc(l.type)}</span>` : ''}</div><div class="log-entry-note">${l.note ? esc(l.note) : '<span style="color:var(--ink-soft);">(無備註)</span>'}${extraText ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">${esc(extraText)}</div>` : ''}</div></div>`;
+    const extraText = formatLogExtra(l, true);
+    return `<div class="log-entry"><div><div class="log-entry-date">${esc(l.date||'—')}${l.time?' '+esc(l.time):''}</div>${l.type ? `<span class="stamp stamp-pending" style="margin-top:4px;">${esc(l.type)}</span>` : ''}</div><div class="log-entry-note">${l.note ? esc(l.note) : '<span style="color:var(--ink-soft);">(無備註)</span>'}${extraText ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:4px; line-height:1.8;">${extraText}</div>` : ''}</div></div>`;
   }).join('')}</div>` : '<div class="empty-state" style="padding:12px;">尚無服務紀錄</div>';
 
   let cardPhotoHtml = '';
