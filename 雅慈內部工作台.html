@@ -962,13 +962,34 @@ document.getElementById('importExcelInput').onchange = async (e)=>{
     }
 
     if(imported.length===0){ showToast('沒有找到可匯入的客戶資料'); return; }
-    if(!confirm(`找到 ${imported.length} 筆客戶資料,會新增加到目前的客戶名單裡(不會刪除既有資料)。確定要匯入嗎?`)) return;
+
+    const isDuplicate = (newClient, againstList) => {
+      const newPhones = new Set(newClient.phones.map(p=>p.number).filter(Boolean));
+      return againstList.some(c=>{
+        if(c.name !== newClient.name) return false;
+        const existingPhones = getClientPhones(c).map(p=>p.number).filter(Boolean);
+        if(newPhones.size === 0 && existingPhones.length === 0) return true;
+        return existingPhones.some(p=>newPhones.has(p));
+      });
+    };
+    const toAdd = [];
+    let skippedCount = 0;
+    for(const c of imported){
+      if(isDuplicate(c, DATA.clients) || isDuplicate(c, toAdd)){ skippedCount++; } else { toAdd.push(c); }
+    }
+
+    if(toAdd.length===0){ showToast(`Excel 裡的 ${imported.length} 筆都跟現有客戶重複(姓名+電話相同),沒有新資料可匯入`); return; }
+
+    const confirmMsg = skippedCount > 0
+      ? `找到 ${imported.length} 筆,其中 ${skippedCount} 筆姓名+電話跟現有客戶重複會自動略過,實際會新增 ${toAdd.length} 筆。確定要匯入嗎?`
+      : `找到 ${toAdd.length} 筆客戶資料,會新增加到目前的客戶名單裡(不會刪除既有資料)。確定要匯入嗎?`;
+    if(!confirm(confirmMsg)) return;
 
     showToast('匯入中,請稍候(資料量較大,可能需要一點時間)…');
-    DATA.clients = DATA.clients.concat(imported);
+    DATA.clients = DATA.clients.concat(toAdd);
     await saveType('clients');
     render();
-    showToast(`已匯入 ${imported.length} 筆客戶`);
+    showToast(`已匯入 ${toAdd.length} 筆客戶${skippedCount>0?`(略過 ${skippedCount} 筆重複)`:''}`);
   }catch(err){
     console.error(err);
     showToast('匯入失敗,請確認上傳的是正確的客戶管理 Excel 檔');
