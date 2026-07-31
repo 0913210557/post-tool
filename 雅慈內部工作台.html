@@ -738,6 +738,7 @@ function exportExcel(){
       '建檔日期': c.fileDate || '',
       '來源': c.source || '',
       '物件地址': c.propertyAddress || '',
+      '客戶需求': c.clientNeeds || '',
       'LINE名': getClientLineNames(c).join('、'),
       'LINE ID': c.lineId || '',
       'FB': c.fb || '',
@@ -902,7 +903,6 @@ document.getElementById('importExcelInput').onchange = async (e)=>{
       const gender = cellText(get(row, idx.gender));
       if(gender) notesParts.push(`性別:${gender}`);
       const needs = cellText(get(row, idx.needs));
-      if(needs) notesParts.push(`需求:${needs}`);
       const background = cellText(get(row, idx.background));
       if(background) notesParts.push(`背景:${background}`);
       const validClient = cellText(get(row, idx.validClient));
@@ -952,6 +952,7 @@ document.getElementById('importExcelInput').onchange = async (e)=>{
         company: cellText(get(row, idx.company)),
         idNumber: cellText(get(row, idx.idNumber)),
         homeAddress: cellText(get(row, idx.homeAddress)),
+        clientNeeds: needs,
         propertyRecords,
         notes: notesParts.join('\n'),
         serviceLogs,
@@ -1123,7 +1124,7 @@ function renderClients(){
     <div class="page-head">
       <div>
         <div class="page-title"><span class="eyebrow">CLIENTS</span>客戶名單</div>
-        <div class="page-desc">買方、賣方與租客的追蹤與服務紀錄</div>
+        <div class="page-desc">買方、賣方與租客的追蹤與服務紀錄 · <span id="clientCountLabel">共 0 筆</span></div>
       </div>
       <button class="btn btn-primary" id="addClientBtn">＋ 新增客戶</button>
     </div>
@@ -1148,7 +1149,7 @@ function clientSearchText(c){
     getClientPhones(c).map(p=>`${p.number} ${p.owner||''}`).join(' '),
     getClientTypes(c).join(' '),
     getClientStatuses(c).join(' '),
-    c.source, c.propertyAddress,
+    c.source, c.propertyAddress, c.clientNeeds,
     getClientLineNames(c).join(' '), c.lineId, c.fb, c.company, c.idNumber, c.homeAddress,
     getClientPropertyRecords(c).map(r=>`${r.category} ${r.content}`).join(' '),
     (c.serviceLogs||[]).map(l=>`${l.type||''} ${l.note||''}`).join(' '),
@@ -1166,6 +1167,12 @@ function drawClientTable(){
     const matchSt = !st || getClientStatuses(c).includes(st);
     return matchQ && matchSt;
   });
+  const countLabel = document.getElementById('clientCountLabel');
+  if(countLabel){
+    countLabel.textContent = (q || st)
+      ? `符合條件 ${list.length} 筆(共 ${DATA.clients.length} 筆)`
+      : `共 ${DATA.clients.length} 筆`;
+  }
   const wrap = document.getElementById('clientTableWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">沒有符合的客戶</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
@@ -1317,7 +1324,7 @@ async function openClientModal(id){
     name:'', phones:[], types:[], statuses:['追蹤中'], source:'', notes:'',
     birthday:'', fileDate:new Date().toISOString().slice(0,10), propertyAddress:'',
     lineNames:[], lineId:'', fb:'', company:'', idNumber:'', homeAddress:'',
-    pastEntrustedProperties:'', propertyRecords:[],
+    pastEntrustedProperties:'', clientNeeds:'', propertyRecords:[],
     cardPhotoKey:null, attachmentKeys:[], serviceLogs:[]
   };
   editingCtx = {
@@ -1399,7 +1406,12 @@ async function openClientModal(id){
     <div class="field"><label>居住地址</label><input id="f_homeAddress" value="${esc(item.homeAddress)}"></div>
 
     <div class="field field-divider">
-      <div class="field-sub-title">物件記錄(待追蹤 / 已成交 / 委託中 / 曾經委託)</div>
+      <div class="field-sub-title">客戶需求</div>
+      <textarea id="f_clientNeeds" placeholder="客戶想找什麼樣的物件、預算、條件等" style="min-height:70px;">${esc(item.clientNeeds)}</textarea>
+    </div>
+
+    <div class="field field-divider">
+      <div class="field-sub-title">物件內容(待追蹤 / 已成交 / 委託中 / 曾經委託)</div>
       <div class="log-list" id="propertyRecordList"></div>
       <div class="log-add-row" style="flex-wrap:wrap;">
         <select id="propertyRecordCategory" style="flex-shrink:0; width:110px;">
@@ -1881,6 +1893,7 @@ async function saveClient(){
     company: document.getElementById('f_company').value.trim(),
     idNumber: document.getElementById('f_idNumber').value.trim(),
     homeAddress: document.getElementById('f_homeAddress').value.trim(),
+    clientNeeds: document.getElementById('f_clientNeeds').value.trim(),
     propertyRecords: editingCtx.tempPropertyRecords || [],
     notes: document.getElementById('f_notes').value.trim(),
     serviceLogs: editingCtx.tempLogs || [],
@@ -2093,13 +2106,14 @@ async function viewClientModal(id){
     ${viewInfoRow('公司名稱', esc(item.company))}
     ${viewInfoRow('身份證字號', esc(item.idNumber))}
     ${viewInfoRow('居住地址', esc(item.homeAddress))}
+    ${item.clientNeeds ? viewInfoRow('客戶需求', esc(item.clientNeeds).replace(/\n/g,'<br>')) : ''}
     ${viewInfoRow('備註', item.notes ? esc(item.notes).replace(/\n/g,'<br>') : '')}
     ${cardsHtml ? viewInfoRow('賀卡紀錄', cardsHtml) : ''}
 
     <div class="field-sub-title" style="margin-top:16px;">其他附件</div>
     ${attachmentsHtml}
 
-    <div class="field-sub-title" style="margin-top:16px;">物件記錄</div>
+    <div class="field-sub-title" style="margin-top:16px;">物件內容</div>
     ${recordsHtml}
 
     <div class="field-sub-title" style="margin-top:16px;">服務紀錄</div>
