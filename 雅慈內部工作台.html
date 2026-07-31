@@ -399,7 +399,7 @@
       <div class="nav-item active" data-page="dashboard"><span class="nav-icon">◆</span>總覽</div>
       <div class="nav-item" data-page="clients"><span class="nav-icon">☰</span>客戶名單</div>
       <div class="nav-item" data-page="soldclients"><span class="nav-icon">✓</span>已成交客戶</div>
-      <div class="nav-item" data-page="listings"><span class="nav-icon">⌂</span>物件委託</div>
+      <div class="nav-item" data-page="entrusted"><span class="nav-icon">⌂</span>物件委託</div>
       <div class="nav-item" data-page="content"><span class="nav-icon">▶</span>內容規劃</div>
       <div class="nav-item" data-page="deals"><span class="nav-icon">印</span>業績成交</div>
       <div class="nav-item" data-page="posttool"><span class="nav-icon">✍</span>貼文小工具</div>
@@ -649,7 +649,7 @@ function render(){
   if(currentPage === 'dashboard') return renderDashboard();
   if(currentPage === 'clients') return renderClients();
   if(currentPage === 'soldclients') return renderSoldClients();
-  if(currentPage === 'listings') return renderListings();
+  if(currentPage === 'entrusted') return renderEntrustedProperties();
   if(currentPage === 'content') return renderContent();
   if(currentPage === 'deals') return renderDeals();
   if(currentPage === 'posttool') return renderPostTool();
@@ -659,8 +659,8 @@ function render(){
 /* ===================== Dashboard ===================== */
 function renderDashboard(){
   const main = document.getElementById('main');
-  const activeClients = DATA.clients.filter(c=>c.status==='追蹤中').length;
-  const activeListings = DATA.listings.filter(l=>l.status==='在售').length;
+  const activeClients = DATA.clients.filter(c=>getClientStatuses(c).includes('追蹤中')).length;
+  const entrustedCount = DATA.clients.reduce((sum,c)=>sum + getClientPropertyRecords(c).filter(r=>r.category==='委託中').length, 0);
   const pendingContent = DATA.content.filter(c=>c.status!=='已發布').length;
   const thisMonth = new Date().toISOString().slice(0,7);
   const monthDeals = DATA.deals.filter(d=>d.closedDate && d.closedDate.startsWith(thisMonth));
@@ -676,7 +676,7 @@ function renderDashboard(){
 
     <div class="stat-row">
       <div class="stat-card"><div class="stat-num">${activeClients}</div><div class="stat-label">追蹤中客戶</div></div>
-      <div class="stat-card"><div class="stat-num">${activeListings}</div><div class="stat-label">在售物件</div></div>
+      <div class="stat-card"><div class="stat-num">${entrustedCount}</div><div class="stat-label">委託中物件</div></div>
       <div class="stat-card"><div class="stat-num">${pendingContent}</div><div class="stat-label">待完成內容</div></div>
       <div class="stat-card"><div class="stat-num">$${monthCommission.toLocaleString()}</div><div class="stat-label">本月抽成(元)</div></div>
     </div>
@@ -874,6 +874,51 @@ function drawSoldClientTable(){
       <td>${esc(c.name)}</td>
       <td>${clientPhoneSummary(c)}</td>
       <td>${esc(soldItems||'—')}</td>
+      <td onclick="event.stopPropagation()"><div class="row-actions">
+        <button class="icon-btn" onclick="openClientModal('${c.id}')" title="編輯">✎</button>
+      </div></td>
+    </tr>`;
+    }).join('')}
+  </tbody></table>`;
+}
+
+/* ===================== Entrusted Properties Page (derived from clients) ===================== */
+function renderEntrustedProperties(){
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="page-head">
+      <div>
+        <div class="page-title"><span class="eyebrow">ENTRUSTED</span>物件委託</div>
+        <div class="page-desc">客戶的「物件記錄」只要標記「委託中」,就會自動出現在這裡</div>
+      </div>
+    </div>
+    <div class="toolbar">
+      <input class="search-input" id="entrustedSearch" placeholder="搜尋姓名 / 電話 / 物件內容…">
+    </div>
+    <div class="section-block"><div class="section-block-body" id="entrustedTableWrap"></div></div>
+  `;
+  document.getElementById('entrustedSearch').oninput = drawEntrustedTable;
+  drawEntrustedTable();
+}
+
+function drawEntrustedTable(){
+  const q = (document.getElementById('entrustedSearch').value||'').toLowerCase();
+  let list = DATA.clients.filter(c=>getClientPropertyRecords(c).some(r=>r.category==='委託中')).filter(c=>{
+    const phoneText = getClientPhones(c).map(p=>p.number).join(' ');
+    const entrustedText = getClientPropertyRecords(c).filter(r=>r.category==='委託中').map(r=>r.content).join(' ');
+    return !q || (c.name+phoneText+entrustedText).toLowerCase().includes(q);
+  });
+  const wrap = document.getElementById('entrustedTableWrap');
+  if(list.length===0){ wrap.innerHTML = '<div class="empty-state">目前沒有委託中的物件,到客戶資料裡新增「物件記錄」並選「委託中」即可</div>'; return; }
+  wrap.innerHTML = `<table><thead><tr>
+    <th>姓名</th><th>電話</th><th>委託中物件</th><th></th>
+  </tr></thead><tbody>
+    ${list.map(c=>{
+      const items = getClientPropertyRecords(c).filter(r=>r.category==='委託中').map(r=>r.content).join('、');
+      return `<tr class="row-hover" style="cursor:pointer;" onclick="viewClientModal('${c.id}')">
+      <td>${esc(c.name)}</td>
+      <td>${clientPhoneSummary(c)}</td>
+      <td>${esc(items||'—')}</td>
       <td onclick="event.stopPropagation()"><div class="row-actions">
         <button class="icon-btn" onclick="openClientModal('${c.id}')" title="編輯">✎</button>
       </div></td>
@@ -1353,6 +1398,20 @@ function openLightboxByIndex(i){
   if(!p || !p.src) return;
   openLightbox(p.src, p.filename);
 }
+function downloadAllPhotos(indices){
+  indices.forEach((idx, i)=>{
+    const p = __lightboxPhotos[idx];
+    if(!p || !p.src) return;
+    setTimeout(()=>{
+      const a = document.createElement('a');
+      a.href = p.src;
+      a.download = p.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }, i * 250);
+  });
+}
 function openLightbox(src, filename){
   document.getElementById('lightboxImg').src = src;
   const dl = document.getElementById('lightboxDownload');
@@ -1405,11 +1464,13 @@ async function viewClientModal(id){
 
   const recordsHtml = records.length ? records.map(r=>{
     const photos = recordPhotoMap[r.id] || [];
+    const recordIndices = [];
     const photosHtml = photos.length ? `<div class="photo-grid" style="margin-top:8px;">${photos.map((src,i)=>{
       if(!src) return '';
       const idx = pushLightboxPhoto(src, `${item.name}-${r.category}-${i+1}.jpg`);
+      recordIndices.push(idx);
       return `<div class="photo-chip" style="cursor:pointer;" onclick="openLightboxByIndex(${idx})"><img src="${src}"></div>`;
-    }).join('')}</div>` : '';
+    }).join('')}</div>${recordIndices.length>1 ? `<button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="downloadAllPhotos([${recordIndices.join(',')}])">⬇ 全部下載(${recordIndices.length}張)</button>` : ''}` : '';
     return `<div style="border:1px solid var(--line); border-radius:2px; padding:10px 12px; margin-bottom:8px;">
       <span class="stamp stamp-pending">${esc(r.category)}</span>
       <div style="font-size:13px; margin-top:6px; color:var(--ink);">${esc(r.content)}</div>
@@ -1417,11 +1478,16 @@ async function viewClientModal(id){
     </div>`;
   }).join('') : '<div class="empty-state" style="padding:12px;">尚無物件記錄</div>';
 
-  const attachmentsHtml = attachmentUrls.length ? `<div class="photo-grid">${attachmentUrls.map((src,i)=>{
+  const attachmentIndices = [];
+  const attachmentThumbsHtml = attachmentUrls.length ? `<div class="photo-grid">${attachmentUrls.map((src,i)=>{
     if(!src) return '';
     const idx = pushLightboxPhoto(src, `${item.name}-附件-${i+1}.jpg`);
+    attachmentIndices.push(idx);
     return `<div class="photo-chip" style="cursor:pointer;" onclick="openLightboxByIndex(${idx})"><img src="${src}"></div>`;
-  }).join('')}</div>` : '<div class="empty-state" style="padding:12px;">尚無附件</div>';
+  }).join('')}</div>` : '';
+  const attachmentsHtml = attachmentUrls.length
+    ? `${attachmentThumbsHtml}${attachmentIndices.length>1 ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="downloadAllPhotos([${attachmentIndices.join(',')}])">⬇ 全部下載(${attachmentIndices.length}張)</button>` : ''}`
+    : '<div class="empty-state" style="padding:12px;">尚無附件</div>';
 
   const logs = (item.serviceLogs||[]).slice().sort((a,b)=>((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||'')));
   const logsHtml = logs.length ? `<div class="log-list" style="max-height:220px;">${logs.map(l=>`
