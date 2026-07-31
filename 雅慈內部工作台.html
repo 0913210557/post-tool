@@ -1187,7 +1187,9 @@ async function openClientModal(id){
         </select>
         <input type="text" id="propertyRecordContent" placeholder="物件內容(地址、備註等)" style="flex:1; min-width:160px;">
       </div>
-      <div class="log-add-row" style="margin-top:6px;">
+      <div class="pt-hint" style="margin:6px 0 0;">委託時間 / 開價(萬) / 底價(萬)</div>
+      <div class="log-add-row" style="margin-top:2px; flex-wrap:wrap;">
+        <input type="date" id="propertyRecordEntrustDate" title="委託時間">
         <input type="number" id="propertyRecordAskingPrice" placeholder="開價(萬)">
         <input type="number" id="propertyRecordBottomPrice" placeholder="底價(萬)">
         <button class="btn btn-ghost btn-sm" id="propertyRecordAddBtn">新增</button>
@@ -1233,37 +1235,15 @@ async function openClientModal(id){
   await renderAttachmentGrid();
 
   document.getElementById('phoneAddBtn').onclick = ()=>{
-    const num = document.getElementById('phoneNumber').value.trim();
-    const owner = document.getElementById('phoneOwner').value.trim();
-    if(!num){ showToast('請輸入電話號碼'); return; }
-    editingCtx.tempPhones.push({id:uid(), number:num, owner});
-    document.getElementById('phoneNumber').value='';
-    document.getElementById('phoneOwner').value='';
-    renderPhoneList();
+    if(!addPhoneEntry()) showToast('請輸入電話號碼');
   };
 
   document.getElementById('lineNameAddBtn').onclick = ()=>{
-    const v = document.getElementById('lineNameInput').value.trim();
-    if(!v){ showToast('請輸入 LINE 名'); return; }
-    editingCtx.tempLineNames.push({id:uid(), value:v});
-    document.getElementById('lineNameInput').value='';
-    renderLineNameList();
+    if(!addLineNameEntry()) showToast('請輸入 LINE 名');
   };
 
   document.getElementById('propertyRecordAddBtn').onclick = ()=>{
-    const category = document.getElementById('propertyRecordCategory').value;
-    const content = document.getElementById('propertyRecordContent').value.trim();
-    const askingPrice = document.getElementById('propertyRecordAskingPrice').value.trim();
-    const bottomPrice = document.getElementById('propertyRecordBottomPrice').value.trim();
-    if(!content){ showToast('請輸入物件內容'); return; }
-    const priceHistory = (askingPrice || bottomPrice)
-      ? [{id:uid(), date:new Date().toISOString().slice(0,10), askingPrice, bottomPrice, note:'新增'}]
-      : [];
-    editingCtx.tempPropertyRecords.push({id:uid(), category, content, askingPrice, bottomPrice, priceHistory, photoKeys:[]});
-    document.getElementById('propertyRecordContent').value='';
-    document.getElementById('propertyRecordAskingPrice').value='';
-    document.getElementById('propertyRecordBottomPrice').value='';
-    renderPropertyRecordList();
+    if(!addPropertyRecordEntry()) showToast('請輸入物件內容');
   };
 
   document.getElementById('clientAttachmentInput').onchange = async (e)=>{
@@ -1289,14 +1269,80 @@ async function openClientModal(id){
     renderCardPhotoPreview();
   };
   document.getElementById('logAddBtn').onclick = ()=>{
-    const d = document.getElementById('logDate').value;
-    const t = document.getElementById('logTime').value;
-    const type = document.getElementById('logType').value;
-    const n = document.getElementById('logNote').value.trim();
-    editingCtx.tempLogs.unshift({id:uid(), date:d, time:t, type, note:n});
-    document.getElementById('logNote').value='';
-    renderLogList();
+    addServiceLogEntry(true);
   };
+}
+
+/* Add-row helpers: each returns true if something was added.
+   Used by their own "新增" buttons, and also auto-run right before
+   saving the client so a forgotten "新增" click doesn't lose the draft. */
+function addPhoneEntry(){
+  const numEl = document.getElementById('phoneNumber');
+  const ownerEl = document.getElementById('phoneOwner');
+  if(!numEl) return false;
+  const num = numEl.value.trim();
+  const owner = ownerEl.value.trim();
+  if(!num) return false;
+  editingCtx.tempPhones.push({id:uid(), number:num, owner});
+  numEl.value=''; ownerEl.value='';
+  renderPhoneList();
+  return true;
+}
+
+function addLineNameEntry(){
+  const el = document.getElementById('lineNameInput');
+  if(!el) return false;
+  const v = el.value.trim();
+  if(!v) return false;
+  editingCtx.tempLineNames.push({id:uid(), value:v});
+  el.value='';
+  renderLineNameList();
+  return true;
+}
+
+function addPropertyRecordEntry(){
+  const contentEl = document.getElementById('propertyRecordContent');
+  if(!contentEl) return false;
+  const category = document.getElementById('propertyRecordCategory').value;
+  const content = contentEl.value.trim();
+  const entrustDate = document.getElementById('propertyRecordEntrustDate').value;
+  const askingPrice = document.getElementById('propertyRecordAskingPrice').value.trim();
+  const bottomPrice = document.getElementById('propertyRecordBottomPrice').value.trim();
+  if(!content) return false;
+  const priceHistory = (askingPrice || bottomPrice)
+    ? [{id:uid(), date:entrustDate || new Date().toISOString().slice(0,10), askingPrice, bottomPrice, note:'新增'}]
+    : [];
+  editingCtx.tempPropertyRecords.push({id:uid(), category, content, entrustDate, askingPrice, bottomPrice, priceHistory, photoKeys:[]});
+  contentEl.value='';
+  document.getElementById('propertyRecordEntrustDate').value='';
+  document.getElementById('propertyRecordAskingPrice').value='';
+  document.getElementById('propertyRecordBottomPrice').value='';
+  renderPropertyRecordList();
+  return true;
+}
+
+function addServiceLogEntry(force){
+  const noteEl = document.getElementById('logNote');
+  if(!noteEl) return false;
+  const d = document.getElementById('logDate').value;
+  const t = document.getElementById('logTime').value;
+  const type = document.getElementById('logType').value;
+  const n = noteEl.value.trim();
+  const hasSignal = n || type !== SERVICE_LOG_TYPES[0];
+  if(!force && !hasSignal) return false;
+  editingCtx.tempLogs.unshift({id:uid(), date:d, time:t, type, note:n});
+  noteEl.value='';
+  document.getElementById('logType').value = SERVICE_LOG_TYPES[0];
+  renderLogList();
+  return true;
+}
+
+/* Auto-add any drafted-but-not-yet-added entries just before saving. */
+function flushPendingClientInputs(){
+  addPhoneEntry();
+  addLineNameEntry();
+  addPropertyRecordEntry();
+  addServiceLogEntry(false);
 }
 
 function renderPhoneList(){
@@ -1353,6 +1399,9 @@ function renderPropertyRecordList(){
         <select id="editRecordCategory-${r.id}">${PROPERTY_RECORD_CATEGORIES.map(c=>`<option ${c===r.category?'selected':''}>${c}</option>`).join('')}</select>
         <textarea id="editRecordContent-${r.id}" style="min-height:60px;">${esc(r.content)}</textarea>
         <div class="field-row">
+          <div><div class="pt-hint" style="margin:0 0 4px;">委託時間</div><input type="date" id="editRecordEntrustDate-${r.id}" value="${esc(r.entrustDate||'')}"></div>
+        </div>
+        <div class="field-row">
           <input type="number" id="editRecordAsking-${r.id}" placeholder="開價(萬)" value="${esc(r.askingPrice||'')}">
           <input type="number" id="editRecordBottom-${r.id}" placeholder="底價(萬)" value="${esc(r.bottomPrice||'')}">
         </div>
@@ -1364,6 +1413,7 @@ function renderPropertyRecordList(){
     }
 
     const priceLine = (r.askingPrice || r.bottomPrice) ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${r.askingPrice?`開價 ${esc(r.askingPrice)}萬`:''}${r.askingPrice&&r.bottomPrice?'　':''}${r.bottomPrice?`底價 ${esc(r.bottomPrice)}萬`:''}</div>` : '';
+    const entrustLine = r.entrustDate ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">委託時間 ${esc(r.entrustDate)}</div>` : '';
 
     return `
     <div class="log-entry" style="flex-direction:column; align-items:stretch; gap:8px;">
@@ -1371,6 +1421,7 @@ function renderPropertyRecordList(){
         <div style="flex:1;">
           <div class="log-entry-date">${esc(r.category)}</div>
           <div class="log-entry-note">${esc(r.content)}</div>
+          ${entrustLine}
           ${priceLine}
         </div>
         <div style="display:flex; gap:4px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end;">
@@ -1424,6 +1475,7 @@ function cancelPropertyRecordEdit(){
 function savePropertyRecordEdit(recordId){
   const category = document.getElementById('editRecordCategory-'+recordId).value;
   const content = document.getElementById('editRecordContent-'+recordId).value.trim();
+  const entrustDate = document.getElementById('editRecordEntrustDate-'+recordId).value;
   const askingPrice = document.getElementById('editRecordAsking-'+recordId).value.trim();
   const bottomPrice = document.getElementById('editRecordBottom-'+recordId).value.trim();
   if(!content){ showToast('請輸入物件內容'); return; }
@@ -1435,6 +1487,7 @@ function savePropertyRecordEdit(recordId){
   }
   rec.category = category;
   rec.content = content;
+  rec.entrustDate = entrustDate;
   rec.askingPrice = askingPrice;
   rec.bottomPrice = bottomPrice;
   editingCtx.editingRecordId = null;
@@ -1582,6 +1635,7 @@ function removeClientAttachment(idx){
 }
 
 async function saveClient(){
+  flushPendingClientInputs();
   const typesChecked = Array.from(document.querySelectorAll('.f_type_cb:checked')).map(cb=>cb.value);
   const statusesChecked = Array.from(document.querySelectorAll('.f_status_cb:checked')).map(cb=>cb.value);
   const vals = {
@@ -1755,6 +1809,7 @@ async function viewClientModal(id){
       return `<div class="photo-chip" style="cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:22px; background:var(--stone); gap:2px;" onclick="openOrDownloadFile(${idx})" title="點擊開啟/下載"><span>📄</span><span style="font-size:9px; color:var(--ink-soft);">${ext||'檔案'}</span></div>`;
     }).join('')}</div>${recordIndices.length>1 ? `<button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="downloadAllPhotos([${recordIndices.join(',')}])">⬇ 全部下載(${recordIndices.length}個)</button>` : ''}` : '';
     const priceLine = (r.askingPrice || r.bottomPrice) ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${r.askingPrice?`開價 ${esc(r.askingPrice)}萬`:''}${r.askingPrice&&r.bottomPrice?'　':''}${r.bottomPrice?`底價 ${esc(r.bottomPrice)}萬`:''}</div>` : '';
+    const entrustLine = r.entrustDate ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">委託時間 ${esc(r.entrustDate)}</div>` : '';
     const history = r.priceHistory || [];
     const historyHtml = history.length ? `<div style="margin-top:8px;"><div style="font-size:11px; font-weight:700; color:var(--ink-soft);">變更紀錄</div><div class="log-list" style="margin-top:4px;">${history.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(h=>`
       <div class="log-entry"><div class="log-entry-date">${esc(h.date||'—')}</div><div class="log-entry-note">${h.askingPrice?`開價 ${esc(h.askingPrice)}萬 `:''}${h.bottomPrice?`底價 ${esc(h.bottomPrice)}萬`:''}${h.note?`(${esc(h.note)})`:''}</div></div>
@@ -1762,6 +1817,7 @@ async function viewClientModal(id){
     return `<div style="border:1px solid var(--line); border-radius:2px; padding:10px 12px; margin-bottom:8px;">
       <span class="stamp stamp-pending">${esc(r.category)}</span>
       <div style="font-size:13px; margin-top:6px; color:var(--ink);">${esc(r.content)}</div>
+      ${entrustLine}
       ${priceLine}
       ${photosHtml}
       ${historyHtml}
