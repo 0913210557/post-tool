@@ -375,6 +375,7 @@
     .field-row{ grid-template-columns:1fr; }
   }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -406,6 +407,9 @@
     </div>
     <div class="sidebar-foot">
       <button class="btn-sidebar" id="exportBtn">⬇ 匯出備份</button>
+      <button class="btn-sidebar" id="exportExcelBtn" style="margin-top:8px;">⬇ 匯出 Excel</button>
+      <button class="btn-sidebar" id="importBtn" style="margin-top:8px;">⬆ 匯入備份</button>
+      <input type="file" accept="application/json" id="importInput" style="display:none;">
       <div style="margin-top:12px;">個人專用資料<br>有巢氏房屋 張雅慈</div>
       <div id="userEmailLabel" style="margin-top:8px; font-size:11px; color:rgba(237,231,221,0.5); word-break:break-all;"></div>
       <button class="btn-sidebar" id="logoutBtn" style="margin-top:10px;">登出</button>
@@ -640,8 +644,11 @@ async function exportBackup(){
   showToast('準備備份檔中…');
   const backup = { exportedAt: new Date().toISOString(), data: DATA, photos: {} };
   const keys = [];
-  DATA.clients.forEach(c=>{ if(c.cardPhotoKey) keys.push(c.cardPhotoKey); });
-  DATA.listings.forEach(l=>{ (l.photoKeys||[]).forEach(k=>keys.push(k)); });
+  DATA.clients.forEach(c=>{
+    if(c.cardPhotoKey) keys.push(c.cardPhotoKey);
+    if(c.attachmentKeys) keys.push(...c.attachmentKeys);
+    getClientPropertyRecords(c).forEach(r=>{ if(r.photoKeys) keys.push(...r.photoKeys); });
+  });
   for(const k of keys){
     const v = await loadPhoto(k);
     if(v) backup.photos[k] = v;
@@ -657,6 +664,93 @@ async function exportBackup(){
   URL.revokeObjectURL(url);
   showToast('已下載備份檔');
 }
+
+document.getElementById('exportExcelBtn').onclick = exportExcel;
+function exportExcel(){
+  if(typeof XLSX === 'undefined'){
+    showToast('Excel 匯出元件載入失敗,請檢查網路連線');
+    return;
+  }
+  const clientRows = DATA.clients.map(c=>{
+    const records = getClientPropertyRecords(c);
+    const byCat = cat => records.filter(r=>r.category===cat).map(r=>r.content).join('、');
+    return {
+      '姓名': c.name || '',
+      '電話': getClientPhones(c).map(p=>p.owner ? `${p.number}(${p.owner})` : p.number).join('、'),
+      '類型': getClientTypes(c).join('、'),
+      '狀態': getClientStatuses(c).join('、'),
+      '出生年月日': c.birthday || '',
+      '建檔日期': c.fileDate || '',
+      '來源': c.source || '',
+      '物件地址': c.propertyAddress || '',
+      'LINE名': getClientLineNames(c).join('、'),
+      'LINE ID': c.lineId || '',
+      'FB': c.fb || '',
+      '公司名稱': c.company || '',
+      '身份證字號': c.idNumber || '',
+      '居住地址': c.homeAddress || '',
+      '曾經委託物件': byCat('曾經委託'),
+      '待追蹤物件': byCat('待追蹤'),
+      '委託中物件': byCat('委託中'),
+      '已成交物件': byCat('已成交'),
+      '賀卡紀錄(年份)': getClientGreetingCards(c).map(g=>(g.date||'').slice(0,4)).join('、'),
+      '服務紀錄筆數': (c.serviceLogs||[]).length,
+      '備註': c.notes || '',
+    };
+  });
+
+  const dealRows = DATA.deals.map(d=>({
+    '案件名稱': d.caseName || '',
+    '客戶': d.clientName || '',
+    '成交金額(萬)': d.amount || '',
+    '抽成比例(%)': d.rate || '',
+    '抽成金額(元)': d.commission || '',
+    '成交日期': d.closedDate || '',
+  }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(clientRows), '客戶');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dealRows), '業績成交');
+  XLSX.writeFile(wb, `雅慈工作台資料_${new Date().toISOString().slice(0,10)}.xlsx`);
+  showToast('已下載 Excel 檔');
+}
+
+/* ===================== Import backup ===================== */
+document.getElementById('importBtn').onclick = ()=> document.getElementById('importInput').click();
+document.getElementById('importInput').onchange = async (e)=>{
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  if(!confirm('匯入會用備份檔的內容覆蓋目前所有客戶、業績、社團清單資料,建議先按「匯出備份」存一份現況再繼續。確定要匯入嗎?')) return;
+
+  showToast('匯入中,請稍候…');
+  try{
+    const text = await file.text();
+    const backup = JSON.parse(text);
+    if(!backup || !backup.data){ showToast('檔案格式不正確,請確認是本工作台匯出的備份檔'); return; }
+
+    if(backup.photos){
+      for(const key of Object.keys(backup.photos)){
+        await savePhoto(key, backup.photos[key]);
+      }
+    }
+
+    DATA.clients = backup.data.clients || [];
+    DATA.listings = backup.data.listings || [];
+    DATA.content = backup.data.content || [];
+    DATA.deals = backup.data.deals || [];
+    await saveType('clients');
+    await saveType('listings');
+    await saveType('content');
+    await saveType('deals');
+
+    render();
+    showToast('已匯入備份');
+  }catch(err){
+    console.error(err);
+    showToast('匯入失敗,請確認檔案內容是否正確');
+  }
+};
 
 /* ===================== Navigation ===================== */
 document.getElementById('nav').addEventListener('click', (e)=>{
