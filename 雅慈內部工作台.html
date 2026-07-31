@@ -1,0 +1,2029 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>房產好夥伴雅慈 · 內部工作台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&family=Noto+Sans+TC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --stone:#EDE7DD;
+    --stone-deep:#E1D9C9;
+    --ink:#2B2620;
+    --ink-soft:#5B5347;
+    --jade:#3F5B4F;
+    --jade-deep:#2E453B;
+    --brass:#B08D57;
+    --brass-soft:#D9C5A0;
+    --brick:#A8462F;
+    --paper:#F7F4EC;
+    --line:#D8CFBC;
+    --radius:2px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--stone);
+    color:var(--ink);
+    font-family:'Noto Sans TC', sans-serif;
+    min-height:100vh;
+  }
+  .app{ display:flex; min-height:100vh; }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    width:220px; flex-shrink:0;
+    background:var(--jade-deep);
+    color:var(--stone);
+    display:flex; flex-direction:column;
+    padding:28px 0;
+  }
+  .brand{
+    padding:0 24px 24px;
+    border-bottom:1px solid rgba(237,231,221,0.15);
+    margin-bottom:12px;
+  }
+  .brand-mark{
+    font-family:'Noto Serif TC', serif;
+    font-weight:900;
+    font-size:22px;
+    letter-spacing:2px;
+    color:var(--brass-soft);
+  }
+  .brand-sub{
+    font-size:11px;
+    letter-spacing:3px;
+    color:rgba(237,231,221,0.55);
+    margin-top:4px;
+  }
+  .nav{ display:flex; flex-direction:column; margin-top:8px; }
+  .nav-item{
+    display:flex; align-items:center; gap:10px;
+    padding:13px 24px;
+    font-size:14px; font-weight:500;
+    color:rgba(237,231,221,0.75);
+    cursor:pointer;
+    border-left:3px solid transparent;
+    transition:all .15s ease;
+    user-select:none;
+  }
+  .nav-item:hover{ background:rgba(237,231,221,0.06); color:var(--stone); }
+  .nav-item.active{
+    background:rgba(237,231,221,0.09);
+    border-left:3px solid var(--brass);
+    color:var(--stone);
+    font-weight:700;
+  }
+  .nav-icon{ width:16px; text-align:center; font-size:14px; opacity:.9; }
+
+  .sidebar-foot{
+    margin-top:auto; padding:16px 24px 0;
+    font-size:11px; color:rgba(237,231,221,0.4);
+    border-top:1px solid rgba(237,231,221,0.12);
+    padding-top:16px;
+  }
+  .btn-sidebar{
+    width:100%;
+    background:rgba(237,231,221,0.08);
+    color:var(--stone);
+    border:1px solid rgba(237,231,221,0.25);
+    padding:9px 12px; border-radius:var(--radius);
+    font-size:12px; font-weight:700; cursor:pointer;
+    font-family:'Noto Sans TC', sans-serif;
+  }
+  .btn-sidebar:hover{ background:rgba(237,231,221,0.16); }
+
+  /* ---------- Main ---------- */
+  .main{ flex:1; padding:36px 44px; max-width:1180px; }
+  .page-head{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    margin-bottom:28px; flex-wrap:wrap; gap:16px;
+  }
+  .page-title{
+    font-family:'Noto Serif TC', serif;
+    font-weight:900; font-size:28px; color:var(--ink);
+    display:flex; align-items:baseline; gap:10px;
+  }
+  .page-title .eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px; font-weight:600; letter-spacing:2px;
+    color:var(--brass); text-transform:uppercase;
+    background:var(--brass-soft); padding:3px 8px; border-radius:2px;
+  }
+  .page-desc{ font-size:13px; color:var(--ink-soft); margin-top:4px; }
+
+  .btn{
+    font-family:'Noto Sans TC', sans-serif;
+    font-weight:700; font-size:13px;
+    padding:10px 18px; border-radius:var(--radius);
+    border:none; cursor:pointer;
+    transition:transform .1s ease, box-shadow .1s ease;
+  }
+  .btn:active{ transform:translateY(1px); }
+  .btn-primary{ background:var(--jade); color:var(--paper); }
+  .btn-primary:hover{ background:var(--jade-deep); }
+  .btn-ghost{ background:transparent; color:var(--ink-soft); border:1px solid var(--line); }
+  .btn-ghost:hover{ border-color:var(--ink-soft); color:var(--ink); }
+  .btn-danger{ background:transparent; color:var(--brick); border:1px solid rgba(168,70,47,.3); }
+  .btn-danger:hover{ background:rgba(168,70,47,.08); }
+  .btn-sm{ padding:6px 12px; font-size:12px; }
+
+  /* ---------- Cards / grid ---------- */
+  .stat-row{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:14px;
+    margin-bottom:32px;
+  }
+  .stat-card{
+    background:var(--paper); border:1px solid var(--line);
+    padding:18px 20px; border-radius:var(--radius);
+    position:relative; overflow:hidden;
+  }
+  .stat-card::before{
+    content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+    background:var(--brass);
+  }
+  .stat-num{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:600; font-size:26px; color:var(--jade-deep);
+  }
+  .stat-label{ font-size:12px; color:var(--ink-soft); margin-top:4px; }
+
+  .section-block{
+    background:var(--paper); border:1px solid var(--line);
+    border-radius:var(--radius); margin-bottom:20px;
+  }
+  .section-block-head{
+    padding:16px 20px; border-bottom:1px solid var(--line);
+    font-weight:700; font-size:14px;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .section-block-body{ padding:16px 20px; }
+
+  .empty-state{
+    text-align:center; padding:40px 20px; color:var(--ink-soft); font-size:13px;
+  }
+
+  /* ---------- Table ---------- */
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  th{
+    text-align:left; padding:10px 12px;
+    font-size:11px; letter-spacing:1px; text-transform:uppercase;
+    color:var(--ink-soft); border-bottom:2px solid var(--line);
+    font-weight:600;
+  }
+  td{ padding:12px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  tr:last-child td{ border-bottom:none; }
+  tr.row-hover:hover{ background:var(--stone); }
+
+  /* ---------- Stamp badges (signature element) ---------- */
+  .stamp{
+    display:inline-flex; align-items:center; justify-content:center;
+    font-family:'Noto Serif TC', serif; font-weight:900;
+    font-size:11px; letter-spacing:1px;
+    border:1.5px solid currentColor; border-radius:3px;
+    padding:3px 9px;
+    transform:rotate(-2deg);
+    position:relative;
+  }
+  .stamp::after{
+    content:''; position:absolute; inset:2px;
+    border:1px solid currentColor; border-radius:1px; opacity:.4;
+  }
+  .stamp-active{ color:var(--jade); }
+  .stamp-done{ color:var(--brick); }
+  .stamp-pending{ color:var(--brass); }
+  .stamp-lost{ color:var(--ink-soft); }
+
+  .tag{
+    display:inline-block; font-size:11px; font-weight:600;
+    padding:2px 8px; border-radius:10px;
+    background:var(--stone-deep); color:var(--ink-soft);
+  }
+  .tag-soft{
+    display:inline-block; font-size:11px; font-weight:600;
+    color:var(--ink-soft);
+  }
+
+  .row-actions{ display:flex; gap:6px; }
+  .icon-btn{
+    background:none; border:none; cursor:pointer;
+    color:var(--ink-soft); font-size:14px; padding:4px 6px;
+    border-radius:2px;
+  }
+  .icon-btn:hover{ color:var(--ink); background:var(--stone); }
+
+  .toolbar{ display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
+  .search-input, select.filter-select{
+    font-family:'Noto Sans TC', sans-serif;
+    padding:9px 12px; border:1px solid var(--line); border-radius:var(--radius);
+    background:var(--paper); font-size:13px; color:var(--ink);
+  }
+  .search-input{ flex:1; min-width:180px; }
+  .search-input:focus, select.filter-select:focus, input:focus, textarea:focus{
+    outline:2px solid var(--brass); outline-offset:1px;
+  }
+
+  /* ---------- Modal ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(43,38,32,0.5);
+    display:none; align-items:flex-start; justify-content:center;
+    padding:40px 20px; overflow-y:auto; z-index:100;
+  }
+  .modal-overlay.open{ display:flex; }
+  .modal{
+    background:var(--paper); width:100%; max-width:560px;
+    border-radius:var(--radius); border:1px solid var(--line);
+    box-shadow:0 20px 60px rgba(43,38,32,0.25);
+  }
+  .modal-head{
+    padding:20px 24px; border-bottom:1px solid var(--line);
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .modal-title{ font-family:'Noto Serif TC', serif; font-weight:700; font-size:18px; }
+  .modal-close{ background:none; border:none; font-size:20px; cursor:pointer; color:var(--ink-soft); }
+  .modal-body{ padding:20px 24px; display:flex; flex-direction:column; gap:16px; max-height:65vh; overflow-y:auto; }
+  .modal-foot{ padding:16px 24px; border-top:1px solid var(--line); display:flex; justify-content:flex-end; gap:10px; }
+
+  .field label{ display:block; font-size:12px; font-weight:700; margin-bottom:6px; color:var(--ink-soft); }
+  .field input, .field select, .field textarea{
+    width:100%; padding:10px 12px; border:1px solid var(--line);
+    border-radius:var(--radius); font-family:'Noto Sans TC', sans-serif; font-size:13px;
+    background:#fff; color:var(--ink);
+  }
+  .field textarea{ resize:vertical; min-height:60px; }
+  .field-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .field-divider{ border-top:1px dashed var(--line); padding-top:14px; margin-top:2px; }
+  .field-sub-title{ font-size:12px; font-weight:700; color:var(--jade-deep); margin-bottom:8px; letter-spacing:.5px; }
+
+  /* ---------- Photo upload ---------- */
+  .photo-chip{
+    position:relative; width:72px; height:72px; border-radius:2px; overflow:hidden;
+    border:1px solid var(--line); flex-shrink:0;
+  }
+  .photo-chip img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .photo-chip .rm{
+    position:absolute; top:2px; right:2px; background:rgba(43,38,32,0.75); color:#fff;
+    border:none; width:18px; height:18px; border-radius:50%; font-size:11px; cursor:pointer;
+    display:flex;align-items:center;justify-content:center; line-height:1;
+  }
+  .photo-grid{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .upload-btn{
+    display:inline-flex; align-items:center; gap:6px;
+    border:1px dashed var(--line); border-radius:2px; padding:0 14px;
+    width:72px; height:72px; justify-content:center; text-align:center;
+    font-size:11px; color:var(--ink-soft); cursor:pointer; background:var(--stone);
+    flex-shrink:0; line-height:1.3;
+  }
+  .upload-btn:hover{ border-color:var(--jade); color:var(--jade); }
+  .card-photo-row{ display:flex; align-items:center; gap:12px; }
+  .card-photo-preview{
+    width:130px; height:82px; border:1px solid var(--line); border-radius:2px;
+    overflow:hidden; display:flex; align-items:center; justify-content:center;
+    background:var(--stone); color:var(--ink-soft); font-size:11px; flex-shrink:0; position:relative;
+  }
+  .card-photo-preview img{ width:100%; height:100%; object-fit:cover; }
+  .card-photo-preview .rm{
+    position:absolute; top:2px; right:2px; background:rgba(43,38,32,0.75); color:#fff;
+    border:none; width:18px; height:18px; border-radius:50%; font-size:11px; cursor:pointer;
+  }
+
+  /* ---------- Service log ---------- */
+  .log-list{ display:flex; flex-direction:column; gap:8px; max-height:170px; overflow-y:auto; border:1px solid var(--line); border-radius:2px; padding:10px; background:var(--stone); }
+  .log-entry{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; font-size:12px; background:var(--paper); padding:8px 10px; border-radius:2px; border:1px solid var(--line); }
+  .log-entry-date{ font-family:'JetBrains Mono',monospace; color:var(--brass); font-weight:700; white-space:nowrap; }
+  .log-entry-note{ flex:1; color:var(--ink); line-height:1.5; }
+  .log-entry .rm{ background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:13px; flex-shrink:0; }
+  .log-entry .rm:hover{ color:var(--brick); }
+  .log-add-row{ display:flex; gap:6px; margin-top:10px; }
+  .log-add-row input[type=date]{ width:132px; flex-shrink:0; }
+  .log-add-row input[type=text]{ flex:1; }
+
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--jade-deep); color:var(--stone); padding:12px 22px;
+    border-radius:var(--radius); font-size:13px; font-weight:600;
+    opacity:0; transition:all .25s ease; z-index:200; pointer-events:none;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  .loading-note{ font-size:12px; color:var(--ink-soft); padding:20px; }
+
+  /* ---------- Post tool page (scoped under .pt-page) ---------- */
+  .pt-page{ background:var(--stone); border-radius:var(--radius); overflow:hidden; border:1px solid var(--line); }
+  .pt-header{ background:var(--jade-deep); color:var(--paper); padding:28px 20px 24px; text-align:center; }
+  .pt-header h1{ font-family:'Noto Serif TC',serif; font-weight:700; font-size:22px; margin:0 0 4px; letter-spacing:.04em; }
+  .pt-header p{ margin:0; font-size:13px; color:var(--brass-soft); }
+  .pt-main{ max-width:560px; margin:0 auto; padding:20px 16px 40px; }
+  .pt-step{ background:#fff; border:1px solid var(--line); border-radius:6px; padding:18px 16px; margin-bottom:16px; }
+  .pt-step-label{ display:flex; align-items:center; gap:8px; font-family:'Noto Serif TC',serif; font-weight:700; font-size:15px; color:var(--jade-deep); margin-bottom:10px; }
+  .pt-step-num{ width:22px;height:22px; border-radius:50%; background:var(--brass); color:#fff; font-size:12px; display:flex;align-items:center;justify-content:center; flex-shrink:0; }
+  .pt-page input[type=text], .pt-page input[type=url], .pt-page textarea{
+    width:100%; border:1px solid var(--line); border-radius:6px; padding:10px 12px;
+    font-family:'Noto Sans TC',sans-serif; font-size:14px; color:var(--ink); background:var(--paper);
+  }
+  .pt-page input:focus, .pt-page textarea:focus{ outline:2px solid var(--brass); outline-offset:1px; background:#fff; }
+  .pt-page textarea{ min-height:180px; resize:vertical; line-height:1.7; }
+  .pt-hint{ font-size:12px; color:var(--ink-soft); margin-top:6px; }
+  .pt-page button{ font-family:'Noto Sans TC',sans-serif; font-weight:700; font-size:14px; border:none; border-radius:6px; padding:11px 18px; cursor:pointer; transition:opacity .15s; }
+  .pt-page button:disabled{ opacity:.5; cursor:not-allowed; }
+  .pt-page button:hover:not(:disabled){ opacity:.88; }
+  .pt-btn-primary{ background:var(--jade); color:#fff; width:100%; }
+  .pt-btn-brass{ background:var(--brass); color:#fff; }
+  .pt-btn-outline{ background:transparent; color:var(--jade); border:1px solid var(--jade); }
+  .pt-row-buttons{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+  .pt-row-buttons button{ flex:1; min-width:120px; }
+  .pt-notice{ background:var(--brass-soft); border:1px solid var(--brass); border-radius:8px; padding:12px 14px; font-size:12.5px; color:var(--ink); margin-bottom:16px; }
+  .pt-notice b{ color:var(--brick); }
+  .pt-spinner{ display:inline-block; width:14px;height:14px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:pt-spin .7s linear infinite; vertical-align:-2px; margin-right:6px; }
+  @keyframes pt-spin{ to{ transform:rotate(360deg); } }
+  .pt-fb-card{ border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#fff; }
+  .pt-fb-card-head{ display:flex; align-items:center; gap:10px; padding:12px 14px 8px; }
+  .pt-fb-avatar{ width:38px;height:38px; border-radius:50%; background:var(--jade-deep); color:#fff; font-family:'Noto Serif TC',serif; font-weight:700; display:flex;align-items:center;justify-content:center; font-size:15px; flex-shrink:0; }
+  .pt-fb-name{ font-weight:700; font-size:14px; color:var(--ink); }
+  .pt-fb-meta{ font-size:11.5px; color:var(--ink-soft); }
+  .pt-fb-body{ padding:4px 14px 16px; white-space:pre-wrap; font-size:14px; color:var(--ink); }
+  .pt-status{ font-size:12.5px; margin-top:8px; color:var(--ink-soft); }
+  .pt-status.ok{ color:var(--jade); }
+  .pt-status.err{ color:var(--brick); }
+  .pt-photo-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(84px, 1fr)); gap:8px; margin-bottom:4px; }
+  .pt-photo-thumb{ position:relative; aspect-ratio:1; border:1px solid var(--line); overflow:hidden; background:var(--stone-deep); }
+  .pt-photo-thumb img{ width:100%; height:100%; object-fit:cover; display:block; cursor:pointer; }
+  .pt-photo-thumb .pt-remove-btn{ position:absolute; top:2px;right:2px; width:20px;height:20px; border-radius:50%; background:rgba(43,38,32,.7); color:#fff; border:none; font-size:12px; line-height:1; cursor:pointer; padding:0; }
+
+  @media (max-width:820px){
+    .app{ flex-direction:column; }
+    .sidebar{ width:100%; flex-direction:row; overflow-x:auto; padding:14px 0; align-items:center; }
+    .brand{ display:none; }
+    .nav{ flex-direction:row; }
+    .nav-item{ padding:10px 16px; border-left:none; border-bottom:3px solid transparent; white-space:nowrap; }
+    .nav-item.active{ border-left:none; border-bottom:3px solid var(--brass); }
+    .sidebar-foot{ display:none; }
+    .main{ padding:20px; }
+    .stat-row{ grid-template-columns:1fr 1fr; }
+    .field-row{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loginScreen" style="display:flex; min-height:100vh; align-items:center; justify-content:center; background:var(--stone);">
+  <div style="background:var(--paper); border:1px solid var(--line); border-radius:6px; padding:36px 32px; width:100%; max-width:340px;">
+    <div style="font-family:'Noto Serif TC',serif; font-weight:900; font-size:22px; color:var(--jade-deep); text-align:center; margin-bottom:4px;">雅慈工作台</div>
+    <div style="font-size:12px; color:var(--ink-soft); text-align:center; margin-bottom:24px;">登入後才能查看資料</div>
+    <div class="field"><label>Email</label><input type="email" id="loginEmail" autocomplete="username"></div>
+    <div class="field" style="margin-top:12px;"><label>密碼</label><input type="password" id="loginPassword" autocomplete="current-password"></div>
+    <button class="btn btn-primary" id="loginBtn" style="width:100%; margin-top:18px;">登入</button>
+    <div id="loginError" style="color:var(--brick); font-size:12px; margin-top:10px; min-height:16px;"></div>
+  </div>
+</div>
+
+<div class="app" style="display:none;">
+  <div class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">雅慈工作台</div>
+      <div class="brand-sub">房產好夥伴</div>
+    </div>
+    <div class="nav" id="nav">
+      <div class="nav-item active" data-page="dashboard"><span class="nav-icon">◆</span>總覽</div>
+      <div class="nav-item" data-page="clients"><span class="nav-icon">☰</span>客戶名單</div>
+      <div class="nav-item" data-page="listings"><span class="nav-icon">⌂</span>物件委託</div>
+      <div class="nav-item" data-page="content"><span class="nav-icon">▶</span>內容規劃</div>
+      <div class="nav-item" data-page="deals"><span class="nav-icon">印</span>業績成交</div>
+      <div class="nav-item" data-page="posttool"><span class="nav-icon">✍</span>貼文小工具</div>
+    </div>
+    <div class="sidebar-foot">
+      <button class="btn-sidebar" id="exportBtn">⬇ 匯出備份</button>
+      <div style="margin-top:12px;">個人專用資料<br>有巢氏房屋 張雅慈</div>
+      <div id="userEmailLabel" style="margin-top:8px; font-size:11px; color:rgba(237,231,221,0.5); word-break:break-all;"></div>
+      <button class="btn-sidebar" id="logoutBtn" style="margin-top:10px;">登出</button>
+    </div>
+  </div>
+
+  <div class="main" id="main">
+    <div class="loading-note">載入中…</div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="modalTitle">新增</div>
+      <button class="modal-close" id="modalClose">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="modalCancel">取消</button>
+      <button class="btn btn-primary" id="modalSave">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAU_WpnxJyn_yDPd887diiXcG58YE8NIP8",
+    authDomain: "yaci-realty.firebaseapp.com",
+    projectId: "yaci-realty",
+    storageBucket: "yaci-realty.firebasestorage.app",
+    messagingSenderId: "476387339589",
+    appId: "1:476387339589:web:072ac9b90b8ff080f7622c"
+  };
+
+  const fbApp = initializeApp(firebaseConfig);
+  const auth = getAuth(fbApp);
+  const db = getFirestore(fbApp);
+
+  function safeDocId(key){
+    return String(key).replace(/[\/]/g, '_');
+  }
+
+  window.storage = {
+    async get(key){
+      const snap = await getDoc(doc(db, 'data', safeDocId(key)));
+      return snap.exists() ? { key, value: snap.data().value, shared:false } : null;
+    },
+    async set(key, value){
+      await setDoc(doc(db, 'data', safeDocId(key)), { value, updatedAt: Date.now() });
+      return { key, value, shared:false };
+    },
+    async delete(key){
+      await deleteDoc(doc(db, 'data', safeDocId(key)));
+      return { key, deleted:true, shared:false };
+    },
+    async list(){ return { keys: [] }; }
+  };
+
+  document.getElementById('loginBtn').onclick = async ()=>{
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const errEl = document.getElementById('loginError');
+    errEl.textContent = '';
+    if(!email || !password){ errEl.textContent = '請輸入 Email 和密碼'; return; }
+    try{
+      await signInWithEmailAndPassword(auth, email, password);
+    }catch(e){
+      errEl.textContent = '登入失敗,請確認 Email 和密碼是否正確。';
+    }
+  };
+  document.getElementById('loginPassword').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter') document.getElementById('loginBtn').click();
+  });
+  document.getElementById('logoutBtn').onclick = ()=> signOut(auth);
+
+  let booted = false;
+  onAuthStateChanged(auth, (user)=>{
+    const loginScreen = document.getElementById('loginScreen');
+    const appRoot = document.querySelector('.app');
+    if(user){
+      loginScreen.style.display = 'none';
+      appRoot.style.display = 'flex';
+      document.getElementById('userEmailLabel').textContent = user.email || '';
+      if(!booted){
+        booted = true;
+        if(window.__appBoot) window.__appBoot();
+      }
+    }else{
+      loginScreen.style.display = 'flex';
+      appRoot.style.display = 'none';
+      booted = false;
+    }
+  });
+</script>
+
+<script>
+/* ===================== State ===================== */
+let DATA = { clients: [], listings: [], content: [], deals: [] };
+let currentPage = 'dashboard';
+let editingCtx = null; // {type, id, ...extra}
+let loaded = false;
+
+const KEYS = { clients:'clients', listings:'listings', content:'content', deals:'deals' };
+
+/* ===================== Storage: records ===================== */
+async function loadAll(){
+  for(const type of Object.keys(KEYS)){
+    try{
+      const res = await window.storage.get(KEYS[type], false);
+      DATA[type] = res && res.value ? JSON.parse(res.value) : [];
+    }catch(e){
+      DATA[type] = [];
+    }
+  }
+  loaded = true;
+}
+
+async function saveType(type){
+  try{
+    await window.storage.set(KEYS[type], JSON.stringify(DATA[type]), false);
+  }catch(e){
+    showToast('儲存失敗,請稍後再試');
+  }
+}
+
+/* ===================== Storage: photos (separate keys) ===================== */
+async function savePhoto(key, dataUrl){
+  try{ await window.storage.set(key, dataUrl, false); }catch(e){ showToast('照片儲存失敗'); }
+}
+async function loadPhoto(key){
+  if(!key) return null;
+  try{ const r = await window.storage.get(key, false); return r ? r.value : null; }catch(e){ return null; }
+}
+async function deletePhoto(key){
+  if(!key) return;
+  try{ await window.storage.delete(key, false); }catch(e){ /* ignore */ }
+}
+
+function resizeImage(file, maxDim=900, quality=0.72){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = e=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let w = img.width, h = img.height;
+        if(w > h){ if(w > maxDim){ h = Math.round(h * maxDim / w); w = maxDim; } }
+        else{ if(h > maxDim){ w = Math.round(w * maxDim / h); h = maxDim; } }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+/* ===================== Export backup ===================== */
+document.getElementById('exportBtn').onclick = exportBackup;
+async function exportBackup(){
+  showToast('準備備份檔中…');
+  const backup = { exportedAt: new Date().toISOString(), data: DATA, photos: {} };
+  const keys = [];
+  DATA.clients.forEach(c=>{ if(c.cardPhotoKey) keys.push(c.cardPhotoKey); });
+  DATA.listings.forEach(l=>{ (l.photoKeys||[]).forEach(k=>keys.push(k)); });
+  for(const k of keys){
+    const v = await loadPhoto(k);
+    if(v) backup.photos[k] = v;
+  }
+  const blob = new Blob([JSON.stringify(backup)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `雅慈工作台備份_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('已下載備份檔');
+}
+
+/* ===================== Navigation ===================== */
+document.getElementById('nav').addEventListener('click', (e)=>{
+  const item = e.target.closest('.nav-item');
+  if(!item) return;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  item.classList.add('active');
+  currentPage = item.dataset.page;
+  render();
+});
+
+/* ===================== Render Router ===================== */
+function render(){
+  const main = document.getElementById('main');
+  if(!loaded){ main.innerHTML = '<div class="loading-note">載入中…</div>'; return; }
+  if(currentPage === 'dashboard') return renderDashboard();
+  if(currentPage === 'clients') return renderClients();
+  if(currentPage === 'listings') return renderListings();
+  if(currentPage === 'content') return renderContent();
+  if(currentPage === 'deals') return renderDeals();
+  if(currentPage === 'posttool') return renderPostTool();
+}
+
+/* ===================== Dashboard ===================== */
+function renderDashboard(){
+  const main = document.getElementById('main');
+  const activeClients = DATA.clients.filter(c=>c.status==='追蹤中').length;
+  const activeListings = DATA.listings.filter(l=>l.status==='在售').length;
+  const pendingContent = DATA.content.filter(c=>c.status!=='已發布').length;
+  const thisMonth = new Date().toISOString().slice(0,7);
+  const monthDeals = DATA.deals.filter(d=>d.closedDate && d.closedDate.startsWith(thisMonth));
+  const monthCommission = monthDeals.reduce((s,d)=>s+(Number(d.commission)||0),0);
+
+  main.innerHTML = `
+    <div class="page-head">
+      <div>
+        <div class="page-title"><span class="eyebrow">OVERVIEW</span>總覽</div>
+        <div class="page-desc">房產好夥伴雅慈 · 內部工作台一覽</div>
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card"><div class="stat-num">${activeClients}</div><div class="stat-label">追蹤中客戶</div></div>
+      <div class="stat-card"><div class="stat-num">${activeListings}</div><div class="stat-label">在售物件</div></div>
+      <div class="stat-card"><div class="stat-num">${pendingContent}</div><div class="stat-label">待完成內容</div></div>
+      <div class="stat-card"><div class="stat-num">$${monthCommission.toLocaleString()}</div><div class="stat-label">本月抽成(元)</div></div>
+    </div>
+
+    <div class="section-block">
+      <div class="section-block-head">近期需跟進客戶</div>
+      <div class="section-block-body">
+        ${renderFollowUpList()}
+      </div>
+    </div>
+
+    <div class="section-block">
+      <div class="section-block-head">未發布內容</div>
+      <div class="section-block-body">
+        ${renderPendingContentList()}
+      </div>
+    </div>
+  `;
+}
+
+function renderFollowUpList(){
+  const list = DATA.clients.filter(c=>c.status==='追蹤中')
+    .sort((a,b)=>(a.lastContact||'').localeCompare(b.lastContact||''))
+    .slice(0,5);
+  if(list.length===0) return '<div class="empty-state">目前沒有追蹤中的客戶,新增一筆看看</div>';
+  return `<table><thead><tr><th>客戶</th><th>類型</th><th>最後聯絡</th><th>服務紀錄</th></tr></thead><tbody>
+    ${list.map(c=>`<tr class="row-hover"><td>${esc(c.name)}</td><td><span class="tag">${esc(c.type)}</span></td><td>${esc(c.lastContact||'—')}</td><td>${(c.serviceLogs||[]).length} 筆</td></tr>`).join('')}
+  </tbody></table>`;
+}
+
+function renderPendingContentList(){
+  const list = DATA.content.filter(c=>c.status!=='已發布').slice(0,5);
+  if(list.length===0) return '<div class="empty-state">沒有待處理的內容,規劃下一支影片吧</div>';
+  return `<table><thead><tr><th>主題</th><th>平台</th><th>狀態</th><th>預計拍攝/發布</th></tr></thead><tbody>
+    ${list.map(c=>`<tr class="row-hover"><td>${esc(c.title)}</td><td><span class="tag">${esc(c.platform)}</span></td><td>${statusStamp(c.status)}</td><td>${esc(c.shootDate||'—')}</td></tr>`).join('')}
+  </tbody></table>`;
+}
+
+/* ===================== Shared helpers ===================== */
+function esc(s){
+  if(s===undefined||s===null) return '';
+  return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function statusStamp(status){
+  const map = {
+    '追蹤中':'stamp-active','在售':'stamp-active','製作中':'stamp-active','草稿':'stamp-pending',
+    '已成交':'stamp-done','已簽約':'stamp-done','已發布':'stamp-done',
+    '已流失':'stamp-lost','已下架':'stamp-lost'
+  };
+  const cls = map[status] || 'stamp-pending';
+  return `<span class="stamp ${cls}">${esc(status)}</span>`;
+}
+
+/* ===================== Clients Page ===================== */
+function renderClients(){
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="page-head">
+      <div>
+        <div class="page-title"><span class="eyebrow">CLIENTS</span>客戶名單</div>
+        <div class="page-desc">買方、賣方與租客的追蹤與服務紀錄</div>
+      </div>
+      <button class="btn btn-primary" id="addClientBtn">＋ 新增客戶</button>
+    </div>
+    <div class="toolbar">
+      <input class="search-input" id="clientSearch" placeholder="搜尋姓名 / 電話 / 備註…">
+      <select class="filter-select" id="clientStatusFilter">
+        <option value="">全部狀態</option>
+        <option>追蹤中</option><option>已成交</option><option>已流失</option>
+      </select>
+    </div>
+    <div class="section-block"><div class="section-block-body" id="clientTableWrap"></div></div>
+  `;
+  document.getElementById('addClientBtn').onclick = ()=>openClientModal();
+  document.getElementById('clientSearch').oninput = drawClientTable;
+  document.getElementById('clientStatusFilter').onchange = drawClientTable;
+  drawClientTable();
+}
+
+function drawClientTable(){
+  const q = (document.getElementById('clientSearch').value||'').toLowerCase();
+  const st = document.getElementById('clientStatusFilter').value;
+  let list = DATA.clients.filter(c=>{
+    const matchQ = !q || (c.name+c.phone+(c.notes||'')).toLowerCase().includes(q);
+    const matchSt = !st || c.status===st;
+    return matchQ && matchSt;
+  });
+  const wrap = document.getElementById('clientTableWrap');
+  if(list.length===0){ wrap.innerHTML = '<div class="empty-state">沒有符合的客戶</div>'; return; }
+  wrap.innerHTML = `<table><thead><tr>
+    <th>姓名</th><th>電話</th><th>類型</th><th>狀態</th><th>名片</th><th>附件</th><th>服務紀錄</th><th>最後聯絡</th><th></th>
+  </tr></thead><tbody>
+    ${list.map(c=>`<tr class="row-hover">
+      <td>${esc(c.name)}</td>
+      <td>${esc(c.phone||'—')}</td>
+      <td><span class="tag">${esc(c.type)}</span></td>
+      <td>${statusStamp(c.status)}</td>
+      <td>${c.cardPhotoKey ? '<span class="tag-soft">📇 已上傳</span>' : '—'}</td>
+      <td>${(c.attachmentKeys&&c.attachmentKeys.length) ? '<span class="tag-soft">📎 '+c.attachmentKeys.length+'</span>' : '—'}</td>
+      <td>${(c.serviceLogs||[]).length ? (c.serviceLogs.length + ' 筆') : '—'}</td>
+      <td>${esc(c.lastContact||'—')}</td>
+      <td><div class="row-actions">
+        <button class="icon-btn" onclick="openClientModal('${c.id}')" title="編輯 / 維護">✎</button>
+        <button class="icon-btn" onclick="deleteItem('clients','${c.id}')" title="刪除">🗑</button>
+      </div></td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+
+async function openClientModal(id){
+  const item = id ? DATA.clients.find(c=>c.id===id) : {name:'',phone:'',type:'買方',status:'追蹤中',source:'',lastContact:'',notes:'',cardPhotoKey:null,serviceLogs:[]};
+  editingCtx = {
+    type:'clients',
+    id: id||null,
+    tempLogs: JSON.parse(JSON.stringify(item.serviceLogs||[])),
+    cardPhoto: { key: item.cardPhotoKey||null, dataUrl: null },
+    removedCardKey: null,
+    attachments: [],       // {key, dataUrl}
+    removedAttachmentKeys: []
+  };
+  document.getElementById('modalTitle').textContent = id ? '編輯客戶' : '新增客戶';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>姓名</label><input id="f_name" value="${esc(item.name)}"></div>
+    <div class="field-row">
+      <div class="field"><label>電話</label><input id="f_phone" value="${esc(item.phone)}"></div>
+      <div class="field"><label>類型</label>
+        <select id="f_type">${['買方','賣方','租客','房東'].map(t=>`<option ${item.type===t?'selected':''}>${t}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>狀態</label>
+        <select id="f_status">${['追蹤中','已成交','已流失'].map(t=>`<option ${item.status===t?'selected':''}>${t}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>最後聯絡日期</label><input type="date" id="f_lastContact" value="${esc(item.lastContact)}"></div>
+    </div>
+    <div class="field"><label>來源(短影音 / 轉介 / 廣告…)</label><input id="f_source" value="${esc(item.source)}"></div>
+    <div class="field"><label>備註</label><textarea id="f_notes">${esc(item.notes)}</textarea></div>
+
+    <div class="field field-divider">
+      <div class="field-sub-title">客戶名片</div>
+      <div class="card-photo-row" id="cardPhotoRow"><span class="tag-soft">載入中…</span></div>
+      <input type="file" accept="image/*" id="cardPhotoInput" style="display:none;">
+    </div>
+
+    <div class="field field-divider">
+      <div class="field-sub-title">服務紀錄</div>
+      <div class="log-list" id="logList"></div>
+      <div class="log-add-row">
+        <input type="date" id="logDate" value="${new Date().toISOString().slice(0,10)}">
+        <input type="time" id="logTime" value="${new Date().toTimeString().slice(0,5)}">
+        <input type="text" id="logNote" placeholder="例如:帶看信義路物件,反應不錯…">
+        <button class="btn btn-ghost btn-sm" id="logAddBtn">新增</button>
+      </div>
+    </div>
+
+    <div class="field field-divider">
+      <div class="field-sub-title">其他附件(稅費試算、文件照片等)</div>
+      <div class="photo-grid" id="clientAttachmentGrid"><span class="tag-soft">載入中…</span></div>
+      <input type="file" accept="image/*" multiple id="clientAttachmentInput" style="display:none;">
+    </div>
+  `;
+  openModal();
+  renderLogList();
+  await renderCardPhotoPreview();
+  await renderAttachmentGrid();
+
+  document.getElementById('clientAttachmentInput').onchange = async (e)=>{
+    const files = Array.from(e.target.files||[]);
+    for(const file of files){
+      const dataUrl = await resizeImage(file, 1400, 0.78);
+      editingCtx.attachments.push({key:null, dataUrl});
+    }
+    e.target.value = '';
+    renderAttachmentGrid();
+  };
+
+  document.getElementById('cardPhotoRow').addEventListener('click', (e)=>{
+    if(e.target.closest('.rm')) return;
+    document.getElementById('cardPhotoInput').click();
+  });
+  document.getElementById('cardPhotoInput').onchange = async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const dataUrl = await resizeImage(file, 900, 0.72);
+    if(editingCtx.cardPhoto.key) editingCtx.removedCardKey = editingCtx.cardPhoto.key;
+    editingCtx.cardPhoto = { key:null, dataUrl };
+    renderCardPhotoPreview();
+  };
+  document.getElementById('logAddBtn').onclick = ()=>{
+    const d = document.getElementById('logDate').value;
+    const t = document.getElementById('logTime').value;
+    const n = document.getElementById('logNote').value.trim();
+    if(!n){ showToast('請輸入服務紀錄內容'); return; }
+    editingCtx.tempLogs.unshift({id:uid(), date:d, time:t, note:n});
+    document.getElementById('logNote').value='';
+    renderLogList();
+  };
+}
+
+async function renderCardPhotoPreview(){
+  const row = document.getElementById('cardPhotoRow');
+  if(!row) return;
+  let src = editingCtx.cardPhoto.dataUrl;
+  if(!src && editingCtx.cardPhoto.key){ src = await loadPhoto(editingCtx.cardPhoto.key); }
+  if(src){
+    row.innerHTML = `
+      <div class="card-photo-preview"><img src="${src}"><button class="rm" id="cardPhotoRemove">✕</button></div>
+      <span class="tag-soft">點圖片可更換</span>
+    `;
+    document.getElementById('cardPhotoRemove').onclick = (e)=>{
+      e.stopPropagation();
+      if(editingCtx.cardPhoto.key) editingCtx.removedCardKey = editingCtx.cardPhoto.key;
+      editingCtx.cardPhoto = { key:null, dataUrl:null };
+      renderCardPhotoPreview();
+    };
+  }else{
+    row.innerHTML = `<div class="card-photo-preview" style="cursor:pointer;">＋ 上傳名片</div>`;
+  }
+}
+
+function renderLogList(){
+  const wrap = document.getElementById('logList');
+  if(!wrap) return;
+  const logs = editingCtx.tempLogs || [];
+  if(logs.length===0){ wrap.innerHTML = '<div class="empty-state" style="padding:16px;">尚無服務紀錄</div>'; return; }
+  wrap.innerHTML = logs.slice().sort((a,b)=>((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||''))).map(l=>`
+    <div class="log-entry">
+      <div class="log-entry-date">${esc(l.date||'—')}${l.time?' '+esc(l.time):''}</div>
+      <div class="log-entry-note">${esc(l.note)}</div>
+      <button class="rm" onclick="removeLogEntry('${l.id}')" title="刪除">✕</button>
+    </div>
+  `).join('');
+}
+function removeLogEntry(logId){
+  editingCtx.tempLogs = editingCtx.tempLogs.filter(l=>l.id!==logId);
+  renderLogList();
+}
+
+async function renderAttachmentGrid(){
+  const grid = document.getElementById('clientAttachmentGrid');
+  if(!grid) return;
+  grid.innerHTML = '<span class="tag-soft">載入中…</span>';
+  if(editingCtx.attachments.length===0 && editingCtx.id){
+    const item = DATA.clients.find(c=>c.id===editingCtx.id);
+    if(item && item.attachmentKeys && item.attachmentKeys.length && !editingCtx._attachmentsLoaded){
+      editingCtx.attachments = [];
+      for(const k of item.attachmentKeys){
+        const dataUrl = await loadPhoto(k);
+        if(dataUrl) editingCtx.attachments.push({key:k, dataUrl});
+      }
+      editingCtx._attachmentsLoaded = true;
+    }
+  }
+  const addTile = `<div class="upload-btn" id="addAttachmentTile">＋<br>新增照片</div>`;
+  grid.innerHTML = editingCtx.attachments.map((p,idx)=>`
+    <div class="photo-chip">
+      <img src="${p.dataUrl}">
+      <button class="rm" onclick="removeClientAttachment(${idx})" title="移除">✕</button>
+    </div>
+  `).join('') + addTile;
+  document.getElementById('addAttachmentTile').onclick = ()=>document.getElementById('clientAttachmentInput').click();
+}
+function removeClientAttachment(idx){
+  const p = editingCtx.attachments[idx];
+  if(p.key) editingCtx.removedAttachmentKeys.push(p.key);
+  editingCtx.attachments.splice(idx,1);
+  renderAttachmentGrid();
+}
+
+async function saveClient(){
+  const vals = {
+    name: document.getElementById('f_name').value.trim(),
+    phone: document.getElementById('f_phone').value.trim(),
+    type: document.getElementById('f_type').value,
+    status: document.getElementById('f_status').value,
+    lastContact: document.getElementById('f_lastContact').value,
+    source: document.getElementById('f_source').value.trim(),
+    notes: document.getElementById('f_notes').value.trim(),
+    serviceLogs: editingCtx.tempLogs || [],
+  };
+  if(!vals.name){ showToast('請輸入姓名'); return false; }
+
+  if(editingCtx.removedCardKey) await deletePhoto(editingCtx.removedCardKey);
+  if(editingCtx.cardPhoto.dataUrl && !editingCtx.cardPhoto.key){
+    const newKey = 'photo:client:' + uid();
+    await savePhoto(newKey, editingCtx.cardPhoto.dataUrl);
+    editingCtx.cardPhoto.key = newKey;
+  }
+  vals.cardPhotoKey = editingCtx.cardPhoto.key || null;
+
+  for(const k of editingCtx.removedAttachmentKeys) await deletePhoto(k);
+  for(const p of editingCtx.attachments){
+    if(!p.key){
+      const newKey = 'photo:client-doc:' + uid();
+      await savePhoto(newKey, p.dataUrl);
+      p.key = newKey;
+    }
+  }
+  vals.attachmentKeys = editingCtx.attachments.map(p=>p.key);
+
+  if(editingCtx.id){
+    const idx = DATA.clients.findIndex(c=>c.id===editingCtx.id);
+    DATA.clients[idx] = {...DATA.clients[idx], ...vals};
+  }else{
+    DATA.clients.push({id: uid(), ...vals});
+  }
+  await saveType('clients');
+  return true;
+}
+
+/* ===================== Listings Page ===================== */
+function renderListings(){
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="page-head">
+      <div>
+        <div class="page-title"><span class="eyebrow">LISTINGS</span>物件委託</div>
+        <div class="page-desc">手上委託物件與狀態管理</div>
+      </div>
+      <button class="btn btn-primary" id="addListingBtn">＋ 新增物件</button>
+    </div>
+    <div class="toolbar">
+      <input class="search-input" id="listingSearch" placeholder="搜尋物件名稱 / 地址 / 屋主…">
+      <select class="filter-select" id="listingStatusFilter">
+        <option value="">全部狀態</option>
+        <option>在售</option><option>已簽約</option><option>已成交</option><option>已下架</option>
+      </select>
+    </div>
+    <div class="section-block"><div class="section-block-body" id="listingTableWrap"></div></div>
+  `;
+  document.getElementById('addListingBtn').onclick = ()=>openListingModal();
+  document.getElementById('listingSearch').oninput = drawListingTable;
+  document.getElementById('listingStatusFilter').onchange = drawListingTable;
+  drawListingTable();
+}
+
+function drawListingTable(){
+  const q = (document.getElementById('listingSearch').value||'').toLowerCase();
+  const st = document.getElementById('listingStatusFilter').value;
+  let list = DATA.listings.filter(l=>{
+    const matchQ = !q || (l.name+l.address+(l.ownerName||'')).toLowerCase().includes(q);
+    const matchSt = !st || l.status===st;
+    return matchQ && matchSt;
+  });
+  const wrap = document.getElementById('listingTableWrap');
+  if(list.length===0){ wrap.innerHTML = '<div class="empty-state">沒有符合的物件</div>'; return; }
+  wrap.innerHTML = `<table><thead><tr>
+    <th>物件</th><th>類型</th><th>地址</th><th>開價</th><th>狀態</th><th>照片</th><th>屋主</th><th></th>
+  </tr></thead><tbody>
+    ${list.map(l=>`<tr class="row-hover">
+      <td>${esc(l.name)}</td>
+      <td><span class="tag">${esc(l.type)}</span></td>
+      <td>${esc(l.address||'—')}</td>
+      <td>${l.price?Number(l.price).toLocaleString()+' 萬':'—'}</td>
+      <td>${statusStamp(l.status)}</td>
+      <td>${(l.photoKeys&&l.photoKeys.length) ? '<span class="tag-soft">📷 '+l.photoKeys.length+'</span>' : '—'}</td>
+      <td>${esc(l.ownerName||'—')}${l.ownerPhone?' / '+esc(l.ownerPhone):''}</td>
+      <td><div class="row-actions">
+        <button class="icon-btn" onclick="openListingModal('${l.id}')" title="編輯">✎</button>
+        <button class="icon-btn" onclick="deleteItem('listings','${l.id}')" title="刪除">🗑</button>
+      </div></td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+
+async function openListingModal(id){
+  const item = id ? DATA.listings.find(l=>l.id===id) : {name:'',type:'中古屋',address:'',price:'',status:'在售',ownerName:'',ownerPhone:'',notes:'',photoKeys:[]};
+  editingCtx = {
+    type:'listings',
+    id: id||null,
+    photos: [],       // {key, dataUrl}
+    removedKeys: []
+  };
+  document.getElementById('modalTitle').textContent = id ? '編輯物件' : '新增物件';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>物件名稱</label><input id="f_name" value="${esc(item.name)}"></div>
+    <div class="field-row">
+      <div class="field"><label>類型</label>
+        <select id="f_type">${['中古屋','預售屋','店面','土地','套房出租'].map(t=>`<option ${item.type===t?'selected':''}>${t}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>開價(萬)</label><input type="number" id="f_price" value="${esc(item.price)}"></div>
+    </div>
+    <div class="field"><label>地址</label><input id="f_address" value="${esc(item.address)}"></div>
+    <div class="field"><label>狀態</label>
+      <select id="f_status">${['在售','已簽約','已成交','已下架'].map(t=>`<option ${item.status===t?'selected':''}>${t}</option>`).join('')}</select>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>屋主姓名</label><input id="f_ownerName" value="${esc(item.ownerName)}"></div>
+      <div class="field"><label>屋主電話</label><input id="f_ownerPhone" value="${esc(item.ownerPhone)}"></div>
+    </div>
+    <div class="field"><label>備註</label><textarea id="f_notes">${esc(item.notes)}</textarea></div>
+
+    <div class="field field-divider">
+      <div class="field-sub-title">物件照片</div>
+      <div class="photo-grid" id="photoGrid"><span class="tag-soft">載入中…</span></div>
+      <input type="file" accept="image/*" multiple id="listingPhotoInput" style="display:none;">
+    </div>
+  `;
+  openModal();
+
+  editingCtx.photos = [];
+  for(const k of (item.photoKeys||[])){
+    const dataUrl = await loadPhoto(k);
+    if(dataUrl) editingCtx.photos.push({key:k, dataUrl});
+  }
+  renderPhotoGrid();
+
+  document.getElementById('listingPhotoInput').onchange = async (e)=>{
+    const files = Array.from(e.target.files||[]);
+    for(const file of files){
+      const dataUrl = await resizeImage(file, 1000, 0.72);
+      editingCtx.photos.push({key:null, dataUrl});
+    }
+    e.target.value = '';
+    renderPhotoGrid();
+  };
+}
+
+function renderPhotoGrid(){
+  const grid = document.getElementById('photoGrid');
+  if(!grid) return;
+  const addTile = `<div class="upload-btn" id="addPhotoTile">＋<br>新增照片</div>`;
+  grid.innerHTML = editingCtx.photos.map((p,idx)=>`
+    <div class="photo-chip">
+      <img src="${p.dataUrl}">
+      <button class="rm" onclick="removeListingPhoto(${idx})" title="移除">✕</button>
+    </div>
+  `).join('') + addTile;
+  document.getElementById('addPhotoTile').onclick = ()=>document.getElementById('listingPhotoInput').click();
+}
+function removeListingPhoto(idx){
+  const p = editingCtx.photos[idx];
+  if(p.key) editingCtx.removedKeys.push(p.key);
+  editingCtx.photos.splice(idx,1);
+  renderPhotoGrid();
+}
+
+async function saveListing(){
+  const vals = {
+    name: document.getElementById('f_name').value.trim(),
+    type: document.getElementById('f_type').value,
+    price: document.getElementById('f_price').value,
+    address: document.getElementById('f_address').value.trim(),
+    status: document.getElementById('f_status').value,
+    ownerName: document.getElementById('f_ownerName').value.trim(),
+    ownerPhone: document.getElementById('f_ownerPhone').value.trim(),
+    notes: document.getElementById('f_notes').value.trim(),
+  };
+  if(!vals.name){ showToast('請輸入物件名稱'); return false; }
+
+  for(const k of editingCtx.removedKeys) await deletePhoto(k);
+  for(const p of editingCtx.photos){
+    if(!p.key){
+      const newKey = 'photo:listing:' + uid();
+      await savePhoto(newKey, p.dataUrl);
+      p.key = newKey;
+    }
+  }
+  vals.photoKeys = editingCtx.photos.map(p=>p.key);
+
+  if(editingCtx.id){
+    const idx = DATA.listings.findIndex(l=>l.id===editingCtx.id);
+    DATA.listings[idx] = {...DATA.listings[idx], ...vals};
+  }else{
+    DATA.listings.push({id: uid(), ...vals});
+  }
+  await saveType('listings');
+  return true;
+}
+
+/* ===================== Content Page ===================== */
+function renderContent(){
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="page-head">
+      <div>
+        <div class="page-title"><span class="eyebrow">CONTENT</span>內容規劃</div>
+        <div class="page-desc">短影音主題、拍攝與發布排程</div>
+      </div>
+      <button class="btn btn-primary" id="addContentBtn">＋ 新增內容</button>
+    </div>
+    <div class="toolbar">
+      <input class="search-input" id="contentSearch" placeholder="搜尋主題 / 平台…">
+      <select class="filter-select" id="contentStatusFilter">
+        <option value="">全部狀態</option>
+        <option>草稿</option><option>製作中</option><option>已發布</option>
+      </select>
+    </div>
+    <div class="section-block"><div class="section-block-body" id="contentTableWrap"></div></div>
+  `;
+  document.getElementById('addContentBtn').onclick = ()=>openContentModal();
+  document.getElementById('contentSearch').oninput = drawContentTable;
+  document.getElementById('contentStatusFilter').onchange = drawContentTable;
+  drawContentTable();
+}
+
+function drawContentTable(){
+  const q = (document.getElementById('contentSearch').value||'').toLowerCase();
+  const st = document.getElementById('contentStatusFilter').value;
+  let list = DATA.content.filter(c=>{
+    const matchQ = !q || (c.title+c.platform).toLowerCase().includes(q);
+    const matchSt = !st || c.status===st;
+    return matchQ && matchSt;
+  });
+  const wrap = document.getElementById('contentTableWrap');
+  if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有內容規劃,新增第一支影片主題吧</div>'; return; }
+  wrap.innerHTML = `<table><thead><tr>
+    <th>主題</th><th>平台</th><th>狀態</th><th>拍攝日</th><th>發布日</th><th>備註</th><th></th>
+  </tr></thead><tbody>
+    ${list.map(c=>`<tr class="row-hover">
+      <td>${esc(c.title)}</td>
+      <td><span class="tag">${esc(c.platform)}</span></td>
+      <td>${statusStamp(c.status)}</td>
+      <td>${esc(c.shootDate||'—')}</td>
+      <td>${esc(c.publishDate||'—')}</td>
+      <td>${esc(c.notes||'—')}</td>
+      <td><div class="row-actions">
+        <button class="icon-btn" onclick="openContentModal('${c.id}')" title="編輯">✎</button>
+        <button class="icon-btn" onclick="deleteItem('content','${c.id}')" title="刪除">🗑</button>
+      </div></td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+
+function openContentModal(id){
+  const item = id ? DATA.content.find(c=>c.id===id) : {title:'',platform:'IG Reels',status:'草稿',shootDate:'',publishDate:'',notes:''};
+  editingCtx = {type:'content', id: id||null};
+  document.getElementById('modalTitle').textContent = id ? '編輯內容' : '新增內容';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>主題</label><input id="f_title" value="${esc(item.title)}"></div>
+    <div class="field-row">
+      <div class="field"><label>平台</label>
+        <select id="f_platform">${['IG Reels','抖音/TikTok','YouTube Shorts','FB','其他'].map(t=>`<option ${item.platform===t?'selected':''}>${t}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>狀態</label>
+        <select id="f_status">${['草稿','製作中','已發布'].map(t=>`<option ${item.status===t?'selected':''}>${t}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>預計拍攝日</label><input type="date" id="f_shootDate" value="${esc(item.shootDate)}"></div>
+      <div class="field"><label>預計發布日</label><input type="date" id="f_publishDate" value="${esc(item.publishDate)}"></div>
+    </div>
+    <div class="field"><label>腳本 / 備註</label><textarea id="f_notes">${esc(item.notes)}</textarea></div>
+  `;
+  openModal();
+}
+
+async function saveContent(){
+  const vals = {
+    title: document.getElementById('f_title').value.trim(),
+    platform: document.getElementById('f_platform').value,
+    status: document.getElementById('f_status').value,
+    shootDate: document.getElementById('f_shootDate').value,
+    publishDate: document.getElementById('f_publishDate').value,
+    notes: document.getElementById('f_notes').value.trim(),
+  };
+  if(!vals.title){ showToast('請輸入主題'); return false; }
+  if(editingCtx.id){
+    const idx = DATA.content.findIndex(c=>c.id===editingCtx.id);
+    DATA.content[idx] = {...DATA.content[idx], ...vals};
+  }else{
+    DATA.content.push({id: uid(), ...vals});
+  }
+  await saveType('content');
+  return true;
+}
+
+/* ===================== Deals Page ===================== */
+function renderDeals(){
+  const main = document.getElementById('main');
+  const totalCommission = DATA.deals.reduce((s,d)=>s+(Number(d.commission)||0),0);
+  main.innerHTML = `
+    <div class="page-head">
+      <div>
+        <div class="page-title"><span class="eyebrow">DEALS</span>業績成交</div>
+        <div class="page-desc">累計抽成 <strong>$${totalCommission.toLocaleString()}</strong> 元</div>
+      </div>
+      <button class="btn btn-primary" id="addDealBtn">＋ 新增成交案</button>
+    </div>
+    <div class="section-block"><div class="section-block-body" id="dealTableWrap"></div></div>
+  `;
+  document.getElementById('addDealBtn').onclick = ()=>openDealModal();
+  drawDealTable();
+}
+
+function drawDealTable(){
+  const wrap = document.getElementById('dealTableWrap');
+  const list = [...DATA.deals].sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+  if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有成交紀錄</div>'; return; }
+  wrap.innerHTML = `<table><thead><tr>
+    <th>案件</th><th>客戶</th><th>成交金額(萬)</th><th>抽成比例</th><th>抽成金額</th><th>成交日</th><th></th>
+  </tr></thead><tbody>
+    ${list.map(d=>`<tr class="row-hover">
+      <td>${esc(d.caseName)}</td>
+      <td>${esc(d.clientName||'—')}</td>
+      <td>${d.amount?Number(d.amount).toLocaleString():'—'}</td>
+      <td>${d.rate?d.rate+'%':'—'}</td>
+      <td>$${Number(d.commission||0).toLocaleString()}</td>
+      <td>${esc(d.closedDate||'—')}</td>
+      <td><div class="row-actions">
+        <button class="icon-btn" onclick="openDealModal('${d.id}')" title="編輯">✎</button>
+        <button class="icon-btn" onclick="deleteItem('deals','${d.id}')" title="刪除">🗑</button>
+      </div></td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+
+function openDealModal(id){
+  const item = id ? DATA.deals.find(d=>d.id===id) : {caseName:'',clientName:'',amount:'',rate:'',commission:'',closedDate:''};
+  editingCtx = {type:'deals', id: id||null};
+  document.getElementById('modalTitle').textContent = id ? '編輯成交案' : '新增成交案';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>案件名稱</label><input id="f_caseName" value="${esc(item.caseName)}"></div>
+    <div class="field"><label>客戶</label><input id="f_clientName" value="${esc(item.clientName)}"></div>
+    <div class="field-row">
+      <div class="field"><label>成交金額(萬)</label><input type="number" id="f_amount" value="${esc(item.amount)}"></div>
+      <div class="field"><label>抽成比例(%)</label><input type="number" id="f_rate" value="${esc(item.rate)}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>抽成金額(元)</label><input type="number" id="f_commission" value="${esc(item.commission)}"></div>
+      <div class="field"><label>成交日期</label><input type="date" id="f_closedDate" value="${esc(item.closedDate)}"></div>
+    </div>
+  `;
+  openModal();
+}
+
+async function saveDeal(){
+  const vals = {
+    caseName: document.getElementById('f_caseName').value.trim(),
+    clientName: document.getElementById('f_clientName').value.trim(),
+    amount: document.getElementById('f_amount').value,
+    rate: document.getElementById('f_rate').value,
+    commission: document.getElementById('f_commission').value,
+    closedDate: document.getElementById('f_closedDate').value,
+  };
+  if(!vals.caseName){ showToast('請輸入案件名稱'); return false; }
+  if(editingCtx.id){
+    const idx = DATA.deals.findIndex(d=>d.id===editingCtx.id);
+    DATA.deals[idx] = {...DATA.deals[idx], ...vals};
+  }else{
+    DATA.deals.push({id: uid(), ...vals});
+  }
+  await saveType('deals');
+  return true;
+}
+
+/* ===================== Post Tool Page ===================== */
+const PT_SIGNOFF = `★★★★★★★★★★★★★★★★★★
+有巢氏房屋｜平鎮南勢中豐店
+眾鑫房屋仲介有限公司
+經紀人：李文儀111宜字第00369號`;
+
+let ptDraftEl, ptPreviewEl, ptGenStatusEl, ptCopyStatusEl, ptGenBtnEl, ptFieldEls;
+let ptGroups = [];
+let ptCurrentPhotos = [];
+
+function renderPostTool(){
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="pt-page">
+      <div class="pt-header">
+        <h1>房產好夥伴雅慈 · 貼文小工具</h1>
+        <p>貼網址 → 產生貼文文案 → 確認後複製發社團</p>
+      </div>
+      <div class="pt-main">
+
+        <div class="pt-notice">
+          <b>提醒：</b>這個工具能幫你抓取物件網址內容、寫好貼文文案，但受限於 Facebook 的政策，無法由網頁工具自動幫你把貼文送出到社團——最後一步仍需你按「複製文字」後手動貼到社團貼文框。工具會幫你把「開啟社團」的分頁一起打開，讓最後這步盡量順手。
+        </div>
+
+        <div class="pt-step">
+          <div class="pt-step-label"><span class="pt-step-num">1</span>貼上物件網址，自動抓取</div>
+          <input type="url" id="ptUrlInput" placeholder="https://...">
+          <div class="pt-row-buttons">
+            <button class="pt-btn-primary" id="ptGenBtn" onclick="ptGenerateDraft()">自動抓取並擷取欄位</button>
+          </div>
+          <div class="pt-hint">會固定擷取：標題、售價、地坪、建坪、格局、房屋描述，以及頁面上的照片。抓不到的欄位會留空，請手動補上。</div>
+          <div class="pt-status" id="ptGenStatus"></div>
+        </div>
+
+        <div class="pt-step" id="ptPhotoStep" style="display:none;">
+          <div class="pt-step-label">抓到的照片，點右上角 ✕ 可移除</div>
+          <div class="pt-photo-grid" id="ptPhotoGrid"></div>
+          <div class="pt-hint">網頁圖片沒辦法直接幫你傳進 Facebook，選好要用的照片後，點縮圖可在新分頁開啟，手機上長按圖片選「儲存圖片」，再手動上傳到社團貼文裡。</div>
+        </div>
+
+        <div class="pt-step">
+          <div class="pt-step-label"><span class="pt-step-num">2</span>確認 / 編輯擷取欄位</div>
+
+          <div class="pt-hint" style="margin-top:0;">標題</div>
+          <input type="text" id="ptFTitle" placeholder="例：桃園中壢三房電梯大樓">
+
+          <div class="pt-hint">售價</div>
+          <input type="text" id="ptFPrice" placeholder="例：888萬">
+
+          <div class="pt-row-buttons" style="margin-top:12px;">
+            <div style="flex:1;min-width:120px;">
+              <div class="pt-hint" style="margin-top:0;">地坪</div>
+              <input type="text" id="ptFLandPing" placeholder="例：15坪">
+            </div>
+            <div style="flex:1;min-width:120px;">
+              <div class="pt-hint" style="margin-top:0;">建坪</div>
+              <input type="text" id="ptFBuildPing" placeholder="例：32坪">
+            </div>
+          </div>
+
+          <div class="pt-hint">格局</div>
+          <input type="text" id="ptFLayout" placeholder="例：3房2廳2衛">
+
+          <div class="pt-hint">地址（用來查學區）</div>
+          <input type="text" id="ptFAddress" placeholder="例：桃園市中壢區中豐路100號">
+
+          <div class="pt-row-buttons" style="flex-wrap:wrap;margin-top:12px;">
+            <div style="flex:1;min-width:140px;">
+              <div class="pt-hint" style="margin-top:0;">🌳 公園</div>
+              <input type="text" id="ptFParkNearby" placeholder="填寫附近公園">
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <div class="pt-hint" style="margin-top:0;">🚌 公車站</div>
+              <input type="text" id="ptFBusNearby" placeholder="填寫附近公車站">
+            </div>
+          </div>
+
+          <div class="pt-row-buttons" style="flex-wrap:wrap;">
+            <div style="flex:1;min-width:140px;">
+              <div class="pt-hint" style="margin-top:0;">🏪 超商</div>
+              <input type="text" id="ptFConvNearby" placeholder="填寫附近超商">
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <div class="pt-hint" style="margin-top:0;">🛍 賣場</div>
+              <input type="text" id="ptFMarketNearby" placeholder="填寫附近賣場">
+            </div>
+          </div>
+
+          <div class="pt-row-buttons" style="flex-wrap:wrap;">
+            <div style="flex:1;min-width:140px;">
+              <div class="pt-hint" style="margin-top:0;">🛒 全聯</div>
+              <input type="text" id="ptFPxNearby" placeholder="填寫附近全聯">
+            </div>
+          </div>
+
+          <div class="pt-row-buttons" style="flex-wrap:wrap;">
+            <div style="flex:1;min-width:140px;">
+              <div class="pt-hint" style="margin-top:0;">🏫 國小</div>
+              <div style="display:flex;gap:6px;">
+                <input type="text" id="ptFElementaryNearby" placeholder="填寫學區國小" style="flex:1;">
+                <button type="button" class="pt-btn-outline" style="padding:0 12px;" onclick="ptToggleSchoolZonePanel()">查學區</button>
+              </div>
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <div class="pt-hint" style="margin-top:0;">🏫 國中</div>
+              <div style="display:flex;gap:6px;">
+                <input type="text" id="ptFJuniorHighNearby" placeholder="填寫學區國中" style="flex:1;">
+                <button type="button" class="pt-btn-outline" style="padding:0 12px;" onclick="ptToggleSchoolZonePanel()">查學區</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="ptSchoolZonePanel" style="display:none;border:1px solid var(--line);background:var(--stone);padding:14px;margin-top:4px;">
+            <div class="pt-hint" style="margin-top:0;font-weight:700;color:var(--jade-deep);">學區查詢（目前有平鎮、中壢、龍潭、楊梅，其他區還沒建）</div>
+            <div class="pt-hint" style="margin-top:4px;">資料用村里＋鄰劃分，不是路名，地址無法自動比對。不知道村里可以先開<a href="https://easymap.land.moi.gov.tw/P02/" target="_blank" style="color:var(--jade-deep);">門牌查詢地圖</a>查。</div>
+            <input type="text" id="ptVillageInput" placeholder="輸入村里名稱，例如：南勢、廣仁、宋屋..." oninput="ptRenderSchoolZoneResults()" style="margin-top:8px;">
+            <div id="ptSchoolZoneResults" style="margin-top:10px;max-height:260px;overflow-y:auto;"></div>
+            <div class="pt-hint">學區每學年可能調整，這份是112學年度公告，正式提供客戶前務必到<a href="https://www.tyc.edu.tw/News.aspx?n=5208&sms=11286" target="_blank" style="color:var(--jade-deep);">教育局官網</a>核對最新公告。</div>
+          </div>
+
+          <div class="pt-hint">房屋描述</div>
+          <textarea id="ptFDesc" style="min-height:110px;" placeholder="屋況、賣點、周邊機能等描述"></textarea>
+
+          <div class="pt-row-buttons">
+            <button class="pt-btn-brass" onclick="ptComposeFromFields()">用這些欄位組成貼文</button>
+          </div>
+        </div>
+
+        <div class="pt-step">
+          <div class="pt-step-label"><span class="pt-step-num">3</span>確認 / 編輯文案</div>
+          <textarea id="ptDraftText" placeholder="組成後會顯示在這裡，你也可以直接手動輸入、修改..."></textarea>
+          <div class="pt-hint">結尾的公司資訊區塊會自動固定加上，不用另外處理。</div>
+        </div>
+
+        <div class="pt-step">
+          <div class="pt-step-label"><span class="pt-step-num">👁</span>貼文預覽</div>
+          <div class="pt-fb-card">
+            <div class="pt-fb-card-head">
+              <div class="pt-fb-avatar">雅</div>
+              <div>
+                <div class="pt-fb-name">房產好夥伴雅慈</div>
+                <div class="pt-fb-meta">剛剛 · 🌐 公開</div>
+              </div>
+            </div>
+            <div class="pt-fb-body" id="ptPreviewBody">在上方產生或輸入文案後，這裡會即時顯示預覽。</div>
+          </div>
+        </div>
+
+        <div class="pt-step">
+          <div class="pt-step-label"><span class="pt-step-num">4</span>確認可以 → 發社團</div>
+          <div class="pt-row-buttons">
+            <button class="pt-btn-brass" onclick="ptCopyDraft()">複製文字內容</button>
+          </div>
+          <div class="pt-status" id="ptCopyStatus"></div>
+
+          <div class="pt-hint" style="margin-top:16px;">新增常發的社團</div>
+          <input type="text" id="ptGroupLabelInput" placeholder="社團名稱（選填，方便辨識）">
+          <input type="url" id="ptGroupUrlInput" placeholder="Facebook 社團網址" style="margin-top:8px;">
+          <div class="pt-row-buttons">
+            <button class="pt-btn-outline" onclick="ptAddGroup()">加入清單</button>
+          </div>
+
+          <div id="ptGroupList" style="margin-top:6px;"></div>
+          <div class="pt-hint">複製文字後，點清單裡的「開啟」逐一到社團貼上發布。</div>
+        </div>
+
+      </div>
+    </div>
+  `;
+  ptInit();
+}
+
+function ptInit(){
+  ptDraftEl = document.getElementById('ptDraftText');
+  ptPreviewEl = document.getElementById('ptPreviewBody');
+  ptGenStatusEl = document.getElementById('ptGenStatus');
+  ptCopyStatusEl = document.getElementById('ptCopyStatus');
+  ptGenBtnEl = document.getElementById('ptGenBtn');
+  ptFieldEls = {
+    title: document.getElementById('ptFTitle'),
+    price: document.getElementById('ptFPrice'),
+    landPing: document.getElementById('ptFLandPing'),
+    buildPing: document.getElementById('ptFBuildPing'),
+    layout: document.getElementById('ptFLayout'),
+    address: document.getElementById('ptFAddress'),
+    park: document.getElementById('ptFParkNearby'),
+    bus: document.getElementById('ptFBusNearby'),
+    conv: document.getElementById('ptFConvNearby'),
+    market: document.getElementById('ptFMarketNearby'),
+    px: document.getElementById('ptFPxNearby'),
+    elementary: document.getElementById('ptFElementaryNearby'),
+    juniorHigh: document.getElementById('ptFJuniorHighNearby'),
+    desc: document.getElementById('ptFDesc'),
+  };
+  ptDraftEl.addEventListener('input', ptUpdatePreview);
+  ptCurrentPhotos = [];
+  ptLoadGroups();
+}
+
+function ptUpdatePreview(){
+  const v = ptDraftEl.value.trim();
+  ptPreviewEl.textContent = v || "在上方產生或輸入文案後，這裡會即時顯示預覽。";
+}
+
+function ptEscapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function ptLoadGroups(){
+  try{
+    const res = await window.storage.get('postGroups', false);
+    ptGroups = res && res.value ? JSON.parse(res.value) : [];
+  }catch(e){
+    ptGroups = [];
+  }
+  ptRenderGroups();
+}
+
+function ptRenderGroups(){
+  const el = document.getElementById('ptGroupList');
+  if(!el) return;
+  if(!ptGroups.length){
+    el.innerHTML = '<div class="pt-hint" style="margin-top:0;">尚未加入任何社團</div>';
+    return;
+  }
+  el.innerHTML = ptGroups.map((g, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);">
+      <div style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ptEscapeHtml(g.label || g.url)}</div>
+      <button class="pt-btn-brass" style="padding:6px 12px;font-size:12px;" onclick="ptOpenGroupAt(${i})">開啟</button>
+      <button class="pt-btn-outline" style="padding:6px 10px;font-size:12px;" onclick="ptRemoveGroup(${i})">移除</button>
+    </div>
+  `).join('');
+}
+
+async function ptSaveGroups(){
+  try{ await window.storage.set('postGroups', JSON.stringify(ptGroups), false); }
+  catch(e){ showToast('社團清單儲存失敗'); }
+}
+
+async function ptAddGroup(){
+  const urlInput = document.getElementById('ptGroupUrlInput');
+  const labelInput = document.getElementById('ptGroupLabelInput');
+  const url = urlInput.value.trim();
+  const label = labelInput.value.trim();
+  if(!url){
+    ptCopyStatusEl.textContent = '請先貼上社團網址';
+    ptCopyStatusEl.className = 'pt-status err';
+    return;
+  }
+  ptGroups.push({ url, label });
+  await ptSaveGroups();
+  urlInput.value = '';
+  labelInput.value = '';
+  ptRenderGroups();
+}
+
+async function ptRemoveGroup(i){
+  ptGroups.splice(i, 1);
+  await ptSaveGroups();
+  ptRenderGroups();
+}
+
+function ptOpenGroupAt(i){
+  const g = ptGroups[i];
+  if(g) window.open(g.url, '_blank');
+}
+
+function ptOpenMapSearch(keyword){
+  const address = ptFieldEls.address.value.trim();
+  if(!address){
+    alert('請先輸入地址');
+    return;
+  }
+  const q = encodeURIComponent(address + ' 附近' + keyword);
+  window.open('https://www.google.com/maps/search/' + q + '?hl=zh-TW', '_blank');
+}
+
+function ptToggleSchoolZonePanel(){
+  const panel = document.getElementById('ptSchoolZonePanel');
+  const willShow = panel.style.display === 'none';
+  panel.style.display = willShow ? 'block' : 'none';
+  if(willShow) ptRenderSchoolZoneResults();
+}
+
+const PT_SCHOOL_ZONE_ELEMENTARY = [
+  { district: '平鎮區', school: '宋屋國小', phone: '4933654', zone: '廣仁，平興（1-9、12、32-36、39），宋屋（3-9），平鎮（8-17）、◎平鎮（18、19、30，與瑞埔國小為自由學區），義民（15-16、18-20、21【延平路2段324至348號】、29-30、34-35），新貴（3、26）' },
+  { district: '平鎮區', school: '平興國小', phone: '4029323', zone: '宋屋（1-2、10-33），平興（10-11、13-31、37、38），義民（1-14、27-28、33），復旦（1、25-28），◎復旦（32，與文化國小為自由學區），高雙（1-11、28、29、簡屋部份【高山下143、144、145號】）' },
+  { district: '平鎮區', school: '文化國小', phone: '4921750', zone: '復興，復旦（2-24、29-31），◎復旦（32，與平興國小為自由學區），高雙（11【簡屋部分除外】-27），雙連（43）' },
+  { district: '平鎮區', school: '復旦國小', phone: '4928238', zone: '廣達，廣興（1-29【義民路204號、204-1號、204-2號、206-2號、廣興11號除外】、30、33-43）' },
+  { district: '平鎮區', school: '義興國小', phone: '4913700', zone: '義興，義民（17、21【延平路2段324至348號除外】-26、31-32）' },
+  { district: '平鎮區', school: '新榮國小', phone: '2806200', zone: '廣興（29【義民路204號、204-1號、204-2號、206-2號、廣興11號】、31-32），新勢（13-15）' },
+  { district: '平鎮區', school: '新勢國小', phone: '4937563', zone: '新榮，新英，新富（1-13、15-37），北華（5-9、19），北勢（5-8），新勢（1-12、16-41）' },
+  { district: '平鎮區', school: '北勢國小', phone: '4586472', zone: '北興，北富，北貴，新貴（1、6-17、23、25、27-28），金陵（10-19、23-25），北華（1-4、20-22），新富（14），龍恩（1、11-17）' },
+  { district: '平鎮區', school: '忠貞國小', phone: '4501450', zone: '忠貞，中正，貿易，東社，龍興，龍恩（2-10、20-24、33-43）' },
+  { district: '平鎮區', school: '山豐國小', phone: '4691784', zone: '山峰，莊敬，福林（6-22【6鄰48號、49號、8鄰51號、53至60號除外】、23-24），湧光（1-17、39-44），湧豐（1-8）' },
+  { district: '平鎮區', school: '東勢國小', phone: '4504034', zone: '東勢（9鄰東勢4之6號、4之7號、7號、7之1號至7之20號、34鄰除外），建安（5-32），福林（1-5、6鄰48號、6鄰49號、8鄰51號）' },
+  { district: '平鎮區', school: '南勢國小', phone: '4393724', zone: '南勢，金星，平安，平南，平鎮（1-7、29【第一口橋以東】），區興（21-25），福林（8鄰53至60號），新貴（2、4、5、18-22、24）' },
+  { district: '平鎮區', school: '東安國小', phone: '4509571', zone: '東安，華安，新安，建安（1-4）' },
+  { district: '平鎮區', school: '祥安國小', phone: '4192135', zone: '湧安，湧豐（9-16），湧光（18-38、45），區興（18-20）' },
+  { district: '楊梅區', school: '瑞埔國小', phone: '4822018', zone: '平鎮（20-28、29【第一口橋以西】、31-32）、◎平鎮（18、19、30，與宋屋國小為自由學區），區興（1-17、26-29）' },
+  { district: '中壢區', school: '龍岡國小', phone: '4588582', zone: '振興，龍興，龍德（1-3、5-20），龍慈（1-3），◎後寮（1、19-20，與普仁國小為自由學區）' },
+  { district: '中壢區', school: '普仁國小', phone: '4563830', zone: '普慶，後寮（2-18、21-28），仁美（1-21、27-32），至善（1），龍慈（11-21），龍德（4），◎仁愛（7、21-22，與華勛國小為自由學區），◎仁福（2-6，與富台國小為自由學區），◎後寮（1、19-20），◎龍慈（4-10，與富台國小為自由學區），◎至善（2-5，與富台國小為自由學區）' },
+  { district: '中壢區', school: '富台國小', phone: '4563335', zone: '中堅，龍昌，仁福（1、7-21、24-25），◎仁福（2-6），◎至善（2-5），至善（6-22），◎龍慈（4-10），龍慈（22-24），◎龍東（1-9、23，與忠貞國小為自由學區），◎龍安（1-11，與霄裡國小為自由學區）' },
+  { district: '中壢區', school: '信義國小', phone: '4573780', zone: '信義，正義，東興（1-3），明德（1-24），健行（9、16-25），普強（2-6、8-24），◎健行（1、26，與林森國小為自由學區）' },
+  { district: '中壢區', school: '華勛國小', phone: '4661587', zone: '仁祥，華勛，仁德，仁和，華愛，仁愛（1-6、8-19），仁美（22-26），仁福（22-23），◎仁愛（7、21-22）' },
+  { district: '中壢區', school: '中原國小', phone: '4388200', zone: '普仁，普忠（1-18、20），普強（1、7），仁義（1-8）' },
+  { district: '中壢區', school: '內壢國小', phone: '4635888', zone: '內壢，成功，福德，中原（1-7、10-30），忠孝（1-17、22）' },
+  { district: '中壢區', school: '內定國小', phone: '4524624', zone: '內定（1-8、17-26），◎內定（9-16、27，與忠福國小為自由學區），文化（1-20、22-24）' },
+  { district: '中壢區', school: '自立國小', phone: '4559130', zone: '自立，自信，普忠（19），仁愛（20），莊敬（1-14、18-20），忠義（6-7、10、15）' },
+  { district: '中壢區', school: '興仁國小', phone: '4355753', zone: '興仁，自強，自治，莊敬（15-17、21）' },
+  { district: '中壢區', school: '中正國小', phone: '4559313', zone: '中正，中山，篤行，中興' },
+  { district: '中壢區', school: '元生國小', phone: '4625566', zone: '復華，復興，和平，文化（21、25-36），忠義（8-9），中原（8-9），忠孝（18-21）' },
+  { district: '中壢區', school: '中壢國小', phone: '4255216', zone: '中建，中壢，石頭，中央（3、5-8、22），◎中央（9-12、14-15，與新街國小為自由學區），東興（4-13、20-21），永興（1-5），興南（1-3、5、8-10），中榮（1、4-5、9、12-19）' },
+  { district: '中壢區', school: '新街國小', phone: '4523202', zone: '新街，普義，幸福，德義，中央（1-2、4、13、16-21），◎中央（9-12、14-15），忠福（1-12、22-37、39、41），忠義（1-5、11-14），興南（4、6-7、13、16-17），水尾（2、4-23），仁義（9-23）' },
+  { district: '中壢區', school: '忠福國小', phone: '4340192', zone: '永福，忠福（13-21、38、40），◎內定（9-16、27）' },
+  { district: '中壢區', school: '青埔國小', phone: '4531626', zone: '青埔(4-15)，◎興和（7-14，與興國國小為自由學區），洽溪（7-10、13），水尾（1、3）' },
+  { district: '中壢區', school: '興國國小', phone: '4258158', zone: '興國，興平，金華，興和（1-6、15-18），興南（11-12、14-15、18-25），◎興和（7-14）' },
+  { district: '中壢區', school: '林森國小', phone: '4579213', zone: '健行（2-8、10-15），◎健行（1、26），東興（14-19），新興，林森' },
+  { district: '中壢區', school: '新明國小', phone: '4933262', zone: '◎五權（1-6，與文化國小為自由學區），五權（7-11、23），五福（1-3、10-15、17-24），舊明（1-5、8、16-23），永興（6-12），三民，光明，永光，新明' },
+  { district: '中壢區', school: '芭里國小', phone: '4228086', zone: '芝芭（1-9、11-14）' },
+  { district: '中壢區', school: '大崙國小', phone: '4983424', zone: '山東（1-6、15），過嶺（5-6），芝芭（10），月眉，內厝' },
+  { district: '中壢區', school: '山東國小', phone: '4981323', zone: '山東（7-14）' },
+  { district: '中壢區', school: '中平國小', phone: '4902025', zone: '過嶺（1-4、12-17、19-21），◎過嶺（7-11、18，與頭洲、上大國小為自由學區）' },
+  { district: '中壢區', school: '青園國小', phone: '', zone: '洽溪 (1-6、11-12)，青埔 (1-3)' },
+  { district: '龍潭區', school: '雙龍國小', phone: '4991888', zone: '中正，上華，上林（10-18、26-30）' },
+  { district: '龍潭區', school: '龍潭國小', phone: '4792014', zone: '龍潭，上林（1-9、19-25、31），中山（7-9、13-27、33-34、36-41）、◎中山（10-12、35、42-43，與龍星國小為自由學區），龍祥（21-23、30-32），龍星（8-36【8鄰中正路高架橋至龍星國小部分單號門牌除外】），凌雲（5-39），◎龍星(中正路196至364號【不含巷弄】，與龍星國小為自由學區)' },
+  { district: '龍潭區', school: '潛龍國小', phone: '4792153', zone: '烏林，烏樹林，百年，龍祥（1-20、24-29），凌雲（1-4）' },
+  { district: '龍潭區', school: '武漢國小', phone: '4792873', zone: '中興，東興，北興，武漢，黃唐（11、26-30），永興（10-23），九龍（4【4鄰之21、22、22-1、22-2號】、10-33）' },
+  { district: '龍潭區', school: '龍星國小', phone: '4797299', zone: '中山（1-6、28-32）、◎中山（10-12、35、42-43），黃唐（1-10、12-25、31），龍星（1-7、8【中正路高架橋至龍星國小部分單號門牌】），永興（1-9），九龍（1-9【4鄰之21、22、22-1、22-2號除外】），◎龍星(中正路196至364號【不含巷弄】)' },
+  { district: '龍潭區', school: '德龍國小', phone: '4792524', zone: '八德，聖德(1-15鄰)，◎聖德（16-27，與祥安國小為自由學區）' },
+  { district: '龍潭區', school: '石門國小', phone: '4711752', zone: '三林，建林，富林，◎佳安（與三坑國小為自由學區）' },
+  { district: '龍潭區', school: '三坑國小', phone: '4713627', zone: '三坑，大平，◎佳安' },
+  { district: '龍潭區', school: '高原國小', phone: '4717009', zone: '高原，三水（14），三和（3-6【3鄰23號除外】、7鄰10號、15-24）' },
+  { district: '龍潭區', school: '龍源國小', phone: '4717149', zone: '高平' },
+  { district: '龍潭區', school: '三和國小', phone: '4792154', zone: '三水（1-4、8-13），三和（1-2、7-14【7鄰10號、9鄰番子窩12-17之2號除外】、3鄰23號）' },
+  { district: '楊梅區', school: '楊梅國小', phone: '4782016', zone: '大平，東流，永寧，秀才，紅梅(3-23)，◎紅梅(1-2，與楊心國小為自由學區)，梅新（1-5、7-10、19-20）、◎梅新（6，與大同國小為自由學區）' },
+  { district: '楊梅區', school: '大同國小', phone: '4782249', zone: '楊梅（8-12、14、16、18-28），◎楊梅（1、30-32，與楊心國小為自由學區），大同（1、3-12、16-23），◎大同（13-15，與楊明國小為自由學區），梅新（11-18），◎梅新（6），中山（5-16），◎中山（1-3，與楊明國小為自由學區），楊江（8-11）' },
+  { district: '楊梅區', school: '楊心國小', phone: '4758680', zone: '楊江（1-7、12-17），水美（1-4、16-20），◎高山（1-8、10、11-15、17，與水美國小為自由學區），◎高山（9，與高榮國小為自由學區），三湖（1-6、11、13-15）、◎三湖（12，與上湖國小為自由學區），頭湖，◎紅梅(1-2)，◎瑞原（23-25），楊梅（2-7、13、15、17、29），◎楊梅（1、30-32），◎上湖（22，與水美、上湖國小為自由學區）' },
+  { district: '楊梅區', school: '四維國小', phone: '4822704', zone: '四維，金龍，光華（17-28、30-31）' },
+  { district: '楊梅區', school: '水美國小', phone: '4782770', zone: '水美（5-15、21-31），瑞原（11、12-18），◎瑞原（23-25），◎上湖（22），◎高山（1-8、10-15、17）' },
+  { district: '楊梅區', school: '上田國小', phone: '4782544', zone: '上田，員本（1），瑞原（1-4、19-22、26）' },
+  { district: '楊梅區', school: '瑞原國小', phone: '4723280', zone: '瑞原（5-10），◎瑞原（23-25），員本（2、4、15-16），富豐（1-2），◎上湖（1-2，與上湖國小為自由學區）' },
+  { district: '楊梅區', school: '富岡國小', phone: '4721193', zone: '豐野，員本（3、5-14、17-21），富豐(3-18、20-23)，富岡' },
+  { district: '楊梅區', school: '高榮國小', phone: '4782314', zone: '青山，高榮（1-3、11-18、21）◎高榮（4-6、19-20，與中平國小為自由學區），高山（16、18、19）、◎高山（9），高上，◎永平（12-17，與瑞梅國小為自由學區）' },
+  { district: '楊梅區', school: '瑞埔國小', phone: '4822018', zone: '埔心，仁美，光華（1-16、29），永平（1-2、18）◎永平（3，與瑞梅國小為自由學區）' },
+  { district: '楊梅區', school: '上湖國小', phone: '4728925', zone: '上湖（3-21、23-29），◎上湖（1-2），◎上湖（22），富豐（19），三湖（7-10），◎三湖（12）' },
+  { district: '楊梅區', school: '瑞梅國小', phone: '4825284', zone: '梅溪，瑞溪（6-13），永平（4-11），◎永平（12-17）◎永平（3）' },
+  { district: '楊梅區', school: '楊明國小', phone: '4754929', zone: '楊明，大同（2、24-25）、◎大同（13-15），中山（4、17-23），◎中山（1-3）' },
+  { district: '楊梅區', school: '瑞塘國小', phone: '4316360', zone: '瑞塘，瑞坪，瑞溪（1-5、14-17）' },
+  { district: '楊梅區', school: '楊光國小', phone: '4827987', zone: '金溪，裕成，三民，裕新' },
+  { district: '中壢區', school: '中平國小', phone: '4902025', zone: '新榮〈1-9，21-23〉，◎新榮（10-20，與頭洲國小為自由學區），雙榮，◎高榮（4-6、19-20），高榮(7-10)' },
+];
+
+const PT_SCHOOL_ZONE_JUNIOR = [
+  { district: '平鎮區', school: '平鎮國中', phone: '4572151', zone: '新富，新英，新貴，新榮，北興，金陵，北華，北貴，北富，北勢（6-21），福林（1-5、6鄰48號、6鄰49號），新勢（1-2、12、16-41），龍恩（1），建安（19-24、32），東勢（1-9【9鄰東勢4之6號、4之7號、7號、7之1號至7之20號除外】、20-22、26-33、37-38、41）' },
+  { district: '平鎮區', school: '平南國中', phone: '4394147', zone: '金星，平安，平南，莊敬，南勢，山峰，湧光，福林（1-5、6鄰48號、6鄰49號除外），平鎮（1-7、29【第一口橋以東】），區興（21-25），湧豐（1-16），湧安（1-19、21-28）' },
+  { district: '平鎮區', school: '中壢國中', phone: '4223214', zone: '（另有中壢區行政區併入，見下方中壢國中條目）北安，新勢（3-11、13-15），北勢（1-5）' },
+  { district: '平鎮區', school: '平興國中', phone: '4918239', zone: '義民，義興，廣達，廣仁，高雙，復旦，復興，廣興，宋屋，平興，平鎮（8-17），雙連（43）' },
+  { district: '平鎮區', school: '東安國中', phone: '4601407', zone: '東安，華安，新安，東社，東勢（10-19、23-25、35-36、39-40），建安（1-18、25-31）' },
+  { district: '中壢區', school: '新明國中', phone: '4936194', zone: '永興，新明，光明，三民，五權(4-27)，五福，永光，舊明' },
+  { district: '中壢區', school: '興南國中', phone: '4629991', zone: '興南，興國，興平，水尾，金華，新街，興和（1-6、15-18鄰），◎興和（7-14，與青埔國中為自由學區），忠福，幸福，永福，◎忠義（1-5、11-14，與內壢國中為自由學區），仁義（12-23）' },
+  { district: '中壢區', school: '內壢國中', phone: '4522494', zone: '內壢，中原，忠孝，內定，成功，福德，復興，復華，文化，和平，普忠（19），◎忠義（1-5、11-14），忠義（6-10、15）' },
+  { district: '中壢區', school: '自強國中', phone: '4553494', zone: '興仁，中正，中山，中興，篤行，自立，自信，自強，莊敬，自治，仁德，仁和，仁祥，華勛，仁愛（1-6、8-20），華愛，仁美（24-25），◎仁美（22-23、26）' },
+  { district: '中壢區', school: '大崙國中', phone: '4982840', zone: '內厝，月眉，山東，◎過嶺（5-7），芝芭（10）' },
+  { district: '中壢區', school: '東興國中', phone: '4583500', zone: '信義，正義，普仁，普強，普忠（1-18、20），明德，仁美（1-15、27-32），仁義（1-11），德義（1-15、20），仁愛（7、21-22），東興（1-3），健行，林森(4-6、8)，◎仁美（22-23、26），◎普慶' },
+  { district: '中壢區', school: '龍岡國中', phone: '4562137', zone: '龍岡(2-15、17-23)，龍東，龍平，龍安，中堅，龍昌（15-18）' },
+  { district: '中壢區', school: '龍興國中', phone: '4575200', zone: '振興，龍德，龍興，至善，後寮，龍慈，龍岡（1、16），龍昌（1-14、19-33），仁福，仁美（16-21），◎仁美（22-23、26），◎普慶，◎林森（10）' },
+  { district: '中壢區', school: '過嶺國中', phone: '4200026', zone: '過嶺（1-4、8-21），◎過嶺（5-7），五權(1-3)' },
+  { district: '中壢區', school: '青埔國中', phone: '2871886', zone: '芝芭(1-9、11-14)，洽溪，青埔，◎興和（7-14）' },
+  { district: '中壢區', school: '中壢國中', phone: '4223214', zone: '中壢，中榮，中建，石頭，中央，林森（1-3、7、9、11-23）、◎林森（10），東興（4-21），普義，德義（16-19），新興' },
+  { district: '龍潭區', school: '武漢國中', phone: '4806468', zone: '中興，東興，北興，黃唐，永興，武漢，烏樹林（2-5、11-13、16-17、22-23），九龍（1-4、10-33），中山（10、12）' },
+  { district: '龍潭區', school: '凌雲國中', phone: '4792604', zone: '八德，聖德，高平，高原，凌雲，龍祥，三和，三水(1-4鄰、8-14鄰)，◎三水（5-7，與楊梅國中為自由學區），上林（1-9、21-25），烏林（17-39）' },
+  { district: '龍潭區', school: '龍潭國中', phone: '4792075', zone: '龍潭，百年，中正，龍星，上華，九龍（5-9），上林（10-20、26-31），烏林（1-16、40），烏樹林（1、6-10、14-15、18-21），中山（1-9、11、13-43）' },
+  { district: '龍潭區', school: '石門國中', phone: '4713610', zone: '佳安，三坑，建林，富林，大平，三林' },
+  { district: '楊梅區', school: '楊梅國中', phone: '4782024', zone: '紅梅，大平，東流，永寧，楊江，秀才，梅新，中山（1-3），◎中山（5-10，與楊明國中為自由學區），水美（1-7、16-20、31），三湖（1-6、11-15），◎三湖（7-10，與富岡國中為自由學區），頭湖，上湖（1-4、22），◎上湖（9-11、17-18，與富岡國中為自由學區），楊梅（2-21、23-26、29），◎楊梅（1、30-32，與楊明國中為自由學區）' },
+  { district: '楊梅區', school: '仁美國中', phone: '4641123', zone: '埔心，仁美，青山，◎光華（1-14，與瑞坪國中為自由學區），高榮（1-3、11-18、21），高山（16、18-19），◎高山（4、11、17，與楊明國中為自由學區），高上（1-6、8-12、14-18），◎高上（7、13，與楊明國中為自由學區），永平（1-4、10-18），◎永平（5-9，與楊明國中為自由學區）' },
+  { district: '楊梅區', school: '楊明國中', phone: '4781525', zone: '大同，楊明，梅溪，高山（1-3、5-10、12-15），◎高山（4、11、17），◎高上（7、13），中山（4、11-23）、◎中山（5-10），楊梅（22、27-28），◎楊梅（1、30-32），◎永平（5-9）' },
+  { district: '楊梅區', school: '富岡國中', phone: '4721113', zone: '富岡，豐野，富豐，員本（3、5-14、17-21），上湖（5-8、12-16、19-21、23-29），◎上湖（9-11、17-18），◎三湖（7-10）' },
+  { district: '楊梅區', school: '瑞原國中', phone: '4782242', zone: '上田，瑞原，員本（1-2、4、15-16），水美（8-15、21-30）' },
+  { district: '楊梅區', school: '瑞坪國中', phone: '4821468', zone: '金龍，四維，瑞塘，瑞坪，瑞溪，光華（15-31），◎光華（1-14）' },
+  { district: '楊梅區', school: '楊光國中', phone: '4827987', zone: '金溪，裕成，三民，裕新' },
+  { district: '中壢區', school: '過嶺國中', phone: '4200026', zone: '新榮，雙榮，高榮（4-10、19-20）（此為中壢區行政里併入楊梅過嶺國中學區）' },
+];
+
+function ptSchoolZoneHighlight(text, keyword){
+  if(!keyword) return text;
+  const idx = text.indexOf(keyword);
+  if(idx === -1) return text;
+  return text.slice(0, idx) + '<mark style="background:#F6E3A1;padding:0 2px;">' + text.slice(idx, idx + keyword.length) + '</mark>' + text.slice(idx + keyword.length);
+}
+
+function ptRenderSchoolZoneResults(){
+  const keyword = document.getElementById('ptVillageInput').value.trim();
+  const container = document.getElementById('ptSchoolZoneResults');
+
+  const buildSection = (title, list) => {
+    const matched = keyword ? list.filter(s => s.zone.includes(keyword)) : [];
+    if(!keyword){
+      return `<div class="pt-hint" style="margin-top:0;">輸入村里名稱後，這裡會列出${title}</div>`;
+    }
+    if(!matched.length) return '';
+    return `<div style="font-weight:700;color:var(--brass);font-size:12.5px;margin:8px 0 4px;">${title}</div>` +
+      matched.map(s => `
+        <div style="border-bottom:1px solid var(--line);padding:8px 0;">
+          <div style="font-weight:700;color:var(--jade-deep);font-size:13.5px;">${s.school}　<span style="font-weight:400;color:var(--ink-soft);font-size:11px;">${s.district}</span></div>
+          <div style="font-size:12.5px;">${ptSchoolZoneHighlight(s.zone, keyword)}</div>
+          <div style="font-size:11px;color:var(--ink-soft);">☎ ${s.phone}</div>
+        </div>
+      `).join('');
+  };
+
+  const elemHtml = buildSection('國小', PT_SCHOOL_ZONE_ELEMENTARY);
+  const juniorHtml = buildSection('國中', PT_SCHOOL_ZONE_JUNIOR);
+
+  if(keyword && !elemHtml && !juniorHtml){
+    container.innerHTML = `<div class="pt-hint" style="margin-top:0;">沒有找到包含「${keyword}」的村里，目前資料庫只有平鎮區、中壢區，其他區還沒建，或村里名稱打法不同。</div>`;
+  } else {
+    container.innerHTML = elemHtml + juniorHtml;
+  }
+}
+
+function ptComposeFromFields(){
+  const title = ptFieldEls.title.value.trim();
+  const price = ptFieldEls.price.value.trim();
+  const landPing = ptFieldEls.landPing.value.trim();
+  const buildPing = ptFieldEls.buildPing.value.trim();
+  const layout = ptFieldEls.layout.value.trim();
+  const desc = ptFieldEls.desc.value.trim();
+
+  const specs = [];
+  if(price) specs.push(`💰 售價 ${price}`);
+  if(landPing) specs.push(`📐 地坪 ${landPing}`);
+  if(buildPing) specs.push(`🏗 建坪 ${buildPing}`);
+  if(layout) specs.push(`🏠 格局 ${layout}`);
+
+  const nearbyLines = [];
+  const park = ptFieldEls.park.value.trim();
+  const bus = ptFieldEls.bus.value.trim();
+  const conv = ptFieldEls.conv.value.trim();
+  const market = ptFieldEls.market.value.trim();
+  const px = ptFieldEls.px.value.trim();
+  const elementary = ptFieldEls.elementary.value.trim();
+  const juniorHigh = ptFieldEls.juniorHigh.value.trim();
+  if(park) nearbyLines.push(`🌳 公園：${park}`);
+  if(bus) nearbyLines.push(`🚌 公車站：${bus}`);
+  if(conv) nearbyLines.push(`🏪 超商：${conv}`);
+  if(market) nearbyLines.push(`🛍 賣場：${market}`);
+  if(px) nearbyLines.push(`🛒 全聯：${px}`);
+  if(elementary) nearbyLines.push(`🏫 國小：${elementary}`);
+  if(juniorHigh) nearbyLines.push(`🏫 國中：${juniorHigh}`);
+
+  const parts = [];
+  if(title) parts.push(`【${title}】`);
+  if(specs.length) parts.push(specs.join('\n'));
+  if(desc) parts.push(desc);
+  if(nearbyLines.length) parts.push(`📍 生活機能\n${nearbyLines.join('\n')}`);
+  parts.push(PT_SIGNOFF);
+
+  ptDraftEl.value = parts.join('\n\n');
+  ptUpdatePreview();
+  ptCopyStatusEl.textContent = '已用欄位組成文案，可在下方繼續編輯。';
+  ptCopyStatusEl.className = 'pt-status ok';
+}
+
+function ptFillFields(f){
+  ptFieldEls.title.value = f.title || '';
+  ptFieldEls.price.value = f.price || '';
+  ptFieldEls.landPing.value = f.land_ping || '';
+  ptFieldEls.buildPing.value = f.building_ping || '';
+  ptFieldEls.layout.value = f.layout || '';
+  ptFieldEls.address.value = f.address || '';
+  ptFieldEls.desc.value = f.description || '';
+}
+
+function ptExtractImageUrls(rawText){
+  const urls = new Set();
+  for(const m of rawText.matchAll(/!\[[^\]]*\]\((https?:\/\/[^\s\)]+)\)/g)){
+    urls.add(m[1]);
+  }
+  for(const m of rawText.matchAll(/https?:\/\/[^\s"'<>\)]+?\.(?:jpg|jpeg|png|webp)(?:\?[^\s"'<>\)]*)?/gi)){
+    urls.add(m[0]);
+  }
+  return [...urls]
+    .filter(u => !/logo|icon|sprite|avatar|favicon/i.test(u))
+    .slice(0, 24);
+}
+
+function ptRenderPhotoGrid(photos){
+  ptCurrentPhotos = photos;
+  const step = document.getElementById('ptPhotoStep');
+  const grid = document.getElementById('ptPhotoGrid');
+
+  if(!photos.length){
+    step.style.display = 'none';
+    grid.innerHTML = '';
+    return;
+  }
+
+  step.style.display = 'block';
+  grid.innerHTML = photos.map((url, i) => `
+    <div class="pt-photo-thumb" id="pt-photo-${i}">
+      <img src="${url}" loading="lazy" onclick="window.open('${url}','_blank')" onerror="this.closest('.pt-photo-thumb').remove()">
+      <button class="pt-remove-btn" onclick="ptRemovePhoto(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+function ptRemovePhoto(i){
+  const el = document.getElementById('pt-photo-' + i);
+  if(el) el.remove();
+}
+
+async function ptFetchReadablePageText(url){
+  const readerUrl = 'https://r.jina.ai/' + url;
+  const res = await fetch(readerUrl);
+  if(!res.ok) throw new Error(`網頁讀取服務回應錯誤 (狀態碼 ${res.status})`);
+  const text = await res.text();
+  if(!text || text.trim().length < 20) throw new Error('讀取到的網頁內容是空的，該網址可能需要登入或封鎖了自動讀取');
+  return text.trim();
+}
+
+function ptExtractFieldsWithRegex(rawText){
+  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+  let title = lines.find(l => l.length > 4 && l.length < 80) || '';
+  title = title.replace(/^title\s*[:：]\s*/i, '').trim();
+
+  const priceMatch = rawText.match(/(\d{2,5}(?:\.\d+)?\s*萬)/);
+
+  const landMatch =
+    rawText.match(/地坪\s*[:：]?\s*(\d+(?:\.\d+)?\s*坪)/) ||
+    rawText.match(/土地(?:面積|坪數)?\s*[:：]?\s*(\d+(?:\.\d+)?\s*坪)/);
+
+  const buildMatch =
+    rawText.match(/主建\s*[:：]?\s*(\d+(?:\.\d+)?\s*坪)/) ||
+    rawText.match(/建坪\s*[:：]?\s*(\d+(?:\.\d+)?\s*坪)/) ||
+    rawText.match(/(?:主建物|建物面積|權狀坪數|房屋坪數)\s*[:：]?\s*(\d+(?:\.\d+)?\s*坪)/);
+
+  const layoutMatch =
+    rawText.match(/(\d\s*房\s*\d\s*廳\s*\d?\s*衛?)/) ||
+    rawText.match(/(\d\s*[房室]\s*\d\s*廳)/) ||
+    rawText.match(/格局\s*[:：]?\s*([^\n]{2,12}(?:房|室)[^\n]{0,10})/);
+
+  const addressMatch =
+    rawText.match(/地址\s*[:：]?\s*([^\n]{6,40}(?:路|街|大道)[^\n]{0,20}?\d+[^\n]{0,10})/) ||
+    rawText.match(/([\u4e00-\u9fa5]{2,3}[縣市][\u4e00-\u9fa5]{2,4}[區鄉鎮市][^\n]{2,20}(?:路|街|大道)[^\n]{0,20}?\d+[^\n]{0,10})/);
+
+  let desc = '';
+  const starSections = [...rawText.matchAll(/★\s*(?:房屋)?(?:環境|交通|屋況|特色|格局|介紹)[:：]?\s*([\s\S]{10,300}?)(?=★|\n\n|$)/g)]
+    .map(m => m[1].trim())
+    .filter(Boolean);
+  if(starSections.length){
+    desc = starSections.join('\n');
+  } else {
+    const descHeadMatch = rawText.match(
+      /(?:房屋描述|屋況介紹|物件描述|特色描述|物件特色|房屋說明|物件說明|物件亮點|屋況特色|生活機能|仲介口述|心得分享|文案|備註)[:：]?\s*([\s\S]{20,300}?)(?:\n\n|$)/
+    );
+    if(descHeadMatch){
+      desc = descHeadMatch[1].trim();
+    } else {
+      const paragraphs = rawText.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+      const prose = paragraphs
+        .filter(p => p.length > 40 && p.length < 400 && !/^(title|url|source)\s*[:：]/i.test(p))
+        .sort((a, b) => b.length - a.length)[0];
+      if(prose) desc = prose.slice(0, 300);
+    }
+  }
+
+  return {
+    title,
+    price: priceMatch ? priceMatch[1].replace(/\s+/g,'') : '',
+    land_ping: landMatch ? landMatch[1].replace(/\s+/g,'') : '',
+    building_ping: buildMatch ? buildMatch[1].replace(/\s+/g,'') : '',
+    layout: layoutMatch ? layoutMatch[1].replace(/\s+/g,'') : '',
+    address: addressMatch ? addressMatch[1].replace(/\s+/g,'') : '',
+    description: desc,
+  };
+}
+
+async function ptExtractFieldsWithAI(rawText, url){
+  const trimmed = rawText.slice(0, 6000);
+  const prompt = `以下是從房屋物件網頁 ${url} 擷取到的內容：
+
+---
+${trimmed}
+---
+
+請從中找出以下欄位，找不到的欄位請填空字串，絕對不要編造內容：
+- title：物件標題
+- price：售價（含「萬」字，例如「888萬」）
+- land_ping：地坪（含「坪」字）
+- building_ping：建坪（含「坪」字）
+- layout：格局（例如「3房2廳2衛」）
+- address：完整地址（含縣市、區、路名、門牌），找不到就填空字串，絕對不要編造
+- description：房屋描述／屋況／賣點，濃縮成 100-200 字繁體中文
+
+只回傳一個 JSON 物件，不要任何前言、說明或 markdown 符號，格式如下：
+{"title":"","price":"","land_ping":"","building_ping":"","layout":"","address":"","description":""}`;
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 800,
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+
+  if(!response.ok) throw new Error(`AI 擷取服務回應錯誤 (狀態碼 ${response.status})`);
+  const data = await response.json();
+  if(data.error) throw new Error(data.error.message || 'AI 擷取服務錯誤');
+
+  const text = (data.content || [])
+    .map(b => b.type === 'text' ? b.text : '')
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+
+  const cleaned = text.replace(/```json|```/g, '').trim();
+  const parsed = JSON.parse(cleaned);
+  return parsed;
+}
+
+async function ptGenerateDraft(){
+  const url = document.getElementById('ptUrlInput').value.trim();
+  if(!url){
+    ptGenStatusEl.textContent = '請先貼上物件網址';
+    ptGenStatusEl.className = 'pt-status err';
+    return;
+  }
+  ptGenBtnEl.disabled = true;
+  ptGenStatusEl.innerHTML = '<span class="pt-spinner"></span>正在讀取網頁內容...';
+  ptGenStatusEl.className = 'pt-status';
+
+  let rawText;
+  try{
+    rawText = await ptFetchReadablePageText(url);
+  }catch(e){
+    console.error(e);
+    ptGenStatusEl.textContent = '讀取網頁失敗：' + (e && e.message ? e.message : '未知錯誤') + '。請確認網址正確、頁面公開可瀏覽，或換一個網址再試。';
+    ptGenStatusEl.className = 'pt-status err';
+    ptGenBtnEl.disabled = false;
+    return;
+  }
+
+  ptGenStatusEl.innerHTML = '<span class="pt-spinner"></span>網頁已讀取，正在擷取照片與欄位...';
+
+  const photos = ptExtractImageUrls(rawText);
+  ptRenderPhotoGrid(photos);
+
+  let fields;
+  let usedAI = true;
+  try{
+    fields = await ptExtractFieldsWithAI(rawText, url);
+  }catch(e){
+    console.error(e);
+    usedAI = false;
+    fields = ptExtractFieldsWithRegex(rawText);
+  }
+
+  ptFillFields(fields);
+  ptComposeFromFields();
+
+  if(usedAI){
+    ptGenStatusEl.textContent = '欄位已由 AI 擷取，請在下方確認或補上缺漏的欄位。';
+    ptGenStatusEl.className = 'pt-status ok';
+  } else {
+    ptGenStatusEl.textContent = 'AI 擷取暫時無法使用，已改用關鍵字比對填入欄位，請務必逐一核對、補上缺漏。';
+    ptGenStatusEl.className = 'pt-status err';
+  }
+  ptGenBtnEl.disabled = false;
+}
+
+async function ptCopyDraft(){
+  const text = ptDraftEl.value.trim();
+  if(!text){
+    ptCopyStatusEl.textContent = '目前沒有文案可以複製';
+    ptCopyStatusEl.className = 'pt-status err';
+    return;
+  }
+  try{
+    await navigator.clipboard.writeText(text);
+    ptCopyStatusEl.textContent = '已複製，接下來可以貼到社團貼文框。';
+    ptCopyStatusEl.className = 'pt-status ok';
+  }catch(e){
+    ptCopyStatusEl.textContent = '複製失敗，請手動選取文字複製。';
+    ptCopyStatusEl.className = 'pt-status err';
+  }
+}
+
+/* ===================== Modal plumbing ===================== */
+function openModal(){
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('open');
+  editingCtx = null;
+}
+document.getElementById('modalClose').onclick = closeModal;
+document.getElementById('modalCancel').onclick = closeModal;
+document.getElementById('modalOverlay').addEventListener('click', (e)=>{
+  if(e.target.id==='modalOverlay') closeModal();
+});
+document.getElementById('modalSave').onclick = async ()=>{
+  if(!editingCtx) return;
+  const saveBtn = document.getElementById('modalSave');
+  saveBtn.disabled = true;
+  let ok = false;
+  if(editingCtx.type==='clients') ok = await saveClient();
+  if(editingCtx.type==='listings') ok = await saveListing();
+  if(editingCtx.type==='content') ok = await saveContent();
+  if(editingCtx.type==='deals') ok = await saveDeal();
+  saveBtn.disabled = false;
+  if(ok){
+    showToast('已儲存');
+    closeModal();
+    render();
+  }
+};
+
+async function deleteItem(type, id){
+  if(!confirm('確定要刪除這筆資料嗎?相關照片也會一併移除。')) return;
+  const item = DATA[type].find(x=>x.id===id);
+  if(item){
+    if(type==='clients' && item.cardPhotoKey) await deletePhoto(item.cardPhotoKey);
+    if(type==='clients' && item.attachmentKeys) for(const k of item.attachmentKeys) await deletePhoto(k);
+    if(type==='listings' && item.photoKeys) for(const k of item.photoKeys) await deletePhoto(k);
+  }
+  DATA[type] = DATA[type].filter(x=>x.id!==id);
+  await saveType(type);
+  showToast('已刪除');
+  render();
+}
+
+/* ===================== Init ===================== */
+window.__appBoot = async function(){
+  await loadAll();
+  render();
+};
+</script>
+</body>
+</html>
