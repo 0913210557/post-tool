@@ -410,6 +410,8 @@
       <button class="btn-sidebar" id="exportExcelBtn" style="margin-top:8px;">⬇ 匯出 Excel</button>
       <button class="btn-sidebar" id="importBtn" style="margin-top:8px;">⬆ 匯入備份</button>
       <input type="file" accept="application/json" id="importInput" style="display:none;">
+      <button class="btn-sidebar" id="importExcelBtn" style="margin-top:8px;">⬆ 匯入客戶Excel</button>
+      <input type="file" accept=".xlsx,.xls" id="importExcelInput" style="display:none;">
       <div style="margin-top:12px;">個人專用資料<br>有巢氏房屋 張雅慈</div>
       <div id="userEmailLabel" style="margin-top:8px; font-size:11px; color:rgba(237,231,221,0.5); word-break:break-all;"></div>
       <button class="btn-sidebar" id="logoutBtn" style="margin-top:10px;">登出</button>
@@ -546,12 +548,46 @@ let loaded = false;
 
 const KEYS = { clients:'clients', listings:'listings', content:'content', deals:'deals' };
 
-/* ===================== Storage: records ===================== */
+/* ===================== Storage: records (chunked to stay under Firestore's ~1MB per-document limit) ===================== */
+function utf8ByteLength(str){
+  return new TextEncoder().encode(str).length;
+}
+function chunkArrayBySize(arr, maxBytes){
+  const chunks = [];
+  let current = [];
+  let currentSize = 2;
+  for(const item of arr){
+    const itemStr = JSON.stringify(item);
+    const itemSize = utf8ByteLength(itemStr) + 1;
+    if(currentSize + itemSize > maxBytes && current.length > 0){
+      chunks.push(current);
+      current = [];
+      currentSize = 2;
+    }
+    current.push(item);
+    currentSize += itemSize;
+  }
+  if(current.length || chunks.length === 0) chunks.push(current);
+  return chunks;
+}
+
 async function loadAll(){
   for(const type of Object.keys(KEYS)){
+    const key = KEYS[type];
     try{
-      const res = await window.storage.get(KEYS[type], false);
-      DATA[type] = res && res.value ? JSON.parse(res.value) : [];
+      const countRes = await window.storage.get(key + '-shard-count', false);
+      const count = countRes && countRes.value ? Number(countRes.value) || 0 : 0;
+      if(count > 0){
+        let combined = [];
+        for(let i=0;i<count;i++){
+          const res = await window.storage.get(`${key}-shard-${i}`, false);
+          if(res && res.value) combined = combined.concat(JSON.parse(res.value));
+        }
+        DATA[type] = combined;
+      }else{
+        const res = await window.storage.get(key, false);
+        DATA[type] = res && res.value ? JSON.parse(res.value) : [];
+      }
     }catch(e){
       DATA[type] = [];
     }
@@ -561,8 +597,24 @@ async function loadAll(){
 
 async function saveType(type){
   try{
-    await window.storage.set(KEYS[type], JSON.stringify(DATA[type]), false);
+    const key = KEYS[type];
+    const chunks = chunkArrayBySize(DATA[type], 700000);
+
+    let oldCount = 0;
+    try{
+      const meta = await window.storage.get(key + '-shard-count', false);
+      oldCount = meta && meta.value ? Number(meta.value) || 0 : 0;
+    }catch(e){}
+
+    for(let i=0;i<chunks.length;i++){
+      await window.storage.set(`${key}-shard-${i}`, JSON.stringify(chunks[i]), false);
+    }
+    for(let i=chunks.length;i<oldCount;i++){
+      await window.storage.delete(`${key}-shard-${i}`, false);
+    }
+    await window.storage.set(key + '-shard-count', String(chunks.length), false);
   }catch(e){
+    console.error(e);
     showToast('儲存失敗,請稍後再試');
   }
 }
@@ -752,6 +804,173 @@ document.getElementById('importInput').onchange = async (e)=>{
   }catch(err){
     console.error(err);
     showToast('匯入失敗,請確認檔案內容是否正確');
+  }
+};
+
+/* ===================== Import client list from Excel (客戶管理 sheet) ===================== */
+function normalizeExcelDate(v){
+  if(v instanceof Date && !isNaN(v)){
+    const y = v.getFullYear(), m = String(v.getMonth()+1).padStart(2,'0'), d = String(v.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  if(typeof v === 'string'){
+    const m = v.trim().match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
+    if(m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+  }
+  return '';
+}
+
+document.getElementById('importExcelBtn').onclick = ()=> document.getElementById('importExcelInput').click();
+document.getElementById('importExcelInput').onchange = async (e)=>{
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  if(typeof XLSX === 'undefined'){ showToast('Excel 匯入元件載入失敗,請檢查網路連線'); return; }
+
+  showToast('讀取 Excel 中…');
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array', cellDates:true});
+    const sheetName = wb.SheetNames.includes('客戶管理') ? '客戶管理' : wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+    if(!rows.length){ showToast('找不到資料'); return; }
+
+    const header = rows[0].map(h=>String(h||'').trim());
+    const colIndex = name => header.indexOf(name);
+    const idx = {
+      lineKeyed: colIndex('已KEY到LINE'),
+      maintainDate: colIndex('維護日'),
+      fileDate: colIndex('建檔日'),
+      name: colIndex('客戶姓名'),
+      gender: colIndex('性別'),
+      buySell: colIndex('買賣'),
+      source: colIndex('客戶來源'),
+      phone1: colIndex('聯絡電話1'),
+      phone2: colIndex('聯絡電話2'),
+      phone3: colIndex('聯絡電話3'),
+      lineId: colIndex('line ID'),
+      company: colIndex('公司名稱'),
+      idNumber: colIndex('身分證號'),
+      birthday: colIndex('生日'),
+      homeAddress: colIndex('居住地址'),
+      propertyAddress: colIndex('物件地址'),
+      needs: colIndex('需求'),
+      background: colIndex('背景'),
+      pastEntrusted: colIndex('曾經委託物件'),
+      entrusted1: colIndex('委託物件'),
+      entrusted2: colIndex('委託物件2'),
+      sold1: colIndex('成交物件1'),
+      sold2: colIndex('成交物件2'),
+      validClient: colIndex('有效客'),
+      viewingLog: colIndex('帶看紀錄'),
+      matchResponse: colIndex('配對回應'),
+      contactLog1: colIndex('聯絡紀錄1'),
+      contactLog2: colIndex('聯絡紀錄2'),
+      contactLog3: colIndex('聯絡紀錄3'),
+    };
+
+    if(idx.name === -1){ showToast('找不到「客戶姓名」欄位,請確認上傳的是客戶管理表'); return; }
+
+    const get = (row, i) => (i>=0 && row[i]!==undefined && row[i]!==null) ? row[i] : '';
+    const cellText = v => {
+      if(v instanceof Date && !isNaN(v)) return normalizeExcelDate(v);
+      return String(v).trim();
+    };
+    const buySellToTypes = v => {
+      const s = String(v||'').trim();
+      const types = [];
+      if(s.includes('買')) types.push('買方');
+      if(s.includes('賣')) types.push('賣方');
+      if(s.includes('租')) types.push('租客');
+      return types;
+    };
+
+    const imported = [];
+    for(let r=1; r<rows.length; r++){
+      const row = rows[r];
+      const name = cellText(get(row, idx.name));
+      if(!name) continue;
+
+      const phones = [];
+      [idx.phone1, idx.phone2, idx.phone3].forEach(i=>{
+        const v = cellText(get(row, i));
+        if(v) phones.push({id:uid(), number:v, owner:''});
+      });
+
+      const notesParts = [];
+      const gender = cellText(get(row, idx.gender));
+      if(gender) notesParts.push(`性別:${gender}`);
+      const needs = cellText(get(row, idx.needs));
+      if(needs) notesParts.push(`需求:${needs}`);
+      const background = cellText(get(row, idx.background));
+      if(background) notesParts.push(`背景:${background}`);
+      const validClient = cellText(get(row, idx.validClient));
+      if(validClient) notesParts.push(`有效客:${validClient}`);
+      const matchResponse = cellText(get(row, idx.matchResponse));
+      if(matchResponse) notesParts.push(`配對回應:${matchResponse}`);
+      const maintainDate = cellText(get(row, idx.maintainDate));
+      if(maintainDate) notesParts.push(`維護日:${maintainDate}`);
+      const lineKeyed = cellText(get(row, idx.lineKeyed));
+      if(lineKeyed) notesParts.push(`已KEY到LINE:${lineKeyed}`);
+
+      const propertyRecords = [];
+      const pastEntrusted = cellText(get(row, idx.pastEntrusted));
+      if(pastEntrusted) propertyRecords.push({id:uid(), category:'曾經委託', content:pastEntrusted, photoKeys:[]});
+      [idx.entrusted1, idx.entrusted2].forEach(i=>{
+        const v = cellText(get(row, i));
+        if(v) propertyRecords.push({id:uid(), category:'委託中', content:v, photoKeys:[]});
+      });
+      [idx.sold1, idx.sold2].forEach(i=>{
+        const v = cellText(get(row, i));
+        if(v) propertyRecords.push({id:uid(), category:'已成交', content:v, photoKeys:[]});
+      });
+
+      const serviceLogs = [];
+      const viewingLog = cellText(get(row, idx.viewingLog));
+      if(viewingLog) serviceLogs.push({id:uid(), date:'', time:'', type:'帶看', note:viewingLog});
+      const buySellRaw = String(get(row, idx.buySell)||'');
+      const contactType = (buySellRaw.includes('賣') && !buySellRaw.includes('買')) ? '賣方聯絡' : '買方聯絡';
+      [idx.contactLog1, idx.contactLog2, idx.contactLog3].forEach(i=>{
+        const v = cellText(get(row, i));
+        if(v) serviceLogs.push({id:uid(), date:'', time:'', type:contactType, note:v});
+      });
+
+      imported.push({
+        id: uid(),
+        name,
+        phones,
+        types: buySellToTypes(get(row, idx.buySell)),
+        statuses: [],
+        birthday: normalizeExcelDate(get(row, idx.birthday)) || '',
+        fileDate: normalizeExcelDate(get(row, idx.fileDate)) || '',
+        source: cellText(get(row, idx.source)),
+        propertyAddress: cellText(get(row, idx.propertyAddress)),
+        lineNames: [],
+        lineId: cellText(get(row, idx.lineId)),
+        fb: '',
+        company: cellText(get(row, idx.company)),
+        idNumber: cellText(get(row, idx.idNumber)),
+        homeAddress: cellText(get(row, idx.homeAddress)),
+        propertyRecords,
+        notes: notesParts.join('\n'),
+        serviceLogs,
+        cardPhotoKey: null,
+        attachmentKeys: [],
+      });
+    }
+
+    if(imported.length===0){ showToast('沒有找到可匯入的客戶資料'); return; }
+    if(!confirm(`找到 ${imported.length} 筆客戶資料,會新增加到目前的客戶名單裡(不會刪除既有資料)。確定要匯入嗎?`)) return;
+
+    showToast('匯入中,請稍候(資料量較大,可能需要一點時間)…');
+    DATA.clients = DATA.clients.concat(imported);
+    await saveType('clients');
+    render();
+    showToast(`已匯入 ${imported.length} 筆客戶`);
+  }catch(err){
+    console.error(err);
+    showToast('匯入失敗,請確認上傳的是正確的客戶管理 Excel 檔');
   }
 };
 
