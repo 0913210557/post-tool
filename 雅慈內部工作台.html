@@ -288,7 +288,7 @@
   }
 
   /* ---------- Service log ---------- */
-  .log-list{ display:flex; flex-direction:column; gap:8px; max-height:170px; overflow-y:auto; border:1px solid var(--line); border-radius:2px; padding:10px; background:var(--stone); }
+  .log-list{ display:flex; flex-direction:column; gap:8px; border:1px solid var(--line); border-radius:2px; padding:10px; background:var(--stone); }
   .log-entry{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; font-size:12px; background:var(--paper); padding:8px 10px; border-radius:2px; border:1px solid var(--line); }
   .log-entry-date{ font-family:'JetBrains Mono',monospace; color:var(--brass); font-weight:700; white-space:nowrap; }
   .log-entry-note{ flex:1; color:var(--ink); line-height:1.5; }
@@ -1845,7 +1845,7 @@ async function viewClientModal(id){
     : '<div class="empty-state" style="padding:12px;">尚無附件</div>';
 
   const logs = (item.serviceLogs||[]).slice().sort((a,b)=>((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||'')));
-  const logsHtml = logs.length ? `<div class="log-list" style="max-height:220px;">${logs.map(l=>`
+  const logsHtml = logs.length ? `<div class="log-list">${logs.map(l=>`
     <div class="log-entry"><div><div class="log-entry-date">${esc(l.date||'—')}${l.time?' '+esc(l.time):''}</div>${l.type ? `<span class="stamp stamp-pending" style="margin-top:4px;">${esc(l.type)}</span>` : ''}</div><div class="log-entry-note">${l.note ? esc(l.note) : '<span style="color:var(--ink-soft);">(無備註)</span>'}</div></div>
   `).join('')}</div>` : '<div class="empty-state" style="padding:12px;">尚無服務紀錄</div>';
 
