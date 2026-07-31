@@ -1060,6 +1060,13 @@ const SERVICE_LOG_EXTRA_FIELDS = {
     {key:'propertyAddress', label:'物件地址'},
     {key:'entrustAddress', label:'簽委託地址'},
   ]},
+  '買方聯絡': { repeating: true, fields: [
+    {key:'url', label:'貼網址'},
+    {key:'devCompany', label:'開發公司'},
+    {key:'devAgent', label:'開發業務'},
+    {key:'devPhone', label:'開發電話'},
+    {key:'bottomPrice', label:'底價'},
+  ]},
 };
 const PROPERTY_RECORD_CATEGORIES = ['待追蹤','已成交','委託中','曾經委託'];
 
@@ -1614,7 +1621,7 @@ function renderLogExtraFields(){
 
   if(config.repeating){
     container.innerHTML = `
-      <div class="pt-hint" style="margin:0 0 4px;">這次帶看的物件(可加入多間)</div>
+      <div class="pt-hint" style="margin:0 0 4px;">這筆服務的詳細項目(可加入多筆)</div>
       <div class="log-list" id="viewingItemsList"></div>
       <div class="pt-hint" style="margin:8px 0 4px;">${config.fields.map(f=>f.label).join(' / ')}</div>
       ${config.fields.map(f=>`<input type="${f.type||'text'}" id="viewItem_${f.key}" placeholder="${esc(f.label)}" style="margin-bottom:6px;">`).join('')}
@@ -1651,13 +1658,15 @@ function renderLogExtraFields(){
 function drawViewingItemsList(){
   const wrap = document.getElementById('viewingItemsList');
   if(!wrap) return;
-  const config = SERVICE_LOG_EXTRA_FIELDS['帶看'];
+  const type = document.getElementById('logType').value;
+  const config = SERVICE_LOG_EXTRA_FIELDS[type];
+  if(!config || !config.repeating) return;
   const items = editingCtx.logViewingItems || [];
   if(items.length===0){ wrap.innerHTML = '<div class="empty-state" style="padding:10px;">尚未加入項目</div>'; return; }
   wrap.innerHTML = items.map((it,idx)=>{
     const summary = config.fields.map(f=> it[f.key] ? `${f.label}:${it[f.key]}` : '').filter(Boolean).join(' ・ ');
     return `<div class="log-entry">
-      <div class="log-entry-note">第${idx+1}間　${esc(summary || '(未填寫)')}</div>
+      <div class="log-entry-note">第${idx+1}筆　${esc(summary || '(未填寫)')}</div>
       <button class="rm" onclick="removeViewingItem(${idx})" title="移除">✕</button>
     </div>`;
   }).join('');
