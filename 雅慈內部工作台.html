@@ -1076,6 +1076,9 @@ function renderDashboard(){
 
 const CLIENT_TYPES = ['買方','賣方','租客','房東'];
 const CLIENT_STATUSES = ['追蹤中','委託中','已成交','已買到','已售出','已流失'];
+const NEEDS_AREAS = ['平鎮區','中壢區','龍潭區','楊梅區'];
+const NEEDS_PROPERTY_TYPES = ['電梯','公寓','透天別墅','套房','廠房','農地','建地'];
+const NEEDS_PARKING_OPTIONS = ['需要','不需要','不限'];
 const SERVICE_LOG_TYPES = ['帶看','收斡','退斡','買方聯絡','賣方聯絡','復看','簽委託','拍照/實境','續約','拜訪','契變'];
 const SERVICE_LOG_EXTRA_FIELDS = {
   '帶看': { repeating: true, fields: [
@@ -1127,6 +1130,11 @@ function getClientPhones(c){
 function getClientCardPhotoKeys(c){
   if(c.cardPhotoKeys && c.cardPhotoKeys.length) return c.cardPhotoKeys;
   if(c.cardPhotoKey) return [c.cardPhotoKey];
+  return [];
+}
+function getPropertyRecordOwners(r){
+  if(r.owners && r.owners.length) return r.owners;
+  if(r.ownerName || r.ownerIdNumber || r.ownerPhone) return [{id:'legacy', name:r.ownerName||'', idNumber:r.ownerIdNumber||'', phone:r.ownerPhone||''}];
   return [];
 }
 function getClientTypes(c){
@@ -1220,6 +1228,7 @@ function renderClients(){
       <select class="filter-select" id="clientStatusFilter">
         <option value="">全部狀態</option>
         ${CLIENT_STATUSES.map(s=>`<option>${s}</option>`).join('')}
+        <option value="__uncategorized__">未分類</option>
       </select>
     </div>
     <div class="section-block"><div class="section-block-body" id="clientTableWrap"></div></div>
@@ -1251,7 +1260,7 @@ function drawClientTable(){
   const st = document.getElementById('clientStatusFilter').value;
   let list = DATA.clients.filter(c=>{
     const matchQ = !q || clientSearchText(c).includes(q);
-    const matchSt = !st || getClientStatuses(c).includes(st);
+    const matchSt = !st || (st==='__uncategorized__' ? getClientStatuses(c).length===0 : getClientStatuses(c).includes(st));
     return matchQ && matchSt;
   });
   const countLabel = document.getElementById('clientCountLabel');
@@ -1425,6 +1434,7 @@ async function openClientModal(id){
     removedRecordPhotoKeys: [],
     expandedRecordId: null,
     expandedHistoryRecordId: null,
+    expandedOwnerRecordId: null,
     editingRecordId: null,
     logDraftTouched: false,
     logViewingItems: [],
@@ -1497,7 +1507,49 @@ async function openClientModal(id){
 
     <div class="field field-divider">
       <div class="field-sub-title">客戶需求</div>
-      <textarea id="f_clientNeeds" placeholder="客戶想找什麼樣的物件、預算、條件等" style="min-height:70px;">${esc(item.clientNeeds)}</textarea>
+
+      <div class="pt-hint" style="margin:0 0 4px;">需求區域(可複選)</div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap;">
+        ${NEEDS_AREAS.map(a=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
+          <input type="checkbox" class="f_needs_area_cb" value="${a}" ${(item.needsAreas||[]).includes(a)?'checked':''} style="width:auto;"> ${a}
+        </label>`).join('')}
+      </div>
+
+      <div class="pt-hint" style="margin:12px 0 4px;">房屋類型(可複選)</div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap;">
+        ${NEEDS_PROPERTY_TYPES.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
+          <input type="checkbox" class="f_needs_type_cb" value="${t}" ${(item.needsPropertyTypes||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
+        </label>`).join('')}
+      </div>
+
+      <div class="field-row" style="margin-top:12px;">
+        <div>
+          <div class="pt-hint" style="margin:0 0 4px;">車位需求</div>
+          <select id="f_needsParking">
+            <option value="">未指定</option>
+            ${NEEDS_PARKING_OPTIONS.map(p=>`<option ${item.needsParking===p?'selected':''}>${p}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <div class="pt-hint" style="margin:0 0 4px;">格局需求</div>
+          <input id="f_needsLayout" placeholder="例如:至少3房2廳" value="${esc(item.needsLayout)}">
+        </div>
+      </div>
+
+      <div class="pt-hint" style="margin:12px 0 4px;">預算(萬)</div>
+      <div class="field-row">
+        <input type="number" id="f_needsBudgetMin" placeholder="預算下限" value="${esc(item.needsBudgetMin)}">
+        <input type="number" id="f_needsBudgetMax" placeholder="預算上限" value="${esc(item.needsBudgetMax)}">
+      </div>
+
+      <div class="pt-hint" style="margin:12px 0 4px;">坪數需求</div>
+      <div class="field-row">
+        <input type="number" id="f_needsSizeMin" placeholder="坪數下限" value="${esc(item.needsSizeMin)}">
+        <input type="number" id="f_needsSizeMax" placeholder="坪數上限" value="${esc(item.needsSizeMax)}">
+      </div>
+
+      <div class="pt-hint" style="margin-top:16px; color:var(--brick); font-weight:700;">以下是原本的需求備註欄,改用上面的欄位填好之後可以自行刪除內容</div>
+      <textarea id="f_clientNeeds" placeholder="客戶想找什麼樣的物件、預算、條件等" style="min-height:70px; margin-top:6px;">${esc(item.clientNeeds)}</textarea>
     </div>
 
     <div class="field field-divider">
@@ -1514,14 +1566,9 @@ async function openClientModal(id){
         <input type="date" id="propertyRecordEntrustDate" title="委託時間">
         <input type="number" id="propertyRecordAskingPrice" placeholder="開價(萬)">
         <input type="number" id="propertyRecordBottomPrice" placeholder="底價(萬)">
-      </div>
-      <div class="pt-hint" style="margin:6px 0 0;">屋主姓名 / 身份證字號 / 電話</div>
-      <div class="log-add-row" style="margin-top:2px; flex-wrap:wrap;">
-        <input type="text" id="propertyRecordOwnerName" placeholder="屋主姓名">
-        <input type="text" id="propertyRecordOwnerIdNumber" placeholder="屋主身份證字號">
-        <input type="text" id="propertyRecordOwnerPhone" placeholder="屋主電話">
         <button class="btn btn-ghost btn-sm" id="propertyRecordAddBtn">新增</button>
       </div>
+      <div class="pt-hint" style="margin:4px 0 0;">新增後,點該筆物件旁的「👤 屋主」可以新增屋主資料(可多位)</div>
     </div>
 
     <div class="field"><label>備註</label><textarea id="f_notes">${esc(item.notes)}</textarea></div>
@@ -1651,21 +1698,15 @@ function addPropertyRecordEntry(){
   const entrustDate = document.getElementById('propertyRecordEntrustDate').value;
   const askingPrice = document.getElementById('propertyRecordAskingPrice').value.trim();
   const bottomPrice = document.getElementById('propertyRecordBottomPrice').value.trim();
-  const ownerName = document.getElementById('propertyRecordOwnerName').value.trim();
-  const ownerIdNumber = document.getElementById('propertyRecordOwnerIdNumber').value.trim();
-  const ownerPhone = document.getElementById('propertyRecordOwnerPhone').value.trim();
   if(!content) return false;
   const priceHistory = (askingPrice || bottomPrice)
     ? [{id:uid(), date:entrustDate || new Date().toISOString().slice(0,10), askingPrice, bottomPrice, note:'新增'}]
     : [];
-  editingCtx.tempPropertyRecords.push({id:uid(), category, content, entrustDate, askingPrice, bottomPrice, ownerName, ownerIdNumber, ownerPhone, priceHistory, photoKeys:[]});
+  editingCtx.tempPropertyRecords.push({id:uid(), category, content, entrustDate, askingPrice, bottomPrice, owners:[], priceHistory, photoKeys:[]});
   contentEl.value='';
   document.getElementById('propertyRecordEntrustDate').value='';
   document.getElementById('propertyRecordAskingPrice').value='';
   document.getElementById('propertyRecordBottomPrice').value='';
-  document.getElementById('propertyRecordOwnerName').value='';
-  document.getElementById('propertyRecordOwnerIdNumber').value='';
-  document.getElementById('propertyRecordOwnerPhone').value='';
   renderPropertyRecordList();
   return true;
 }
@@ -1899,8 +1940,10 @@ function renderPropertyRecordList(){
     const photoCount = cache ? cache.photos.length : (r.photoKeys||[]).length;
     const isAlbumOpen = editingCtx.expandedRecordId === r.id;
     const isHistoryOpen = editingCtx.expandedHistoryRecordId === r.id;
+    const isOwnersOpen = editingCtx.expandedOwnerRecordId === r.id;
     const isEditing = editingCtx.editingRecordId === r.id;
     const history = r.priceHistory || [];
+    const owners = getPropertyRecordOwners(r);
 
     if(isEditing){
       return `
@@ -1914,12 +1957,6 @@ function renderPropertyRecordList(){
           <input type="number" id="editRecordAsking-${r.id}" placeholder="開價(萬)" value="${esc(r.askingPrice||'')}">
           <input type="number" id="editRecordBottom-${r.id}" placeholder="底價(萬)" value="${esc(r.bottomPrice||'')}">
         </div>
-        <div class="pt-hint" style="margin:0;">屋主姓名 / 身份證字號 / 電話</div>
-        <div class="field-row">
-          <input type="text" id="editRecordOwnerName-${r.id}" placeholder="屋主姓名" value="${esc(r.ownerName||'')}">
-          <input type="text" id="editRecordOwnerIdNumber-${r.id}" placeholder="屋主身份證字號" value="${esc(r.ownerIdNumber||'')}">
-        </div>
-        <input type="text" id="editRecordOwnerPhone-${r.id}" placeholder="屋主電話" value="${esc(r.ownerPhone||'')}">
         <div style="display:flex; gap:6px;">
           <button class="btn btn-primary btn-sm" onclick="savePropertyRecordEdit('${r.id}')">儲存</button>
           <button class="btn btn-ghost btn-sm" onclick="cancelPropertyRecordEdit()">取消</button>
@@ -1929,7 +1966,7 @@ function renderPropertyRecordList(){
 
     const priceLine = (r.askingPrice || r.bottomPrice) ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${r.askingPrice?`開價 ${esc(r.askingPrice)}萬`:''}${r.askingPrice&&r.bottomPrice?'　':''}${r.bottomPrice?`底價 ${esc(r.bottomPrice)}萬`:''}</div>` : '';
     const entrustLine = r.entrustDate ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">委託時間 ${esc(r.entrustDate)}</div>` : '';
-    const ownerLine = (r.ownerName || r.ownerIdNumber || r.ownerPhone) ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">屋主 ${[r.ownerName, r.ownerIdNumber, r.ownerPhone].filter(Boolean).map(esc).join(' / ')}</div>` : '';
+    const ownerLine = owners.length ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">屋主 ${owners.map(o=>[o.name,o.idNumber,o.phone].filter(Boolean).map(esc).join('/')).join('、')}</div>` : '';
 
     return `
     <div class="log-entry" style="flex-direction:column; align-items:stretch; gap:8px;">
@@ -1944,6 +1981,7 @@ function renderPropertyRecordList(){
         <div style="display:flex; gap:4px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end;">
           <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordAlbum('${r.id}')">📎 相簿/檔案${photoCount?`(${photoCount})`:''}</button>
           <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordHistory('${r.id}')">📈 變更紀錄${history.length?`(${history.length})`:''}</button>
+          <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordOwners('${r.id}')">👤 屋主${owners.length?`(${owners.length})`:''}</button>
           <button class="btn btn-ghost btn-sm" onclick="startPropertyRecordEdit('${r.id}')">✎ 編輯</button>
           <button class="rm" onclick="removePropertyRecord('${r.id}')" title="刪除">✕</button>
         </div>
@@ -1960,6 +1998,24 @@ function renderPropertyRecordList(){
               <div class="log-entry-note">${h.askingPrice?`開價 ${esc(h.askingPrice)}萬 `:''}${h.bottomPrice?`底價 ${esc(h.bottomPrice)}萬`:''}${h.note?`(${esc(h.note)})`:''}</div>
             </div>
           `).join('') : '<div class="empty-state" style="padding:12px;">尚無變更紀錄</div>'}
+        </div>
+      ` : ''}
+      ${isOwnersOpen ? `
+        <div class="log-list">
+          ${owners.length ? owners.map((o,idx)=>`
+            <div class="log-entry">
+              <div class="log-entry-note">${esc(o.name||'(未填姓名)')}${o.idNumber?` / ${esc(o.idNumber)}`:''}${o.phone?` / ${esc(o.phone)}`:''}</div>
+              <button class="rm" onclick="removeRecordOwner('${r.id}',${idx})" title="移除">✕</button>
+            </div>
+          `).join('') : '<div class="empty-state" style="padding:10px;">尚無屋主資料</div>'}
+        </div>
+        <div class="field-row" style="margin-top:6px;">
+          <input type="text" id="ownerName-${r.id}" placeholder="屋主姓名">
+          <input type="text" id="ownerIdNumber-${r.id}" placeholder="身份證字號">
+        </div>
+        <div class="log-add-row" style="margin-top:6px;">
+          <input type="text" id="ownerPhone-${r.id}" placeholder="屋主電話">
+          <button class="btn btn-ghost btn-sm" onclick="addRecordOwner('${r.id}')">＋ 加入屋主</button>
         </div>
       ` : ''}
     </div>
@@ -1981,6 +2037,29 @@ function togglePropertyRecordHistory(recordId){
   renderPropertyRecordList();
 }
 
+function togglePropertyRecordOwners(recordId){
+  editingCtx.expandedOwnerRecordId = (editingCtx.expandedOwnerRecordId === recordId) ? null : recordId;
+  renderPropertyRecordList();
+}
+function addRecordOwner(recordId){
+  const rec = (editingCtx.tempPropertyRecords||[]).find(r=>r.id===recordId);
+  if(!rec) return;
+  const name = document.getElementById('ownerName-'+recordId).value.trim();
+  const idNumber = document.getElementById('ownerIdNumber-'+recordId).value.trim();
+  const phone = document.getElementById('ownerPhone-'+recordId).value.trim();
+  if(!name && !idNumber && !phone){ showToast('請至少填寫一項屋主資料'); return; }
+  if(!rec.owners) rec.owners = getPropertyRecordOwners(rec);
+  rec.owners.push({id:uid(), name, idNumber, phone});
+  delete rec.ownerName; delete rec.ownerIdNumber; delete rec.ownerPhone;
+  renderPropertyRecordList();
+}
+function removeRecordOwner(recordId, idx){
+  const rec = (editingCtx.tempPropertyRecords||[]).find(r=>r.id===recordId);
+  if(!rec || !rec.owners) return;
+  rec.owners.splice(idx,1);
+  renderPropertyRecordList();
+}
+
 function startPropertyRecordEdit(recordId){
   editingCtx.editingRecordId = recordId;
   renderPropertyRecordList();
@@ -1995,9 +2074,6 @@ function savePropertyRecordEdit(recordId){
   const entrustDate = document.getElementById('editRecordEntrustDate-'+recordId).value;
   const askingPrice = document.getElementById('editRecordAsking-'+recordId).value.trim();
   const bottomPrice = document.getElementById('editRecordBottom-'+recordId).value.trim();
-  const ownerName = document.getElementById('editRecordOwnerName-'+recordId).value.trim();
-  const ownerIdNumber = document.getElementById('editRecordOwnerIdNumber-'+recordId).value.trim();
-  const ownerPhone = document.getElementById('editRecordOwnerPhone-'+recordId).value.trim();
   if(!content){ showToast('請輸入物件內容'); return; }
   const rec = (editingCtx.tempPropertyRecords||[]).find(r=>r.id===recordId);
   if(!rec) return;
@@ -2010,9 +2086,6 @@ function savePropertyRecordEdit(recordId){
   rec.entrustDate = entrustDate;
   rec.askingPrice = askingPrice;
   rec.bottomPrice = bottomPrice;
-  rec.ownerName = ownerName;
-  rec.ownerIdNumber = ownerIdNumber;
-  rec.ownerPhone = ownerPhone;
   editingCtx.editingRecordId = null;
   renderPropertyRecordList();
 }
@@ -2079,6 +2152,7 @@ function removePropertyRecord(recordId){
   delete editingCtx.recordPhotosCache[recordId];
   if(editingCtx.expandedRecordId === recordId) editingCtx.expandedRecordId = null;
   if(editingCtx.expandedHistoryRecordId === recordId) editingCtx.expandedHistoryRecordId = null;
+  if(editingCtx.expandedOwnerRecordId === recordId) editingCtx.expandedOwnerRecordId = null;
   if(editingCtx.editingRecordId === recordId) editingCtx.editingRecordId = null;
   editingCtx.tempPropertyRecords = editingCtx.tempPropertyRecords.filter(r=>r.id!==recordId);
   renderPropertyRecordList();
@@ -2327,6 +2401,14 @@ async function saveClient(){
     idNumber: document.getElementById('f_idNumber').value.trim(),
     homeAddress: document.getElementById('f_homeAddress').value.trim(),
     clientNeeds: document.getElementById('f_clientNeeds').value.trim(),
+    needsAreas: Array.from(document.querySelectorAll('.f_needs_area_cb:checked')).map(cb=>cb.value),
+    needsPropertyTypes: Array.from(document.querySelectorAll('.f_needs_type_cb:checked')).map(cb=>cb.value),
+    needsParking: document.getElementById('f_needsParking').value,
+    needsLayout: document.getElementById('f_needsLayout').value.trim(),
+    needsBudgetMin: document.getElementById('f_needsBudgetMin').value.trim(),
+    needsBudgetMax: document.getElementById('f_needsBudgetMax').value.trim(),
+    needsSizeMin: document.getElementById('f_needsSizeMin').value.trim(),
+    needsSizeMax: document.getElementById('f_needsSizeMax').value.trim(),
     propertyRecords: editingCtx.tempPropertyRecords || [],
     notes: document.getElementById('f_notes').value.trim(),
     serviceLogs: editingCtx.tempLogs || [],
@@ -2487,7 +2569,8 @@ async function viewClientModal(id){
     }).join('')}</div>${recordIndices.length>1 ? `<button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="downloadAllPhotos([${recordIndices.join(',')}])">⬇ 全部下載(${recordIndices.length}個)</button>` : ''}` : '';
     const priceLine = (r.askingPrice || r.bottomPrice) ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${r.askingPrice?`開價 ${esc(r.askingPrice)}萬`:''}${r.askingPrice&&r.bottomPrice?'　':''}${r.bottomPrice?`底價 ${esc(r.bottomPrice)}萬`:''}</div>` : '';
     const entrustLine = r.entrustDate ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">委託時間 ${esc(r.entrustDate)}</div>` : '';
-    const ownerLine = (r.ownerName || r.ownerIdNumber || r.ownerPhone) ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">屋主 ${[r.ownerName, r.ownerIdNumber, r.ownerPhone].filter(Boolean).map(esc).join(' / ')}</div>` : '';
+    const owners = getPropertyRecordOwners(r);
+    const ownerLine = owners.length ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">屋主 ${owners.map(o=>[o.name,o.idNumber,o.phone].filter(Boolean).map(esc).join('/')).join('、')}</div>` : '';
     const history = r.priceHistory || [];
     const historyHtml = history.length ? `<div style="margin-top:8px;"><div style="font-size:11px; font-weight:700; color:var(--ink-soft);">變更紀錄</div><div class="log-list" style="margin-top:4px;">${history.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(h=>`
       <div class="log-entry"><div class="log-entry-date">${esc(h.date||'—')}</div><div class="log-entry-note">${h.askingPrice?`開價 ${esc(h.askingPrice)}萬 `:''}${h.bottomPrice?`底價 ${esc(h.bottomPrice)}萬`:''}${h.note?`(${esc(h.note)})`:''}</div></div>
@@ -2548,7 +2631,13 @@ async function viewClientModal(id){
     ${viewInfoRow('公司名稱', esc(item.company))}
     ${viewInfoRow('身份證字號', esc(item.idNumber))}
     ${viewInfoRow('居住地址', esc(item.homeAddress))}
-    ${item.clientNeeds ? viewInfoRow('客戶需求', esc(item.clientNeeds).replace(/\n/g,'<br>')) : ''}
+    ${(item.needsAreas&&item.needsAreas.length) ? viewInfoRow('需求區域', item.needsAreas.map(a=>`<span class="tag">${esc(a)}</span>`).join(' ')) : ''}
+    ${(item.needsPropertyTypes&&item.needsPropertyTypes.length) ? viewInfoRow('房屋類型', item.needsPropertyTypes.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
+    ${item.needsParking ? viewInfoRow('車位需求', esc(item.needsParking)) : ''}
+    ${item.needsLayout ? viewInfoRow('格局需求', esc(item.needsLayout)) : ''}
+    ${(item.needsBudgetMin||item.needsBudgetMax) ? viewInfoRow('預算(萬)', `${esc(item.needsBudgetMin||'不限')} ~ ${esc(item.needsBudgetMax||'不限')}`) : ''}
+    ${(item.needsSizeMin||item.needsSizeMax) ? viewInfoRow('坪數需求', `${esc(item.needsSizeMin||'不限')} ~ ${esc(item.needsSizeMax||'不限')}`) : ''}
+    ${item.clientNeeds ? viewInfoRow('需求備註', esc(item.clientNeeds).replace(/\n/g,'<br>')) : ''}
     ${viewInfoRow('備註', item.notes ? esc(item.notes).replace(/\n/g,'<br>') : '')}
     ${cardsHtml ? viewInfoRow('賀卡紀錄', cardsHtml) : ''}
 
