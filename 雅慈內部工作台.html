@@ -1535,8 +1535,8 @@ async function openClientModal(id){
       <select id="logType" style="margin-top:8px;">
         ${SERVICE_LOG_TYPES.map(t=>`<option>${t}</option>`).join('')}
       </select>
-      <div id="logExtraFields" style="margin-top:8px;"></div>
       <textarea id="logNote" placeholder="例如:信義路物件,反應不錯…" style="min-height:80px; margin-top:8px;"></textarea>
+      <div id="logExtraFields" style="margin-top:8px;"></div>
       <div style="margin-top:8px;">
         <button class="btn btn-ghost btn-sm" id="logAddBtn">新增</button>
       </div>
@@ -2108,8 +2108,8 @@ function renderLogList(){
         <select id="editLogType-${l.id}" onchange="renderEditLogExtraFields('${l.id}')">
           ${SERVICE_LOG_TYPES.map(t=>`<option ${t===l.type?'selected':''}>${t}</option>`).join('')}
         </select>
-        <div id="editLogExtraFields-${l.id}"></div>
         <textarea id="editLogNote-${l.id}" style="min-height:60px;">${esc(l.note||'')}</textarea>
+        <div id="editLogExtraFields-${l.id}"></div>
         <div style="display:flex; gap:6px;">
           <button class="btn btn-primary btn-sm" onclick="saveLogEdit('${l.id}')">儲存</button>
           <button class="btn btn-ghost btn-sm" onclick="cancelLogEdit()">取消</button>
