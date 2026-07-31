@@ -810,7 +810,8 @@ function renderDashboard(){
 }
 
 const CLIENT_TYPES = ['買方','賣方','租客','房東'];
-const CLIENT_STATUSES = ['追蹤中','已成交','已流失'];
+const CLIENT_STATUSES = ['追蹤中','委託中','已成交','已流失'];
+const SERVICE_LOG_TYPES = ['帶看','收斡','退斡','買方聯絡','賣方聯絡','復看','簽委託','拍照/實境','續約','拜訪','契變'];
 const PROPERTY_RECORD_CATEGORIES = ['待追蹤','已成交','委託中','曾經委託'];
 
 function getClientPhones(c){
@@ -905,10 +906,10 @@ function renderClients(){
       <button class="btn btn-primary" id="addClientBtn">＋ 新增客戶</button>
     </div>
     <div class="toolbar">
-      <input class="search-input" id="clientSearch" placeholder="搜尋姓名 / 電話 / 備註…">
+      <input class="search-input" id="clientSearch" placeholder="搜尋客戶所有資料(姓名/電話/LINE/物件記錄/服務紀錄…)">
       <select class="filter-select" id="clientStatusFilter">
         <option value="">全部狀態</option>
-        <option>追蹤中</option><option>已成交</option><option>已流失</option>
+        ${CLIENT_STATUSES.map(s=>`<option>${s}</option>`).join('')}
       </select>
     </div>
     <div class="section-block"><div class="section-block-body" id="clientTableWrap"></div></div>
@@ -919,12 +920,27 @@ function renderClients(){
   drawClientTable();
 }
 
+function clientSearchText(c){
+  const parts = [
+    c.name,
+    getClientPhones(c).map(p=>`${p.number} ${p.owner||''}`).join(' '),
+    getClientTypes(c).join(' '),
+    getClientStatuses(c).join(' '),
+    c.source, c.propertyAddress,
+    getClientLineNames(c).join(' '), c.lineId, c.fb, c.company, c.idNumber, c.homeAddress,
+    getClientPropertyRecords(c).map(r=>`${r.category} ${r.content}`).join(' '),
+    (c.serviceLogs||[]).map(l=>`${l.type||''} ${l.note||''}`).join(' '),
+    getClientGreetingCards(c).map(g=>g.note||'').join(' '),
+    c.notes
+  ];
+  return parts.filter(Boolean).join(' ').toLowerCase();
+}
+
 function drawClientTable(){
   const q = (document.getElementById('clientSearch').value||'').toLowerCase();
   const st = document.getElementById('clientStatusFilter').value;
   let list = DATA.clients.filter(c=>{
-    const phoneText = getClientPhones(c).map(p=>p.number).join(' ');
-    const matchQ = !q || (c.name+phoneText+(c.notes||'')).toLowerCase().includes(q);
+    const matchQ = !q || clientSearchText(c).includes(q);
     const matchSt = !st || getClientStatuses(c).includes(st);
     return matchQ && matchSt;
   });
@@ -975,9 +991,7 @@ function getClientGreetingCards(c){
 function drawSoldClientTable(){
   const q = (document.getElementById('soldClientSearch').value||'').toLowerCase();
   let list = DATA.clients.filter(c=>getClientStatuses(c).includes('已成交')).filter(c=>{
-    const phoneText = getClientPhones(c).map(p=>p.number).join(' ');
-    const soldText = getClientPropertyRecords(c).filter(r=>r.category==='已成交').map(r=>r.content).join(' ');
-    return !q || (c.name+phoneText+soldText).toLowerCase().includes(q);
+    return !q || clientSearchText(c).includes(q);
   });
   const wrap = document.getElementById('soldClientTableWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">目前沒有已成交客戶</div>'; return; }
@@ -1055,9 +1069,7 @@ function renderEntrustedProperties(){
 function drawEntrustedTable(){
   const q = (document.getElementById('entrustedSearch').value||'').toLowerCase();
   let list = DATA.clients.filter(c=>getClientPropertyRecords(c).some(r=>r.category==='委託中')).filter(c=>{
-    const phoneText = getClientPhones(c).map(p=>p.number).join(' ');
-    const entrustedText = getClientPropertyRecords(c).filter(r=>r.category==='委託中').map(r=>r.content).join(' ');
-    return !q || (c.name+phoneText+entrustedText).toLowerCase().includes(q);
+    return !q || clientSearchText(c).includes(q);
   });
   const wrap = document.getElementById('entrustedTableWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">目前沒有委託中的物件,到客戶資料裡新增「物件記錄」並選「委託中」即可</div>'; return; }
@@ -1194,7 +1206,10 @@ async function openClientModal(id){
         <input type="date" id="logDate" value="${new Date().toISOString().slice(0,10)}">
         <input type="time" id="logTime" value="${new Date().toTimeString().slice(0,5)}">
       </div>
-      <textarea id="logNote" placeholder="例如:帶看信義路物件,反應不錯…" style="min-height:80px; margin-top:8px;"></textarea>
+      <select id="logType" style="margin-top:8px;">
+        ${SERVICE_LOG_TYPES.map(t=>`<option>${t}</option>`).join('')}
+      </select>
+      <textarea id="logNote" placeholder="例如:信義路物件,反應不錯…" style="min-height:80px; margin-top:8px;"></textarea>
       <div style="margin-top:8px;">
         <button class="btn btn-ghost btn-sm" id="logAddBtn">新增</button>
       </div>
@@ -1260,9 +1275,9 @@ async function openClientModal(id){
   document.getElementById('logAddBtn').onclick = ()=>{
     const d = document.getElementById('logDate').value;
     const t = document.getElementById('logTime').value;
+    const type = document.getElementById('logType').value;
     const n = document.getElementById('logNote').value.trim();
-    if(!n){ showToast('請輸入服務紀錄內容'); return; }
-    editingCtx.tempLogs.unshift({id:uid(), date:d, time:t, note:n});
+    editingCtx.tempLogs.unshift({id:uid(), date:d, time:t, type, note:n});
     document.getElementById('logNote').value='';
     renderLogList();
   };
@@ -1435,7 +1450,10 @@ function renderLogList(){
   if(logs.length===0){ wrap.innerHTML = '<div class="empty-state" style="padding:16px;">尚無服務紀錄</div>'; return; }
   wrap.innerHTML = logs.slice().sort((a,b)=>((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||''))).map(l=>`
     <div class="log-entry">
-      <div class="log-entry-date">${esc(l.date||'—')}${l.time?' '+esc(l.time):''}</div>
+      <div>
+        <div class="log-entry-date">${esc(l.date||'—')}${l.time?' '+esc(l.time):''}</div>
+        ${l.type ? `<span class="stamp stamp-pending" style="margin-top:4px;">${esc(l.type)}</span>` : ''}
+      </div>
       <div class="log-entry-note">${esc(l.note)}</div>
       <button class="rm" onclick="removeLogEntry('${l.id}')" title="刪除">✕</button>
     </div>
@@ -1670,7 +1688,7 @@ async function viewClientModal(id){
 
   const logs = (item.serviceLogs||[]).slice().sort((a,b)=>((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||'')));
   const logsHtml = logs.length ? `<div class="log-list" style="max-height:220px;">${logs.map(l=>`
-    <div class="log-entry"><div class="log-entry-date">${esc(l.date||'—')}${l.time?' '+esc(l.time):''}</div><div class="log-entry-note">${esc(l.note)}</div></div>
+    <div class="log-entry"><div><div class="log-entry-date">${esc(l.date||'—')}${l.time?' '+esc(l.time):''}</div>${l.type ? `<span class="stamp stamp-pending" style="margin-top:4px;">${esc(l.type)}</span>` : ''}</div><div class="log-entry-note">${esc(l.note)}</div></div>
   `).join('')}</div>` : '<div class="empty-state" style="padding:12px;">尚無服務紀錄</div>';
 
   let cardPhotoHtml = '';
