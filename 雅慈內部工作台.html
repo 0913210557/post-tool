@@ -1035,6 +1035,31 @@ function renderDashboard(){
 const CLIENT_TYPES = ['買方','賣方','租客','房東'];
 const CLIENT_STATUSES = ['追蹤中','委託中','已成交','已流失'];
 const SERVICE_LOG_TYPES = ['帶看','收斡','退斡','買方聯絡','賣方聯絡','復看','簽委託','拍照/實境','續約','拜訪','契變'];
+const SERVICE_LOG_EXTRA_FIELDS = {
+  '帶看': [
+    {key:'viewOrder', label:'帶看順序'},
+    {key:'viewTime', label:'帶看時間', type:'time'},
+    {key:'url', label:'貼網址'},
+    {key:'address', label:'地址'},
+    {key:'devCompany', label:'開發公司'},
+    {key:'devAgent', label:'開發業務'},
+    {key:'devPhone', label:'開發電話'},
+  ],
+  '收斡': [
+    {key:'url', label:'貼網址'},
+    {key:'address', label:'地址'},
+    {key:'devCompany', label:'開發公司'},
+    {key:'devAgent', label:'開發業務'},
+    {key:'devPhone', label:'開發電話'},
+    {key:'writtenBottomPrice', label:'書面底價'},
+    {key:'depositAmount', label:'收斡金額'},
+    {key:'depositDoc', label:'收斡單書'},
+  ],
+  '簽委託': [
+    {key:'propertyRecordId', label:'選物件地址', type:'property-select'},
+    {key:'entrustAddress', label:'簽委託地址'},
+  ],
+};
 const PROPERTY_RECORD_CATEGORIES = ['待追蹤','已成交','委託中','曾經委託'];
 
 function getClientPhones(c){
@@ -1424,6 +1449,12 @@ async function openClientModal(id){
         <input type="date" id="propertyRecordEntrustDate" title="委託時間">
         <input type="number" id="propertyRecordAskingPrice" placeholder="開價(萬)">
         <input type="number" id="propertyRecordBottomPrice" placeholder="底價(萬)">
+      </div>
+      <div class="pt-hint" style="margin:6px 0 0;">屋主姓名 / 身份證字號 / 電話</div>
+      <div class="log-add-row" style="margin-top:2px; flex-wrap:wrap;">
+        <input type="text" id="propertyRecordOwnerName" placeholder="屋主姓名">
+        <input type="text" id="propertyRecordOwnerIdNumber" placeholder="屋主身份證字號">
+        <input type="text" id="propertyRecordOwnerPhone" placeholder="屋主電話">
         <button class="btn btn-ghost btn-sm" id="propertyRecordAddBtn">新增</button>
       </div>
     </div>
@@ -1452,6 +1483,7 @@ async function openClientModal(id){
       <select id="logType" style="margin-top:8px;">
         ${SERVICE_LOG_TYPES.map(t=>`<option>${t}</option>`).join('')}
       </select>
+      <div id="logExtraFields" style="margin-top:8px;"></div>
       <textarea id="logNote" placeholder="例如:信義路物件,反應不錯…" style="min-height:80px; margin-top:8px;"></textarea>
       <div style="margin-top:8px;">
         <button class="btn btn-ghost btn-sm" id="logAddBtn">新增</button>
@@ -1463,6 +1495,7 @@ async function openClientModal(id){
   renderLineNameList();
   renderPropertyRecordList();
   renderLogList();
+  renderLogExtraFields();
   await renderCardPhotoPreview();
   await renderAttachmentGrid();
 
@@ -1503,7 +1536,11 @@ async function openClientModal(id){
   document.getElementById('logAddBtn').onclick = ()=>{
     addServiceLogEntry(true);
   };
-  ['logDate','logTime','logType','logNote'].forEach(id=>{
+  document.getElementById('logType').addEventListener('change', ()=>{
+    editingCtx.logDraftTouched = true;
+    renderLogExtraFields();
+  });
+  ['logDate','logTime','logNote'].forEach(id=>{
     const el = document.getElementById(id);
     if(!el) return;
     const mark = ()=>{ editingCtx.logDraftTouched = true; };
@@ -1547,17 +1584,76 @@ function addPropertyRecordEntry(){
   const entrustDate = document.getElementById('propertyRecordEntrustDate').value;
   const askingPrice = document.getElementById('propertyRecordAskingPrice').value.trim();
   const bottomPrice = document.getElementById('propertyRecordBottomPrice').value.trim();
+  const ownerName = document.getElementById('propertyRecordOwnerName').value.trim();
+  const ownerIdNumber = document.getElementById('propertyRecordOwnerIdNumber').value.trim();
+  const ownerPhone = document.getElementById('propertyRecordOwnerPhone').value.trim();
   if(!content) return false;
   const priceHistory = (askingPrice || bottomPrice)
     ? [{id:uid(), date:entrustDate || new Date().toISOString().slice(0,10), askingPrice, bottomPrice, note:'新增'}]
     : [];
-  editingCtx.tempPropertyRecords.push({id:uid(), category, content, entrustDate, askingPrice, bottomPrice, priceHistory, photoKeys:[]});
+  editingCtx.tempPropertyRecords.push({id:uid(), category, content, entrustDate, askingPrice, bottomPrice, ownerName, ownerIdNumber, ownerPhone, priceHistory, photoKeys:[]});
   contentEl.value='';
   document.getElementById('propertyRecordEntrustDate').value='';
   document.getElementById('propertyRecordAskingPrice').value='';
   document.getElementById('propertyRecordBottomPrice').value='';
+  document.getElementById('propertyRecordOwnerName').value='';
+  document.getElementById('propertyRecordOwnerIdNumber').value='';
+  document.getElementById('propertyRecordOwnerPhone').value='';
   renderPropertyRecordList();
   return true;
+}
+
+function renderLogExtraFields(){
+  const container = document.getElementById('logExtraFields');
+  if(!container) return;
+  const type = document.getElementById('logType').value;
+  const fields = SERVICE_LOG_EXTRA_FIELDS[type] || [];
+  if(fields.length === 0){ container.innerHTML = ''; return; }
+  container.innerHTML = `<div class="pt-hint" style="margin:0 0 4px;">${fields.map(f=>f.label).join(' / ')}</div>` +
+    fields.map(f=>{
+      if(f.type === 'property-select'){
+        const records = editingCtx.tempPropertyRecords || [];
+        return `<select id="logExtra_${f.key}" style="margin-bottom:6px;">
+          <option value="">(不指定)</option>
+          ${records.map(r=>`<option value="${r.id}">${esc(r.category)} - ${esc(r.content)}</option>`).join('')}
+        </select>`;
+      }
+      return `<input type="${f.type||'text'}" id="logExtra_${f.key}" placeholder="${esc(f.label)}" style="margin-bottom:6px;">`;
+    }).join('');
+  fields.forEach(f=>{
+    const el = document.getElementById('logExtra_'+f.key);
+    if(el){
+      const mark = ()=>{ editingCtx.logDraftTouched = true; };
+      el.addEventListener('input', mark);
+      el.addEventListener('change', mark);
+    }
+  });
+}
+
+function collectLogExtraFields(type){
+  const fields = SERVICE_LOG_EXTRA_FIELDS[type] || [];
+  const extra = {};
+  fields.forEach(f=>{
+    const el = document.getElementById('logExtra_'+f.key);
+    if(el && el.value) extra[f.key] = el.value.trim ? el.value.trim() : el.value;
+  });
+  return extra;
+}
+
+function formatLogExtra(l, propertyRecordsList){
+  if(!l.extra) return '';
+  const fields = SERVICE_LOG_EXTRA_FIELDS[l.type] || [];
+  const parts = [];
+  fields.forEach(f=>{
+    let v = l.extra[f.key];
+    if(!v) return;
+    if(f.type === 'property-select'){
+      const rec = (propertyRecordsList||[]).find(r=>r.id===v);
+      v = rec ? rec.content : v;
+    }
+    parts.push(`${f.label}:${v}`);
+  });
+  return parts.join(' ・ ');
 }
 
 function addServiceLogEntry(force){
@@ -1567,11 +1663,13 @@ function addServiceLogEntry(force){
   const t = document.getElementById('logTime').value;
   const type = document.getElementById('logType').value;
   const n = noteEl.value.trim();
-  const hasSignal = n || editingCtx.logDraftTouched;
+  const extra = collectLogExtraFields(type);
+  const hasSignal = n || editingCtx.logDraftTouched || Object.keys(extra).length > 0;
   if(!force && !hasSignal) return false;
-  editingCtx.tempLogs.unshift({id:uid(), date:d, time:t, type, note:n});
+  editingCtx.tempLogs.unshift({id:uid(), date:d, time:t, type, note:n, extra});
   noteEl.value='';
   document.getElementById('logType').value = SERVICE_LOG_TYPES[0];
+  renderLogExtraFields();
   editingCtx.logDraftTouched = false;
   renderLogList();
   return true;
@@ -1645,6 +1743,12 @@ function renderPropertyRecordList(){
           <input type="number" id="editRecordAsking-${r.id}" placeholder="開價(萬)" value="${esc(r.askingPrice||'')}">
           <input type="number" id="editRecordBottom-${r.id}" placeholder="底價(萬)" value="${esc(r.bottomPrice||'')}">
         </div>
+        <div class="pt-hint" style="margin:0;">屋主姓名 / 身份證字號 / 電話</div>
+        <div class="field-row">
+          <input type="text" id="editRecordOwnerName-${r.id}" placeholder="屋主姓名" value="${esc(r.ownerName||'')}">
+          <input type="text" id="editRecordOwnerIdNumber-${r.id}" placeholder="屋主身份證字號" value="${esc(r.ownerIdNumber||'')}">
+        </div>
+        <input type="text" id="editRecordOwnerPhone-${r.id}" placeholder="屋主電話" value="${esc(r.ownerPhone||'')}">
         <div style="display:flex; gap:6px;">
           <button class="btn btn-primary btn-sm" onclick="savePropertyRecordEdit('${r.id}')">儲存</button>
           <button class="btn btn-ghost btn-sm" onclick="cancelPropertyRecordEdit()">取消</button>
@@ -1654,6 +1758,7 @@ function renderPropertyRecordList(){
 
     const priceLine = (r.askingPrice || r.bottomPrice) ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${r.askingPrice?`開價 ${esc(r.askingPrice)}萬`:''}${r.askingPrice&&r.bottomPrice?'　':''}${r.bottomPrice?`底價 ${esc(r.bottomPrice)}萬`:''}</div>` : '';
     const entrustLine = r.entrustDate ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">委託時間 ${esc(r.entrustDate)}</div>` : '';
+    const ownerLine = (r.ownerName || r.ownerIdNumber || r.ownerPhone) ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">屋主 ${[r.ownerName, r.ownerIdNumber, r.ownerPhone].filter(Boolean).map(esc).join(' / ')}</div>` : '';
 
     return `
     <div class="log-entry" style="flex-direction:column; align-items:stretch; gap:8px;">
@@ -1663,6 +1768,7 @@ function renderPropertyRecordList(){
           <div class="log-entry-note">${esc(r.content)}</div>
           ${entrustLine}
           ${priceLine}
+          ${ownerLine}
         </div>
         <div style="display:flex; gap:4px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end;">
           <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordAlbum('${r.id}')">📎 相簿/檔案${photoCount?`(${photoCount})`:''}</button>
@@ -1718,6 +1824,9 @@ function savePropertyRecordEdit(recordId){
   const entrustDate = document.getElementById('editRecordEntrustDate-'+recordId).value;
   const askingPrice = document.getElementById('editRecordAsking-'+recordId).value.trim();
   const bottomPrice = document.getElementById('editRecordBottom-'+recordId).value.trim();
+  const ownerName = document.getElementById('editRecordOwnerName-'+recordId).value.trim();
+  const ownerIdNumber = document.getElementById('editRecordOwnerIdNumber-'+recordId).value.trim();
+  const ownerPhone = document.getElementById('editRecordOwnerPhone-'+recordId).value.trim();
   if(!content){ showToast('請輸入物件內容'); return; }
   const rec = (editingCtx.tempPropertyRecords||[]).find(r=>r.id===recordId);
   if(!rec) return;
@@ -1730,6 +1839,9 @@ function savePropertyRecordEdit(recordId){
   rec.entrustDate = entrustDate;
   rec.askingPrice = askingPrice;
   rec.bottomPrice = bottomPrice;
+  rec.ownerName = ownerName;
+  rec.ownerIdNumber = ownerIdNumber;
+  rec.ownerPhone = ownerPhone;
   editingCtx.editingRecordId = null;
   renderPropertyRecordList();
 }
@@ -1827,16 +1939,22 @@ function renderLogList(){
   if(!wrap) return;
   const logs = editingCtx.tempLogs || [];
   if(logs.length===0){ wrap.innerHTML = '<div class="empty-state" style="padding:16px;">尚無服務紀錄</div>'; return; }
-  wrap.innerHTML = logs.slice().sort((a,b)=>((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||''))).map(l=>`
+  wrap.innerHTML = logs.slice().sort((a,b)=>((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||''))).map(l=>{
+    const extraText = formatLogExtra(l, editingCtx.tempPropertyRecords);
+    return `
     <div class="log-entry">
       <div>
         <div class="log-entry-date">${esc(l.date||'—')}${l.time?' '+esc(l.time):''}</div>
         ${l.type ? `<span class="stamp stamp-pending" style="margin-top:4px;">${esc(l.type)}</span>` : ''}
       </div>
-      <div class="log-entry-note">${l.note ? esc(l.note) : '<span style="color:var(--ink-soft);">(無備註)</span>'}</div>
+      <div class="log-entry-note">
+        ${l.note ? esc(l.note) : '<span style="color:var(--ink-soft);">(無備註)</span>'}
+        ${extraText ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">${esc(extraText)}</div>` : ''}
+      </div>
       <button class="rm" onclick="removeLogEntry('${l.id}')" title="刪除">✕</button>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 function removeLogEntry(logId){
   editingCtx.tempLogs = editingCtx.tempLogs.filter(l=>l.id!==logId);
@@ -2051,6 +2169,7 @@ async function viewClientModal(id){
     }).join('')}</div>${recordIndices.length>1 ? `<button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="downloadAllPhotos([${recordIndices.join(',')}])">⬇ 全部下載(${recordIndices.length}個)</button>` : ''}` : '';
     const priceLine = (r.askingPrice || r.bottomPrice) ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${r.askingPrice?`開價 ${esc(r.askingPrice)}萬`:''}${r.askingPrice&&r.bottomPrice?'　':''}${r.bottomPrice?`底價 ${esc(r.bottomPrice)}萬`:''}</div>` : '';
     const entrustLine = r.entrustDate ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">委託時間 ${esc(r.entrustDate)}</div>` : '';
+    const ownerLine = (r.ownerName || r.ownerIdNumber || r.ownerPhone) ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">屋主 ${[r.ownerName, r.ownerIdNumber, r.ownerPhone].filter(Boolean).map(esc).join(' / ')}</div>` : '';
     const history = r.priceHistory || [];
     const historyHtml = history.length ? `<div style="margin-top:8px;"><div style="font-size:11px; font-weight:700; color:var(--ink-soft);">變更紀錄</div><div class="log-list" style="margin-top:4px;">${history.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(h=>`
       <div class="log-entry"><div class="log-entry-date">${esc(h.date||'—')}</div><div class="log-entry-note">${h.askingPrice?`開價 ${esc(h.askingPrice)}萬 `:''}${h.bottomPrice?`底價 ${esc(h.bottomPrice)}萬`:''}${h.note?`(${esc(h.note)})`:''}</div></div>
@@ -2060,6 +2179,7 @@ async function viewClientModal(id){
       <div style="font-size:13px; margin-top:6px; color:var(--ink);">${esc(r.content)}</div>
       ${entrustLine}
       ${priceLine}
+      ${ownerLine}
       ${photosHtml}
       ${historyHtml}
     </div>`;
@@ -2077,9 +2197,10 @@ async function viewClientModal(id){
     : '<div class="empty-state" style="padding:12px;">尚無附件</div>';
 
   const logs = (item.serviceLogs||[]).slice().sort((a,b)=>((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||'')));
-  const logsHtml = logs.length ? `<div class="log-list">${logs.map(l=>`
-    <div class="log-entry"><div><div class="log-entry-date">${esc(l.date||'—')}${l.time?' '+esc(l.time):''}</div>${l.type ? `<span class="stamp stamp-pending" style="margin-top:4px;">${esc(l.type)}</span>` : ''}</div><div class="log-entry-note">${l.note ? esc(l.note) : '<span style="color:var(--ink-soft);">(無備註)</span>'}</div></div>
-  `).join('')}</div>` : '<div class="empty-state" style="padding:12px;">尚無服務紀錄</div>';
+  const logsHtml = logs.length ? `<div class="log-list">${logs.map(l=>{
+    const extraText = formatLogExtra(l, records);
+    return `<div class="log-entry"><div><div class="log-entry-date">${esc(l.date||'—')}${l.time?' '+esc(l.time):''}</div>${l.type ? `<span class="stamp stamp-pending" style="margin-top:4px;">${esc(l.type)}</span>` : ''}</div><div class="log-entry-note">${l.note ? esc(l.note) : '<span style="color:var(--ink-soft);">(無備註)</span>'}${extraText ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">${esc(extraText)}</div>` : ''}</div></div>`;
+  }).join('')}</div>` : '<div class="empty-state" style="padding:12px;">尚無服務紀錄</div>';
 
   let cardPhotoHtml = '';
   if(cardPhotoUrl){
