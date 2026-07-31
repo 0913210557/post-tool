@@ -432,6 +432,30 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="viewModalOverlay">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-head">
+      <div class="modal-title" id="viewModalTitle">客戶資料</div>
+      <button class="modal-close" id="viewModalClose">✕</button>
+    </div>
+    <div class="modal-body" id="viewModalBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="viewModalCloseBtn">關閉</button>
+      <button class="btn btn-primary" id="viewModalEditBtn">✎ 編輯</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="lightboxOverlay" style="z-index:150; background:rgba(20,17,14,0.92); align-items:center;">
+  <div style="max-width:92vw; max-height:92vh; display:flex; flex-direction:column; align-items:center; gap:14px;">
+    <img id="lightboxImg" style="max-width:92vw; max-height:76vh; object-fit:contain; border-radius:4px; box-shadow:0 10px 40px rgba(0,0,0,0.5);">
+    <div style="display:flex; gap:10px;">
+      <a id="lightboxDownload" class="btn btn-primary" href="#" download="photo.jpg">⬇ 下載</a>
+      <button class="btn btn-ghost" id="lightboxClose" style="color:#fff; border-color:rgba(255,255,255,.4);">關閉</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script type="module">
@@ -729,7 +753,7 @@ function renderFollowUpList(){
   const list = DATA.clients.filter(c=>getClientStatuses(c).includes('追蹤中')).slice(0,5);
   if(list.length===0) return '<div class="empty-state">目前沒有追蹤中的客戶,新增一筆看看</div>';
   return `<table><thead><tr><th>客戶</th><th>類型</th><th>狀態</th><th>服務紀錄</th></tr></thead><tbody>
-    ${list.map(c=>`<tr class="row-hover"><td>${esc(c.name)}</td><td>${clientTypesTags(c)}</td><td>${clientStatusStamps(c)}</td><td>${(c.serviceLogs||[]).length} 筆</td></tr>`).join('')}
+    ${list.map(c=>`<tr class="row-hover" style="cursor:pointer;" onclick="viewClientModal('${c.id}')"><td>${esc(c.name)}</td><td>${clientTypesTags(c)}</td><td>${clientStatusStamps(c)}</td><td>${(c.serviceLogs||[]).length} 筆</td></tr>`).join('')}
   </tbody></table>`;
 }
 
@@ -797,7 +821,7 @@ function drawClientTable(){
   wrap.innerHTML = `<table><thead><tr>
     <th>姓名</th><th>電話</th><th>類型</th><th>狀態</th><th>名片</th><th>附件</th><th>服務紀錄</th><th></th>
   </tr></thead><tbody>
-    ${list.map(c=>`<tr class="row-hover">
+    ${list.map(c=>`<tr class="row-hover" style="cursor:pointer;" onclick="viewClientModal('${c.id}')">
       <td>${esc(c.name)}</td>
       <td>${clientPhoneSummary(c)}</td>
       <td>${clientTypesTags(c)}</td>
@@ -805,7 +829,7 @@ function drawClientTable(){
       <td>${c.cardPhotoKey ? '<span class="tag-soft">📇 已上傳</span>' : '—'}</td>
       <td>${(c.attachmentKeys&&c.attachmentKeys.length) ? '<span class="tag-soft">📎 '+c.attachmentKeys.length+'</span>' : '—'}</td>
       <td>${(c.serviceLogs||[]).length ? (c.serviceLogs.length + ' 筆') : '—'}</td>
-      <td><div class="row-actions">
+      <td onclick="event.stopPropagation()"><div class="row-actions">
         <button class="icon-btn" onclick="openClientModal('${c.id}')" title="編輯 / 維護">✎</button>
         <button class="icon-btn" onclick="deleteItem('clients','${c.id}')" title="刪除">🗑</button>
       </div></td>
@@ -846,11 +870,11 @@ function drawSoldClientTable(){
   </tr></thead><tbody>
     ${list.map(c=>{
       const soldItems = getClientPropertyRecords(c).filter(r=>r.category==='已成交').map(r=>r.content).join('、');
-      return `<tr class="row-hover">
+      return `<tr class="row-hover" style="cursor:pointer;" onclick="viewClientModal('${c.id}')">
       <td>${esc(c.name)}</td>
       <td>${clientPhoneSummary(c)}</td>
       <td>${esc(soldItems||'—')}</td>
-      <td><div class="row-actions">
+      <td onclick="event.stopPropagation()"><div class="row-actions">
         <button class="icon-btn" onclick="openClientModal('${c.id}')" title="編輯">✎</button>
       </div></td>
     </tr>`;
@@ -962,6 +986,12 @@ async function openClientModal(id){
     </div>
 
     <div class="field field-divider">
+      <div class="field-sub-title">其他附件(稅費試算、文件照片等)</div>
+      <div class="photo-grid" id="clientAttachmentGrid"><span class="tag-soft">載入中…</span></div>
+      <input type="file" accept="image/*" multiple id="clientAttachmentInput" style="display:none;">
+    </div>
+
+    <div class="field field-divider">
       <div class="field-sub-title">服務紀錄</div>
       <div class="log-list" id="logList"></div>
       <div class="log-add-row" style="flex-wrap:wrap;">
@@ -972,12 +1002,6 @@ async function openClientModal(id){
       <div style="margin-top:8px;">
         <button class="btn btn-ghost btn-sm" id="logAddBtn">新增</button>
       </div>
-    </div>
-
-    <div class="field field-divider">
-      <div class="field-sub-title">其他附件(稅費試算、文件照片等)</div>
-      <div class="photo-grid" id="clientAttachmentGrid"><span class="tag-soft">載入中…</span></div>
-      <input type="file" accept="image/*" multiple id="clientAttachmentInput" style="display:none;">
     </div>
   `;
   openModal();
@@ -1315,6 +1339,139 @@ async function saveClient(){
   await saveType('clients');
   return true;
 }
+
+/* ===================== Client View Modal (read-only) ===================== */
+let currentViewClientId = null;
+let __lightboxPhotos = [];
+
+function pushLightboxPhoto(src, filename){
+  __lightboxPhotos.push({src, filename});
+  return __lightboxPhotos.length - 1;
+}
+function openLightboxByIndex(i){
+  const p = __lightboxPhotos[i];
+  if(!p || !p.src) return;
+  openLightbox(p.src, p.filename);
+}
+function openLightbox(src, filename){
+  document.getElementById('lightboxImg').src = src;
+  const dl = document.getElementById('lightboxDownload');
+  dl.href = src;
+  dl.download = filename || 'photo.jpg';
+  document.getElementById('lightboxOverlay').classList.add('open');
+}
+function closeLightbox(){
+  document.getElementById('lightboxOverlay').classList.remove('open');
+}
+document.getElementById('lightboxClose').onclick = closeLightbox;
+document.getElementById('lightboxOverlay').addEventListener('click', (e)=>{
+  if(e.target.id==='lightboxOverlay') closeLightbox();
+});
+
+function viewInfoRow(label, valueHtml){
+  if(!valueHtml) return '';
+  return `<div style="margin-bottom:12px;"><div style="font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:3px; letter-spacing:.5px;">${esc(label)}</div><div style="font-size:14px; color:var(--ink); line-height:1.6;">${valueHtml}</div></div>`;
+}
+
+async function viewClientModal(id){
+  const item = DATA.clients.find(c=>c.id===id);
+  if(!item) return;
+  currentViewClientId = id;
+  __lightboxPhotos = [];
+
+  document.getElementById('viewModalTitle').textContent = item.name || '客戶資料';
+  document.getElementById('viewModalBody').innerHTML = '<div class="loading-note">載入中…</div>';
+  document.getElementById('viewModalOverlay').classList.add('open');
+
+  const phones = getClientPhones(item);
+  const types = getClientTypes(item);
+  const statuses = getClientStatuses(item);
+  const lineNames = getClientLineNames(item);
+  const records = getClientPropertyRecords(item);
+
+  const cardPhotoUrl = item.cardPhotoKey ? await loadPhoto(item.cardPhotoKey) : null;
+  const attachmentUrls = (item.attachmentKeys && item.attachmentKeys.length)
+    ? await Promise.all(item.attachmentKeys.map(k=>loadPhoto(k)))
+    : [];
+  const recordPhotoMap = {};
+  for(const r of records){
+    if(r.photoKeys && r.photoKeys.length){
+      recordPhotoMap[r.id] = await Promise.all(r.photoKeys.map(k=>loadPhoto(k)));
+    }
+  }
+
+  const phonesHtml = phones.length ? esc(phones.map(p=>p.owner ? `${p.number}(${p.owner})` : p.number).join('、')) : '';
+  const lineNamesHtml = lineNames.length ? esc(lineNames.join('、')) : '';
+
+  const recordsHtml = records.length ? records.map(r=>{
+    const photos = recordPhotoMap[r.id] || [];
+    const photosHtml = photos.length ? `<div class="photo-grid" style="margin-top:8px;">${photos.map((src,i)=>{
+      if(!src) return '';
+      const idx = pushLightboxPhoto(src, `${item.name}-${r.category}-${i+1}.jpg`);
+      return `<div class="photo-chip" style="cursor:pointer;" onclick="openLightboxByIndex(${idx})"><img src="${src}"></div>`;
+    }).join('')}</div>` : '';
+    return `<div style="border:1px solid var(--line); border-radius:2px; padding:10px 12px; margin-bottom:8px;">
+      <span class="stamp stamp-pending">${esc(r.category)}</span>
+      <div style="font-size:13px; margin-top:6px; color:var(--ink);">${esc(r.content)}</div>
+      ${photosHtml}
+    </div>`;
+  }).join('') : '<div class="empty-state" style="padding:12px;">尚無物件記錄</div>';
+
+  const attachmentsHtml = attachmentUrls.length ? `<div class="photo-grid">${attachmentUrls.map((src,i)=>{
+    if(!src) return '';
+    const idx = pushLightboxPhoto(src, `${item.name}-附件-${i+1}.jpg`);
+    return `<div class="photo-chip" style="cursor:pointer;" onclick="openLightboxByIndex(${idx})"><img src="${src}"></div>`;
+  }).join('')}</div>` : '<div class="empty-state" style="padding:12px;">尚無附件</div>';
+
+  const logs = (item.serviceLogs||[]).slice().sort((a,b)=>((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||'')));
+  const logsHtml = logs.length ? `<div class="log-list" style="max-height:220px;">${logs.map(l=>`
+    <div class="log-entry"><div class="log-entry-date">${esc(l.date||'—')}${l.time?' '+esc(l.time):''}</div><div class="log-entry-note">${esc(l.note)}</div></div>
+  `).join('')}</div>` : '<div class="empty-state" style="padding:12px;">尚無服務紀錄</div>';
+
+  let cardPhotoHtml = '';
+  if(cardPhotoUrl){
+    const idx = pushLightboxPhoto(cardPhotoUrl, `${item.name}-名片.jpg`);
+    cardPhotoHtml = `<div style="margin-bottom:16px;"><div class="card-photo-preview" style="width:160px; height:100px; cursor:pointer;" onclick="openLightboxByIndex(${idx})"><img src="${cardPhotoUrl}"></div></div>`;
+  }
+
+  document.getElementById('viewModalBody').innerHTML = `
+    ${cardPhotoHtml}
+    ${viewInfoRow('姓名', esc(item.name))}
+    ${viewInfoRow('電話', phonesHtml)}
+    ${types.length ? viewInfoRow('類型', clientTypesTags(item)) : ''}
+    ${statuses.length ? viewInfoRow('狀態', clientStatusStamps(item)) : ''}
+    ${viewInfoRow('出生年月日', esc(item.birthday))}
+    ${viewInfoRow('建檔日期', esc(item.fileDate))}
+    ${viewInfoRow('來源', esc(item.source))}
+    ${viewInfoRow('物件地址', esc(item.propertyAddress))}
+    ${viewInfoRow('LINE 名', lineNamesHtml)}
+    ${viewInfoRow('LINE ID', esc(item.lineId))}
+    ${viewInfoRow('FB', esc(item.fb))}
+    ${viewInfoRow('公司名稱', esc(item.company))}
+    ${viewInfoRow('身份證字號', esc(item.idNumber))}
+    ${viewInfoRow('居住地址', esc(item.homeAddress))}
+    ${viewInfoRow('備註', item.notes ? esc(item.notes).replace(/\n/g,'<br>') : '')}
+
+    <div class="field-sub-title" style="margin-top:16px;">其他附件</div>
+    ${attachmentsHtml}
+
+    <div class="field-sub-title" style="margin-top:16px;">物件記錄</div>
+    ${recordsHtml}
+
+    <div class="field-sub-title" style="margin-top:16px;">服務紀錄</div>
+    ${logsHtml}
+  `;
+}
+
+document.getElementById('viewModalClose').onclick = ()=> document.getElementById('viewModalOverlay').classList.remove('open');
+document.getElementById('viewModalCloseBtn').onclick = ()=> document.getElementById('viewModalOverlay').classList.remove('open');
+document.getElementById('viewModalOverlay').addEventListener('click', (e)=>{
+  if(e.target.id==='viewModalOverlay') document.getElementById('viewModalOverlay').classList.remove('open');
+});
+document.getElementById('viewModalEditBtn').onclick = ()=>{
+  document.getElementById('viewModalOverlay').classList.remove('open');
+  if(currentViewClientId) openClientModal(currentViewClientId);
+};
 
 /* ===================== Listings Page ===================== */
 function renderListings(){
@@ -2396,7 +2553,7 @@ function drawCalendar(){
     cells += `<div class="cal-cell ${isToday?'cal-today':''}">
       <div class="cal-daynum">${d}</div>
       <div class="cal-events">
-        ${dayEvents.map(e=>`<div class="cal-event" onclick="openClientModal('${e.clientId}')" title="${esc(e.note)}">${e.time?esc(e.time)+' ':''}${esc(e.clientName)}</div>`).join('')}
+        ${dayEvents.map(e=>`<div class="cal-event" onclick="viewClientModal('${e.clientId}')" title="${esc(e.note)}">${e.time?esc(e.time)+' ':''}${esc(e.clientName)}</div>`).join('')}
       </div>
     </div>`;
   }
