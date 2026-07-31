@@ -359,8 +359,12 @@
   .cal-today{ background:var(--brass-soft); }
   .cal-daynum{ font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; color:var(--ink-soft); margin-bottom:4px; }
   .cal-events{ display:flex; flex-direction:column; gap:2px; }
-  .cal-event{ font-size:11px; background:var(--jade); color:#fff; padding:2px 5px; border-radius:2px; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cal-event{ font-size:11px; background:var(--jade); color:#fff; padding:2px 5px; border-radius:2px; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:flex; align-items:center; gap:3px; }
   .cal-event:hover{ background:var(--jade-deep); }
+  .cal-event input[type=checkbox]{ width:11px; height:11px; flex-shrink:0; cursor:pointer; margin:0; }
+  .cal-event span{ overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
+  .cal-event-done{ background:var(--stone-deep) !important; color:var(--ink-soft); }
+  .cal-event-done span{ text-decoration:line-through; }
 
   @media (max-width:820px){
     .app{ flex-direction:column; }
@@ -1756,7 +1760,16 @@ function formatLogExtra(l, multiline){
   return parts.join(flatSep);
 }
 
-function addServiceLogEntry(force){
+async function persistServiceLogsIfExisting(){
+  if(!editingCtx || !editingCtx.id) return false;
+  const idx = DATA.clients.findIndex(c=>c.id===editingCtx.id);
+  if(idx===-1) return false;
+  DATA.clients[idx] = {...DATA.clients[idx], serviceLogs: editingCtx.tempLogs};
+  await saveType('clients');
+  return true;
+}
+
+async function addServiceLogEntry(force){
   const noteEl = document.getElementById('logNote');
   if(!noteEl) return false;
   const d = document.getElementById('logDate').value;
@@ -1773,6 +1786,7 @@ function addServiceLogEntry(force){
   renderLogExtraFields();
   editingCtx.logDraftTouched = false;
   renderLogList();
+  if(await persistServiceLogsIfExisting()) showToast('服務紀錄已儲存');
   return true;
 }
 
@@ -1794,12 +1808,12 @@ function flushPendingViewingItem(){
 }
 
 /* Auto-add any drafted-but-not-yet-added entries just before saving. */
-function flushPendingClientInputs(){
+async function flushPendingClientInputs(){
   addPhoneEntry();
   addLineNameEntry();
   addPropertyRecordEntry();
   flushPendingViewingItem();
-  addServiceLogEntry(false);
+  await addServiceLogEntry(false);
 }
 
 function renderPhoneList(){
@@ -2173,7 +2187,7 @@ function addEditViewingItem(logId){
   drawEditViewingItemsList(logId);
 }
 
-function saveLogEdit(logId){
+async function saveLogEdit(logId){
   const l = (editingCtx.tempLogs||[]).find(x=>x.id===logId);
   if(!l) return;
   const date = document.getElementById('editLogDate-'+logId).value;
@@ -2200,11 +2214,13 @@ function saveLogEdit(logId){
   editingCtx.editingLogId = null;
   editingCtx.editingLogViewingItems = [];
   renderLogList();
+  if(await persistServiceLogsIfExisting()) showToast('服務紀錄已儲存');
 }
 
-function removeLogEntry(logId){
+async function removeLogEntry(logId){
   editingCtx.tempLogs = editingCtx.tempLogs.filter(l=>l.id!==logId);
   renderLogList();
+  if(await persistServiceLogsIfExisting()) showToast('服務紀錄已刪除');
 }
 
 async function renderAttachmentGrid(){
@@ -2239,7 +2255,7 @@ function removeClientAttachment(idx){
 }
 
 async function saveClient(){
-  flushPendingClientInputs();
+  await flushPendingClientInputs();
   const typesChecked = Array.from(document.querySelectorAll('.f_type_cb:checked')).map(cb=>cb.value);
   const statusesChecked = Array.from(document.querySelectorAll('.f_status_cb:checked')).map(cb=>cb.value);
   const vals = {
@@ -3560,7 +3576,7 @@ function drawCalendar(){
     (c.serviceLogs||[]).forEach(l=>{
       if(!l.date) return;
       if(!events[l.date]) events[l.date] = [];
-      events[l.date].push({clientId:c.id, clientName:c.name, time:l.time||'', note:l.note||''});
+      events[l.date].push({clientId:c.id, logId:l.id, clientName:c.name, time:l.time||'', note:l.note||'', completed: !!l.completed});
     });
   });
 
@@ -3578,7 +3594,10 @@ function drawCalendar(){
     cells += `<div class="cal-cell ${isToday?'cal-today':''}">
       <div class="cal-daynum">${d}</div>
       <div class="cal-events">
-        ${dayEvents.map(e=>`<div class="cal-event" onclick="viewClientModal('${e.clientId}')" title="${esc(e.note)}">${e.time?esc(e.time)+' ':''}${esc(e.clientName)}</div>`).join('')}
+        ${dayEvents.map(e=>`<div class="cal-event ${e.completed?'cal-event-done':''}" title="${esc(e.note)}">
+          <input type="checkbox" ${e.completed?'checked':''} onclick="event.stopPropagation(); toggleCalendarEventDone('${e.clientId}','${e.logId}')">
+          <span onclick="viewClientModal('${e.clientId}')">${e.time?esc(e.time)+' ':''}${esc(e.clientName)}</span>
+        </div>`).join('')}
       </div>
     </div>`;
   }
@@ -3587,6 +3606,16 @@ function drawCalendar(){
     <div class="cal-weekdays"><div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div></div>
     <div class="cal-grid">${cells}</div>
   `;
+}
+
+async function toggleCalendarEventDone(clientId, logId){
+  const idx = DATA.clients.findIndex(c=>c.id===clientId);
+  if(idx===-1) return;
+  const client = DATA.clients[idx];
+  const logs = (client.serviceLogs||[]).map(l=> l.id===logId ? {...l, completed: !l.completed} : l);
+  DATA.clients[idx] = {...client, serviceLogs:logs};
+  await saveType('clients');
+  drawCalendar();
 }
 
 /* ===================== Modal plumbing ===================== */
