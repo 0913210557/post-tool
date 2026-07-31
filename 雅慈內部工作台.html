@@ -1507,7 +1507,7 @@ async function openClientModal(id){
         <select id="propertyRecordCategory" style="flex-shrink:0; width:110px;">
           ${PROPERTY_RECORD_CATEGORIES.map(c=>`<option>${c}</option>`).join('')}
         </select>
-        <input type="text" id="propertyRecordContent" placeholder="物件內容(地址、備註等)" style="flex:1; min-width:160px;">
+        <textarea id="propertyRecordContent" placeholder="物件內容(地址、備註等)" style="flex:1; min-width:160px; min-height:60px;"></textarea>
       </div>
       <div class="pt-hint" style="margin:6px 0 0;">委託時間 / 開價(萬) / 底價(萬)</div>
       <div class="log-add-row" style="margin-top:2px; flex-wrap:wrap;">
@@ -1936,7 +1936,7 @@ function renderPropertyRecordList(){
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
         <div style="flex:1;">
           <div class="log-entry-date">${esc(r.category)}</div>
-          <div class="log-entry-note">${esc(r.content)}</div>
+          <div class="log-entry-note">${esc(r.content).replace(/\n/g,'<br>')}</div>
           ${entrustLine}
           ${priceLine}
           ${ownerLine}
@@ -2494,7 +2494,7 @@ async function viewClientModal(id){
     `).join('')}</div></div>` : '';
     return `<div style="border:1px solid var(--line); border-radius:2px; padding:10px 12px; margin-bottom:8px;">
       <span class="stamp stamp-pending">${esc(r.category)}</span>
-      <div style="font-size:13px; margin-top:6px; color:var(--ink);">${esc(r.content)}</div>
+      <div style="font-size:13px; margin-top:6px; color:var(--ink);">${esc(r.content).replace(/\n/g,'<br>')}</div>
       ${entrustLine}
       ${priceLine}
       ${ownerLine}
