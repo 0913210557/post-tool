@@ -3906,8 +3906,11 @@ function ptExtractImageUrls(rawText){
   for(const m of rawText.matchAll(/!\[[^\]]*\]\((https?:\/\/[^\s\)]+)\)/g)){
     urls.add(m[1]);
   }
-  for(const m of rawText.matchAll(/https?:\/\/[^\s"'<>\)]+?\.(?:jpg|jpeg|png|webp)(?:\?[^\s"'<>\)]*)?/gi)){
+  for(const m of rawText.matchAll(/https?:\/\/[^\s"'<>\)]+?\.(?:jpg|jpeg|png|webp|gif|jfif)(?:\?[^\s"'<>\)]*)?/gi)){
     urls.add(m[0]);
+  }
+  for(const m of rawText.matchAll(/(?:src|data-src|data-original|data-lazy)\s*=\s*["'](https?:\/\/[^\s"']+?\.(?:jpg|jpeg|png|webp|gif|jfif)(?:\?[^\s"']*)?)["']/gi)){
+    urls.add(m[1]);
   }
   return [...urls]
     .filter(u => !/logo|icon|sprite|avatar|favicon/i.test(u))
