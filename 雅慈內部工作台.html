@@ -3413,17 +3413,12 @@ function renderPostTool(){
       </div>
       <div class="pt-main">
 
-        <div class="pt-notice">
-          <b>提醒：</b>這個工具能幫你抓取物件網址內容、寫好貼文文案，但受限於 Facebook 的政策，無法由網頁工具自動幫你把貼文送出到社團——最後一步仍需你按「複製文字」後手動貼到社團貼文框。工具會幫你把「開啟社團」的分頁一起打開，讓最後這步盡量順手。
-        </div>
-
         <div class="pt-step">
           <div class="pt-step-label"><span class="pt-step-num">1</span>貼上物件網址，自動抓取</div>
           <input type="url" id="ptUrlInput" placeholder="https://...">
           <div class="pt-row-buttons">
             <button class="pt-btn-primary" id="ptGenBtn" onclick="ptGenerateDraft()">自動抓取並擷取欄位</button>
           </div>
-          <div class="pt-hint">會固定擷取：標題、售價、地坪、建坪、格局、房屋描述，以及頁面上的照片。抓不到的欄位會留空，請手動補上。</div>
           <div class="pt-status" id="ptGenStatus"></div>
         </div>
 
@@ -3431,7 +3426,6 @@ function renderPostTool(){
           <div class="pt-step-label">抓到的照片，點右上角 ✕ 可移除（最後一張是固定附加的名片）</div>
           <div class="pt-photo-grid" id="ptPhotoGrid"></div>
           <div id="ptPhotoDownloadWrap"></div>
-          <div class="pt-hint">網頁圖片沒辦法直接幫你傳進 Facebook，選好要用的照片後，點縮圖可在新分頁開啟，或按上面「全部下載」，手機上長按圖片選「儲存圖片」，再手動上傳到社團貼文裡。</div>
         </div>
 
         <div class="pt-step">
@@ -3526,7 +3520,6 @@ function renderPostTool(){
         <div class="pt-step">
           <div class="pt-step-label"><span class="pt-step-num">3</span>確認 / 編輯文案</div>
           <textarea id="ptDraftText" placeholder="組成後會顯示在這裡，你也可以直接手動輸入、修改..."></textarea>
-          <div class="pt-hint">結尾的公司資訊區塊會自動固定加上，不用另外處理。</div>
         </div>
 
         <div class="pt-step">
@@ -4119,13 +4112,8 @@ async function ptGenerateDraft(){
   ptFillFields(fields);
   ptComposeFromFields();
 
-  if(usedAI){
-    ptGenStatusEl.textContent = '欄位已由 AI 擷取，請在下方確認或補上缺漏的欄位。';
-    ptGenStatusEl.className = 'pt-status ok';
-  } else {
-    ptGenStatusEl.textContent = 'AI 擷取暫時無法使用，已改用關鍵字比對填入欄位，請務必逐一核對、補上缺漏。';
-    ptGenStatusEl.className = 'pt-status err';
-  }
+  ptGenStatusEl.textContent = '';
+  ptGenStatusEl.className = 'pt-status';
   ptGenBtnEl.disabled = false;
 }
 
