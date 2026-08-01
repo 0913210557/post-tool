@@ -4387,6 +4387,10 @@ function gcalSaveReminderSetting(){
   showToast('提醒時間已更新,之後同步的行程會套用');
 }
 
+function gcalFormatLocalDateTime(d){
+  return `${d.getFullYear()}-${icsPad(d.getMonth()+1)}-${icsPad(d.getDate())}T${icsPad(d.getHours())}:${icsPad(d.getMinutes())}:00`;
+}
+
 function gcalBuildEventBody(client, l){
   const summary = `${l.type||'行程'} - ${client.name}`;
   const reminderMinutes = gcalGetReminderMinutes();
@@ -4402,16 +4406,19 @@ function gcalBuildEventBody(client, l){
     return {
       summary,
       description: l.note || '',
-      start: { dateTime: start.toISOString(), timeZone: 'Asia/Taipei' },
-      end: { dateTime: end.toISOString(), timeZone: 'Asia/Taipei' },
+      start: { dateTime: gcalFormatLocalDateTime(start), timeZone: 'Asia/Taipei' },
+      end: { dateTime: gcalFormatLocalDateTime(end), timeZone: 'Asia/Taipei' },
       reminders,
     };
   }
+  const nextDay = new Date(l.date + 'T00:00:00');
+  nextDay.setDate(nextDay.getDate() + 1);
+  const nextDayStr = `${nextDay.getFullYear()}-${icsPad(nextDay.getMonth()+1)}-${icsPad(nextDay.getDate())}`;
   return {
     summary,
     description: l.note || '',
     start: { date: l.date },
-    end: { date: l.date },
+    end: { date: nextDayStr },
     reminders,
   };
 }
