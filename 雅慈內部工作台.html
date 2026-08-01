@@ -1086,7 +1086,7 @@ function renderDashboard(){
     </div>
 
     <div class="section-block">
-      <div class="section-block-head">近期行程(3天內:帶看/收斡/簽委託/驗屋/結案)</div>
+      <div class="section-block-head">近期行程(3天內,不含買方聯絡/賣方聯絡)</div>
       <div class="section-block-body">
         ${renderUpcomingAppointments()}
       </div>
@@ -1210,7 +1210,6 @@ function clientPhoneSummary(c){
   return phones.length>1 ? `${label} 等${phones.length}支` : label;
 }
 
-const UPCOMING_APPOINTMENT_TYPES = ['帶看','收斡','簽委託','驗屋','結案'];
 const CALENDAR_ROUTINE_TYPES = ['買方聯絡','賣方聯絡'];
 
 function renderUpcomingAppointments(){
@@ -1223,14 +1222,14 @@ function renderUpcomingAppointments(){
   const items = [];
   DATA.clients.forEach(c=>{
     (c.serviceLogs||[]).forEach(l=>{
-      if(!l.date || !UPCOMING_APPOINTMENT_TYPES.includes(l.type)) return;
+      if(!l.date || CALENDAR_ROUTINE_TYPES.includes(l.type)) return;
       if(l.date < todayStr || l.date > limitStr) return;
       items.push({clientId:c.id, clientName:c.name, date:l.date, time:l.time||'', type:l.type, note:l.note||''});
     });
   });
   items.sort((a,b)=>((a.date||'')+(a.time||'')).localeCompare((b.date||'')+(b.time||'')));
 
-  if(items.length===0) return '<div class="empty-state">未來 3 天內沒有帶看/收斡/簽委託/驗屋/結案行程</div>';
+  if(items.length===0) return '<div class="empty-state">未來 3 天內沒有行程</div>';
   return `<table><thead><tr><th>日期</th><th>時間</th><th>類型</th><th>客戶</th><th>備註</th></tr></thead><tbody>
     ${items.map(e=>`<tr class="row-hover" style="cursor:pointer;" onclick="viewClientModal('${e.clientId}')">
       <td>${esc(e.date)}${e.date===todayStr?' <span class="tag-soft">今天</span>':''}</td>
