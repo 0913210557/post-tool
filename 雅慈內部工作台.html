@@ -384,6 +384,7 @@
   }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -4153,6 +4154,24 @@ function renderCalendar(){
         <button class="btn btn-ghost btn-sm" onclick="exportAllUpcomingToICS()">📅 匯出全部到行事曆</button>
       </div>
     </div>
+
+    <div class="section-block" style="margin-bottom:16px;">
+      <div class="section-block-body" style="padding:14px 16px;">
+        <div class="field-sub-title" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;" onclick="toggleFieldSection('gcalPanelBody', this)">
+          <span>🔗 Google 日曆自動同步(選用,可與 Jorte 連動)</span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
+        </div>
+        <div id="gcalPanelBody" style="display:none; margin-top:10px;">
+          <div class="pt-hint" style="margin:0 0 6px;">Google OAuth Client ID(只需貼一次,存在這台裝置上)</div>
+          <div class="log-add-row">
+            <input type="text" id="gcalClientIdInput" placeholder="貼上你的 Client ID" value="${esc(localStorage.getItem('gcal_client_id')||'')}" style="flex:1;">
+            <button class="btn btn-ghost btn-sm" onclick="gcalSignIn()">登入 Google</button>
+          </div>
+          <div id="gcalStatus" style="font-size:12px; color:var(--ink-soft); margin-top:8px;">尚未登入</div>
+          <button class="btn btn-primary btn-sm" style="margin-top:8px;" id="gcalSyncBtn" onclick="gcalSyncEvents()" disabled>同步全部行程到 Google 日曆</button>
+        </div>
+      </div>
+    </div>
+
     <div class="section-block"><div class="section-block-body" id="calGrid" style="padding:0;"></div></div>
   `;
   document.getElementById('calPrev').onclick = ()=>{ calendarMonth.setMonth(calendarMonth.getMonth()-1); drawCalendar(); };
@@ -4278,6 +4297,103 @@ function exportAllUpcomingToICS(){
   if(vevents.length===0){ showToast('目前沒有任何有日期的服務紀錄可以匯出'); return; }
   downloadICSFile(`雅慈工作台行事曆_${new Date().toISOString().slice(0,10)}.ics`, buildICSFile(vevents));
   showToast('已下載完整行事曆檔,開啟後選擇要加入的行事曆 App(例如 Jorte)');
+}
+
+/* ===================== Google Calendar sync (OAuth, no public URL) ===================== */
+let gcalAccessToken = null;
+let gcalTokenClient = null;
+
+function gcalSignIn(){
+  const clientId = document.getElementById('gcalClientIdInput').value.trim();
+  if(!clientId){ showToast('請先貼上 Google Client ID'); return; }
+  localStorage.setItem('gcal_client_id', clientId);
+
+  if(typeof google === 'undefined' || !google.accounts){
+    showToast('Google 登入元件還沒載入完成，請稍等幾秒再試一次');
+    return;
+  }
+
+  gcalTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: clientId,
+    scope: 'https://www.googleapis.com/auth/calendar.events',
+    callback: (resp)=>{
+      if(resp.error){
+        showToast('登入失敗：' + resp.error);
+        return;
+      }
+      gcalAccessToken = resp.access_token;
+      document.getElementById('gcalStatus').textContent = '已登入 Google，可以同步';
+      document.getElementById('gcalSyncBtn').disabled = false;
+      showToast('已登入 Google');
+    },
+  });
+  gcalTokenClient.requestAccessToken();
+}
+
+function gcalBuildEventBody(client, l){
+  const summary = `${l.type||'行程'} - ${client.name}`;
+  if(l.time){
+    const start = new Date(l.date + 'T' + l.time + ':00');
+    const end = new Date(start.getTime() + 60*60*1000);
+    return {
+      summary,
+      description: l.note || '',
+      start: { dateTime: start.toISOString(), timeZone: 'Asia/Taipei' },
+      end: { dateTime: end.toISOString(), timeZone: 'Asia/Taipei' },
+    };
+  }
+  return {
+    summary,
+    description: l.note || '',
+    start: { date: l.date },
+    end: { date: l.date },
+  };
+}
+
+async function gcalSyncEvents(){
+  if(!gcalAccessToken){ showToast('請先登入 Google'); return; }
+  document.getElementById('gcalSyncBtn').disabled = true;
+  document.getElementById('gcalStatus').textContent = '同步中，請稍候…';
+
+  let created = 0, updated = 0, failed = 0, dataChanged = false;
+
+  for(const client of DATA.clients){
+    for(const log of (client.serviceLogs||[])){
+      if(!log.date) continue;
+      const body = gcalBuildEventBody(client, log);
+      try{
+        if(log.gcalEventId){
+          const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${log.gcalEventId}`, {
+            method: 'PATCH',
+            headers: { 'Authorization': 'Bearer ' + gcalAccessToken, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          if(res.ok) updated++; else failed++;
+        }else{
+          const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + gcalAccessToken, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          if(res.ok){
+            const data = await res.json();
+            log.gcalEventId = data.id;
+            dataChanged = true;
+            created++;
+          }else failed++;
+        }
+      }catch(e){
+        console.error(e);
+        failed++;
+      }
+    }
+  }
+
+  if(dataChanged) await saveType('clients');
+
+  document.getElementById('gcalSyncBtn').disabled = false;
+  document.getElementById('gcalStatus').textContent = `上次同步：新增 ${created} 筆、更新 ${updated} 筆${failed?`、失敗 ${failed} 筆`:''}`;
+  showToast(`Google 日曆同步完成：新增 ${created} 筆、更新 ${updated} 筆${failed?`、失敗 ${failed} 筆`:''}`);
 }
 
 function openDayAgenda(dateStr){
