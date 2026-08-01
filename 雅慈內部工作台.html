@@ -365,6 +365,8 @@
   .cal-event span{ overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
   .cal-event-done{ background:var(--stone-deep) !important; color:var(--ink-soft); }
   .cal-event-done span{ text-decoration:line-through; }
+  .cal-event-count{ font-size:11px; background:var(--jade); color:#fff; padding:3px 6px; border-radius:2px; text-align:center; }
+  .cal-cell:hover .cal-event-count{ background:var(--jade-deep); }
 
   @media (max-width:820px){
     .app{ flex-direction:column; }
@@ -465,6 +467,19 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="dayAgendaOverlay">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-head">
+      <div class="modal-title" id="dayAgendaTitle">當日行程</div>
+      <button class="modal-close" id="dayAgendaClose">✕</button>
+    </div>
+    <div class="modal-body" id="dayAgendaBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="dayAgendaCloseBtn">關閉</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script type="module">
@@ -546,6 +561,8 @@
 /* ===================== State ===================== */
 let DATA = { clients: [], listings: [], content: [], deals: [] };
 let currentPage = 'dashboard';
+let clientListPage = 1;
+const CLIENT_PAGE_SIZE = 10;
 let editingCtx = null; // {type, id, ...extra}
 let calendarMonth = new Date();
 let loaded = false;
@@ -1066,9 +1083,9 @@ function renderDashboard(){
     </div>
 
     <div class="section-block">
-      <div class="section-block-head">近期需跟進客戶</div>
+      <div class="section-block-head">近期行程(3天內:帶看/收斡/簽委託/驗屋/結案)</div>
       <div class="section-block-body">
-        ${renderFollowUpList()}
+        ${renderUpcomingAppointments()}
       </div>
     </div>
   `;
@@ -1076,10 +1093,9 @@ function renderDashboard(){
 
 const CLIENT_TYPES = ['買方','賣方','租客','房東'];
 const CLIENT_STATUSES = ['追蹤中','委託中','已成交','已買到','已售出','已流失'];
-const NEEDS_AREAS = ['平鎮區','中壢區','龍潭區','楊梅區'];
 const NEEDS_PROPERTY_TYPES = ['電梯','公寓','透天別墅','套房','廠房','農地','建地'];
 const NEEDS_PARKING_OPTIONS = ['需要','不需要','不限'];
-const SERVICE_LOG_TYPES = ['帶看','收斡','退斡','買方聯絡','賣方聯絡','復看','簽委託','拍照/實境','續約','拜訪','契變'];
+const SERVICE_LOG_TYPES = ['帶看','收斡','退斡','買方聯絡','賣方聯絡','復看','簽委託','驗屋','面談','拍照/實境','續約','拜訪','契變','結案'];
 const SERVICE_LOG_EXTRA_FIELDS = {
   '帶看': { repeating: true, fields: [
     {key:'viewOrder', label:'帶看順序'},
@@ -1119,6 +1135,16 @@ const SERVICE_LOG_EXTRA_FIELDS = {
     {key:'commissionSplit', label:'業績拆法'},
     {key:'other', label:'其它'},
   ]},
+  '面談': { special: 'meeting', fields: [
+    {key:'address', label:'地址', default:'平鎮區中豐路南勢二段175號'},
+    {key:'parking', label:'停車場', default:'平鎮區南華街85巷遷居社區正對面'},
+    {key:'meetingTime', label:'面談時間', type:'time'},
+    {key:'party', label:'準備資料(買方/賣方)', type:'select', options:['','賣方','買方']},
+  ]},
+};
+const MEETING_CHECKLISTS = {
+  '賣方': ['身份證','印章','權狀','代書潤筆費1000元'],
+  '買方': ['身份證','印章','10萬現金','代書潤筆費1000元'],
 };
 const PROPERTY_RECORD_CATEGORIES = ['待追蹤','已成交','委託中','曾經委託'];
 
@@ -1180,11 +1206,34 @@ function clientPhoneSummary(c){
   return phones.length>1 ? `${label} 等${phones.length}支` : label;
 }
 
-function renderFollowUpList(){
-  const list = DATA.clients.filter(c=>getClientStatuses(c).includes('追蹤中')).slice(0,5);
-  if(list.length===0) return '<div class="empty-state">目前沒有追蹤中的客戶,新增一筆看看</div>';
-  return `<table><thead><tr><th>客戶</th><th>類型</th><th>狀態</th><th>服務紀錄</th></tr></thead><tbody>
-    ${list.map(c=>`<tr class="row-hover" style="cursor:pointer;" onclick="viewClientModal('${c.id}')"><td>${esc(c.name)}</td><td>${clientTypesTags(c)}</td><td>${clientStatusStamps(c)}</td><td>${(c.serviceLogs||[]).length} 筆</td></tr>`).join('')}
+const UPCOMING_APPOINTMENT_TYPES = ['帶看','收斡','簽委託','驗屋','結案'];
+
+function renderUpcomingAppointments(){
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+  const limitDate = new Date(today);
+  limitDate.setDate(limitDate.getDate()+3);
+  const limitStr = limitDate.toISOString().slice(0,10);
+
+  const items = [];
+  DATA.clients.forEach(c=>{
+    (c.serviceLogs||[]).forEach(l=>{
+      if(!l.date || !UPCOMING_APPOINTMENT_TYPES.includes(l.type)) return;
+      if(l.date < todayStr || l.date > limitStr) return;
+      items.push({clientId:c.id, clientName:c.name, date:l.date, time:l.time||'', type:l.type, note:l.note||''});
+    });
+  });
+  items.sort((a,b)=>((a.date||'')+(a.time||'')).localeCompare((b.date||'')+(b.time||'')));
+
+  if(items.length===0) return '<div class="empty-state">未來 3 天內沒有帶看/收斡/簽委託/驗屋/結案行程</div>';
+  return `<table><thead><tr><th>日期</th><th>時間</th><th>類型</th><th>客戶</th><th>備註</th></tr></thead><tbody>
+    ${items.map(e=>`<tr class="row-hover" style="cursor:pointer;" onclick="viewClientModal('${e.clientId}')">
+      <td>${esc(e.date)}${e.date===todayStr?' <span class="tag-soft">今天</span>':''}</td>
+      <td>${esc(e.time||'—')}</td>
+      <td>${statusStamp(e.type)}</td>
+      <td>${esc(e.clientName)}</td>
+      <td>${esc(e.note||'—')}</td>
+    </tr>`).join('')}
   </tbody></table>`;
 }
 
@@ -1197,6 +1246,17 @@ function renderPendingContentList(){
 }
 
 /* ===================== Shared helpers ===================== */
+function toggleFieldSection(bodyId, headerEl){
+  const el = document.getElementById(bodyId);
+  if(!el) return;
+  const willShow = el.style.display === 'none';
+  el.style.display = willShow ? 'block' : 'none';
+  if(headerEl){
+    const hint = headerEl.querySelector('span:last-child');
+    if(hint) hint.textContent = willShow ? '▴ 點一下收合' : '▾ 點一下展開/收合';
+  }
+}
+
 function esc(s){
   if(s===undefined||s===null) return '';
   return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -1234,8 +1294,8 @@ function renderClients(){
     <div class="section-block"><div class="section-block-body" id="clientTableWrap"></div></div>
   `;
   document.getElementById('addClientBtn').onclick = ()=>openClientModal();
-  document.getElementById('clientSearch').oninput = drawClientTable;
-  document.getElementById('clientStatusFilter').onchange = drawClientTable;
+  document.getElementById('clientSearch').oninput = ()=>{ clientListPage = 1; drawClientTable(); };
+  document.getElementById('clientStatusFilter').onchange = ()=>{ clientListPage = 1; drawClientTable(); };
   drawClientTable();
 }
 
@@ -1255,6 +1315,15 @@ function clientSearchText(c){
   return parts.filter(Boolean).join(' ').toLowerCase();
 }
 
+function getClientLastServiceTime(c){
+  const logs = c.serviceLogs || [];
+  if(!logs.length) return null;
+  const sorted = logs.slice().sort((a,b)=>((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||'')));
+  const latest = sorted[0];
+  if(!latest.date) return null;
+  return `${latest.date}${latest.time?' '+latest.time:''}`;
+}
+
 function drawClientTable(){
   const q = (document.getElementById('clientSearch').value||'').toLowerCase();
   const st = document.getElementById('clientStatusFilter').value;
@@ -1271,23 +1340,36 @@ function drawClientTable(){
   }
   const wrap = document.getElementById('clientTableWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">沒有符合的客戶</div>'; return; }
+
+  const totalPages = Math.max(1, Math.ceil(list.length / CLIENT_PAGE_SIZE));
+  if(clientListPage > totalPages) clientListPage = totalPages;
+  if(clientListPage < 1) clientListPage = 1;
+  const pageList = list.slice((clientListPage-1)*CLIENT_PAGE_SIZE, clientListPage*CLIENT_PAGE_SIZE);
+
   wrap.innerHTML = `<table><thead><tr>
-    <th>姓名</th><th>電話</th><th>類型</th><th>狀態</th><th>名片</th><th>附件</th><th>服務紀錄</th><th></th>
+    <th>姓名</th><th>電話</th><th>類型</th><th>狀態</th><th>最後服務時間</th><th></th>
   </tr></thead><tbody>
-    ${list.map(c=>`<tr class="row-hover" style="cursor:pointer;" onclick="viewClientModal('${c.id}')">
+    ${pageList.map(c=>`<tr class="row-hover" style="cursor:pointer;" onclick="viewClientModal('${c.id}')">
       <td>${esc(c.name)}</td>
       <td>${clientPhoneSummary(c)}</td>
       <td>${clientTypesTags(c)}</td>
       <td>${clientStatusStamps(c)}</td>
-      <td>${(getClientCardPhotoKeys(c).length) ? `<span class="tag-soft">📇 ${getClientCardPhotoKeys(c).length}張</span>` : '—'}</td>
-      <td>${(c.attachmentKeys&&c.attachmentKeys.length) ? '<span class="tag-soft">📎 '+c.attachmentKeys.length+'</span>' : '—'}</td>
-      <td>${(c.serviceLogs||[]).length ? (c.serviceLogs.length + ' 筆') : '—'}</td>
+      <td>${esc(getClientLastServiceTime(c) || '—')}</td>
       <td onclick="event.stopPropagation()"><div class="row-actions">
         <button class="icon-btn" onclick="openClientModal('${c.id}')" title="編輯 / 維護">✎</button>
         <button class="icon-btn" onclick="deleteItem('clients','${c.id}')" title="刪除">🗑</button>
       </div></td>
     </tr>`).join('')}
-  </tbody></table>`;
+  </tbody></table>
+  <div style="display:flex; justify-content:center; align-items:center; gap:14px; padding:16px 0 4px;">
+    <button class="btn btn-ghost btn-sm" ${clientListPage<=1?'disabled':''} onclick="goClientPage(${clientListPage-1})">‹ 上一頁</button>
+    <span style="font-size:12px; color:var(--ink-soft);">第 ${clientListPage} / ${totalPages} 頁</span>
+    <button class="btn btn-ghost btn-sm" ${clientListPage>=totalPages?'disabled':''} onclick="goClientPage(${clientListPage+1})">下一頁 ›</button>
+  </div>`;
+}
+function goClientPage(p){
+  clientListPage = p;
+  drawClientTable();
 }
 
 /* ===================== Sold Clients Page ===================== */
@@ -1297,7 +1379,7 @@ function renderSoldClients(){
     <div class="page-head">
       <div>
         <div class="page-title"><span class="eyebrow">SOLD</span>已成交客戶</div>
-        <div class="page-desc">客戶的「物件記錄」只要標記「已成交」,就會自動出現在這裡</div>
+        <div class="page-desc">客戶的「物件記錄」只要標記「已成交」,就會自動出現在這裡 · <span id="soldClientCountLabel">共 0 筆</span></div>
       </div>
     </div>
     <div class="toolbar">
@@ -1315,9 +1397,14 @@ function getClientGreetingCards(c){
 
 function drawSoldClientTable(){
   const q = (document.getElementById('soldClientSearch').value||'').toLowerCase();
-  let list = DATA.clients.filter(c=>getClientPropertyRecords(c).some(r=>r.category==='已成交')).filter(c=>{
+  const allSold = DATA.clients.filter(c=>getClientPropertyRecords(c).some(r=>r.category==='已成交'));
+  let list = allSold.filter(c=>{
     return !q || clientSearchText(c).includes(q);
   });
+  const countLabel = document.getElementById('soldClientCountLabel');
+  if(countLabel){
+    countLabel.textContent = q ? `符合條件 ${list.length} 筆(共 ${allSold.length} 筆)` : `共 ${allSold.length} 筆`;
+  }
   const wrap = document.getElementById('soldClientTableWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">目前沒有已成交客戶</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
@@ -1379,7 +1466,7 @@ function renderEntrustedProperties(){
     <div class="page-head">
       <div>
         <div class="page-title"><span class="eyebrow">ENTRUSTED</span>物件委託</div>
-        <div class="page-desc">客戶的「物件記錄」只要標記「委託中」,就會自動出現在這裡</div>
+        <div class="page-desc">客戶的「物件記錄」只要標記「委託中」,就會自動出現在這裡 · <span id="entrustedCountLabel">共 0 筆</span></div>
       </div>
     </div>
     <div class="toolbar">
@@ -1393,9 +1480,14 @@ function renderEntrustedProperties(){
 
 function drawEntrustedTable(){
   const q = (document.getElementById('entrustedSearch').value||'').toLowerCase();
-  let list = DATA.clients.filter(c=>getClientPropertyRecords(c).some(r=>r.category==='委託中')).filter(c=>{
+  const allEntrusted = DATA.clients.filter(c=>getClientPropertyRecords(c).some(r=>r.category==='委託中'));
+  let list = allEntrusted.filter(c=>{
     return !q || clientSearchText(c).includes(q);
   });
+  const countLabel = document.getElementById('entrustedCountLabel');
+  if(countLabel){
+    countLabel.textContent = q ? `符合條件 ${list.length} 筆(共 ${allEntrusted.length} 筆)` : `共 ${allEntrusted.length} 筆`;
+  }
   const wrap = document.getElementById('entrustedTableWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">目前沒有委託中的物件,到客戶資料裡新增「物件記錄」並選「委託中」即可</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
@@ -1429,6 +1521,7 @@ async function openClientModal(id){
     tempLogs: JSON.parse(JSON.stringify(item.serviceLogs||[])),
     tempPhones: JSON.parse(JSON.stringify(getClientPhones(item))),
     tempLineNames: getClientLineNames(item).map(v=>({id:uid(), value:v})),
+    tempNeedsAreas: (item.needsAreas||[]).map(v=>({id:uid(), value:v})),
     tempPropertyRecords: JSON.parse(JSON.stringify(getClientPropertyRecords(item))),
     recordPhotosCache: {},   // recordId -> {photos:[{key,dataUrl}], removedKeys:[]}
     removedRecordPhotoKeys: [],
@@ -1447,6 +1540,7 @@ async function openClientModal(id){
   };
   const types = getClientTypes(item);
   const statuses = getClientStatuses(item);
+  const records0Count = getClientPropertyRecords(item).length;
   document.getElementById('modalTitle').textContent = id ? '編輯客戶' : '新增客戶';
   document.getElementById('modalBody').innerHTML = `
     <div class="field"><label>建檔日期</label><input type="date" id="f_fileDate" value="${esc(item.fileDate)}"></div>
@@ -1506,13 +1600,28 @@ async function openClientModal(id){
     <div class="field"><label>居住地址</label><input id="f_homeAddress" value="${esc(item.homeAddress)}"></div>
 
     <div class="field field-divider">
-      <div class="field-sub-title">客戶需求</div>
+      <div class="field-sub-title">客戶名片(可上傳2~3張)</div>
+      <div class="photo-grid" id="cardPhotoGrid"><span class="tag-soft">載入中…</span></div>
+      <input type="file" accept="image/*" multiple id="cardPhotoInput" style="display:none;">
+    </div>
 
-      <div class="pt-hint" style="margin:0 0 4px;">需求區域(可複選)</div>
-      <div style="display:flex; gap:14px; flex-wrap:wrap;">
-        ${NEEDS_AREAS.map(a=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
-          <input type="checkbox" class="f_needs_area_cb" value="${a}" ${(item.needsAreas||[]).includes(a)?'checked':''} style="width:auto;"> ${a}
-        </label>`).join('')}
+    <div class="field field-divider">
+      <div class="field-sub-title">其他附件(稅費試算、文件照片等)</div>
+      <div class="photo-grid" id="clientAttachmentGrid"><span class="tag-soft">載入中…</span></div>
+      <input type="file" accept="image/*" multiple id="clientAttachmentInput" style="display:none;">
+    </div>
+
+    <div class="field field-divider">
+      <div class="field-sub-title" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;" onclick="toggleFieldSection('clientNeedsBody', this)">
+        <span>客戶需求</span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
+      </div>
+      <div id="clientNeedsBody" style="display:none;">
+
+      <div class="pt-hint" style="margin:0 0 4px;">需求區域(可新增多個,不限縣市)</div>
+      <div class="log-list" id="needsAreaList"></div>
+      <div class="log-add-row">
+        <input type="text" id="needsAreaInput" placeholder="例如:中壢區、板橋區…" style="flex:1;">
+        <button class="btn btn-ghost btn-sm" id="needsAreaAddBtn">新增</button>
       </div>
 
       <div class="pt-hint" style="margin:12px 0 4px;">房屋類型(可複選)</div>
@@ -1550,10 +1659,15 @@ async function openClientModal(id){
 
       <div class="pt-hint" style="margin-top:16px; color:var(--brick); font-weight:700;">以下是原本的需求備註欄,改用上面的欄位填好之後可以自行刪除內容</div>
       <textarea id="f_clientNeeds" placeholder="客戶想找什麼樣的物件、預算、條件等" style="min-height:70px; margin-top:6px;">${esc(item.clientNeeds)}</textarea>
+      </div>
     </div>
 
     <div class="field field-divider">
-      <div class="field-sub-title">物件內容(待追蹤 / 已成交 / 委託中 / 曾經委託)</div>
+      <div class="field-sub-title" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;" onclick="toggleFieldSection('propertyContentBody', this)">
+        <span>物件內容${records0Count?`(${records0Count}筆)`:''}</span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
+      </div>
+      <div id="propertyContentBody" style="display:none;">
+      <div class="pt-hint" style="margin:0 0 8px;">待追蹤 / 已成交 / 委託中 / 曾經委託</div>
       <div class="log-list" id="propertyRecordList"></div>
       <div class="log-add-row" style="flex-wrap:wrap;">
         <select id="propertyRecordCategory" style="flex-shrink:0; width:110px;">
@@ -1569,21 +1683,10 @@ async function openClientModal(id){
         <button class="btn btn-ghost btn-sm" id="propertyRecordAddBtn">新增</button>
       </div>
       <div class="pt-hint" style="margin:4px 0 0;">新增後,點該筆物件旁的「👤 屋主」可以新增屋主資料(可多位)</div>
+      </div>
     </div>
 
     <div class="field"><label>備註</label><textarea id="f_notes">${esc(item.notes)}</textarea></div>
-
-    <div class="field field-divider">
-      <div class="field-sub-title">客戶名片(可上傳2~3張)</div>
-      <div class="photo-grid" id="cardPhotoGrid"><span class="tag-soft">載入中…</span></div>
-      <input type="file" accept="image/*" multiple id="cardPhotoInput" style="display:none;">
-    </div>
-
-    <div class="field field-divider">
-      <div class="field-sub-title">其他附件(稅費試算、文件照片等)</div>
-      <div class="photo-grid" id="clientAttachmentGrid"><span class="tag-soft">載入中…</span></div>
-      <input type="file" accept="image/*" multiple id="clientAttachmentInput" style="display:none;">
-    </div>
 
     <div class="field field-divider">
       <div class="field-sub-title">服務紀錄</div>
@@ -1606,6 +1709,7 @@ async function openClientModal(id){
   openModal();
   renderPhoneList();
   renderLineNameList();
+  renderNeedsAreaList();
   renderPropertyRecordList();
   renderLogList();
   renderLogExtraFields();
@@ -1618,6 +1722,10 @@ async function openClientModal(id){
 
   document.getElementById('lineNameAddBtn').onclick = ()=>{
     if(!addLineNameEntry()) showToast('請輸入 LINE 名');
+  };
+
+  document.getElementById('needsAreaAddBtn').onclick = ()=>{
+    if(!addNeedsAreaEntry()) showToast('請輸入區域名稱');
   };
 
   document.getElementById('propertyRecordAddBtn').onclick = ()=>{
@@ -1690,6 +1798,33 @@ function addLineNameEntry(){
   return true;
 }
 
+function addNeedsAreaEntry(){
+  const el = document.getElementById('needsAreaInput');
+  if(!el) return false;
+  const v = el.value.trim();
+  if(!v) return false;
+  editingCtx.tempNeedsAreas.push({id:uid(), value:v});
+  el.value='';
+  renderNeedsAreaList();
+  return true;
+}
+function renderNeedsAreaList(){
+  const wrap = document.getElementById('needsAreaList');
+  if(!wrap) return;
+  const areas = editingCtx.tempNeedsAreas || [];
+  if(areas.length===0){ wrap.innerHTML = '<div class="empty-state" style="padding:16px;">尚未新增需求區域</div>'; return; }
+  wrap.innerHTML = areas.map(a=>`
+    <div class="log-entry">
+      <div class="log-entry-note">${esc(a.value)}</div>
+      <button class="rm" onclick="removeNeedsAreaEntry('${a.id}')" title="刪除">✕</button>
+    </div>
+  `).join('');
+}
+function removeNeedsAreaEntry(areaId){
+  editingCtx.tempNeedsAreas = editingCtx.tempNeedsAreas.filter(a=>a.id!==areaId);
+  renderNeedsAreaList();
+}
+
 function addPropertyRecordEntry(){
   const contentEl = document.getElementById('propertyRecordContent');
   if(!contentEl) return false;
@@ -1722,11 +1857,24 @@ function renderLogExtraFields(){
     container.innerHTML = `
       <div class="pt-hint" style="margin:0 0 4px;">這筆服務的詳細項目(可加入多筆)</div>
       <div class="log-list" id="viewingItemsList"></div>
-      <div class="pt-hint" style="margin:8px 0 4px;">${config.fields.map(f=>f.label).join(' / ')}</div>
-      ${config.fields.map(f=>`<input type="${f.type||'text'}" id="viewItem_${f.key}" placeholder="${esc(f.label)}" style="margin-bottom:6px;">`).join('')}
-      <button class="btn btn-ghost btn-sm" type="button" id="addViewingItemBtn">＋ 加入這一間</button>
+      <button class="btn btn-ghost btn-sm" type="button" id="showViewingItemFormBtn" style="margin-top:6px;">＋ 新增物件</button>
+      <div id="viewingItemFormFields" style="display:none; margin-top:8px;">
+        <div class="pt-hint" style="margin:0 0 4px;">${config.fields.map(f=>f.label).join(' / ')}</div>
+        ${config.fields.map(f=>`<input type="${f.type||'text'}" id="viewItem_${f.key}" placeholder="${esc(f.label)}" style="margin-bottom:6px;">`).join('')}
+        <button class="btn btn-ghost btn-sm" type="button" id="addViewingItemBtn">確認加入</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="cancelViewingItemBtn">取消</button>
+      </div>
     `;
     drawViewingItemsList();
+    document.getElementById('showViewingItemFormBtn').onclick = ()=>{
+      document.getElementById('showViewingItemFormBtn').style.display = 'none';
+      document.getElementById('viewingItemFormFields').style.display = 'block';
+    };
+    document.getElementById('cancelViewingItemBtn').onclick = ()=>{
+      config.fields.forEach(f=>{ const el = document.getElementById('viewItem_'+f.key); if(el) el.value=''; });
+      document.getElementById('viewingItemFormFields').style.display = 'none';
+      document.getElementById('showViewingItemFormBtn').style.display = 'inline-block';
+    };
     document.getElementById('addViewingItemBtn').onclick = ()=>{
       const item = {};
       config.fields.forEach(f=>{
@@ -1735,10 +1883,38 @@ function renderLogExtraFields(){
       });
       if(Object.keys(item).length === 0){ showToast('請至少填寫一項資料'); return; }
       editingCtx.logViewingItems.push({id:uid(), ...item});
-      config.fields.forEach(f=>{ const el = document.getElementById('viewItem_'+f.key); if(el) el.value=''; });
       editingCtx.logDraftTouched = true;
       drawViewingItemsList();
+      document.getElementById('viewingItemFormFields').style.display = 'none';
+      document.getElementById('showViewingItemFormBtn').style.display = 'inline-block';
     };
+    return;
+  }
+
+  if(config.special === 'meeting'){
+    container.innerHTML = `
+      <div class="pt-hint" style="margin:0 0 4px;">地址 / 停車場 / 面談時間 / 準備資料</div>
+      <input type="text" id="logExtra_address" placeholder="地址" value="${esc(config.fields[0].default)}" style="margin-bottom:6px;">
+      <input type="text" id="logExtra_parking" placeholder="停車場" value="${esc(config.fields[1].default)}" style="margin-bottom:6px;">
+      <input type="time" id="logExtra_meetingTime" style="margin-bottom:6px;">
+      <select id="logExtra_party" style="margin-bottom:6px;">
+        <option value="">請選擇買方或賣方</option>
+        <option>賣方</option>
+        <option>買方</option>
+      </select>
+      <div id="meetingChecklistPreview" style="font-size:12px; color:var(--ink-soft); background:var(--stone); border:1px solid var(--line); border-radius:2px; padding:8px 10px;">選擇買方或賣方後,這裡會顯示要準備的資料</div>
+    `;
+    ['address','parking','meetingTime'].forEach(key=>{
+      const el = document.getElementById('logExtra_'+key);
+      const mark = ()=>{ editingCtx.logDraftTouched = true; };
+      el.addEventListener('input', mark);
+      el.addEventListener('change', mark);
+    });
+    document.getElementById('logExtra_party').addEventListener('change', (e)=>{
+      editingCtx.logDraftTouched = true;
+      const list = MEETING_CHECKLISTS[e.target.value];
+      document.getElementById('meetingChecklistPreview').textContent = list ? `請準備:${list.join('、')}` : '選擇買方或賣方後,這裡會顯示要準備的資料';
+    });
     return;
   }
 
@@ -1781,6 +1957,21 @@ function collectLogExtraFields(type){
   if(config.repeating){
     return (editingCtx.logViewingItems && editingCtx.logViewingItems.length) ? {items: editingCtx.logViewingItems} : {};
   }
+  if(config.special === 'meeting'){
+    const extra = {};
+    const addressEl = document.getElementById('logExtra_address');
+    const parkingEl = document.getElementById('logExtra_parking');
+    const timeEl = document.getElementById('logExtra_meetingTime');
+    const partyEl = document.getElementById('logExtra_party');
+    if(addressEl && addressEl.value.trim()) extra.address = addressEl.value.trim();
+    if(parkingEl && parkingEl.value.trim()) extra.parking = parkingEl.value.trim();
+    if(timeEl && timeEl.value) extra.meetingTime = timeEl.value;
+    if(partyEl && partyEl.value){
+      extra.party = partyEl.value;
+      extra.checklist = MEETING_CHECKLISTS[partyEl.value] || [];
+    }
+    return extra;
+  }
   const extra = {};
   config.fields.forEach(f=>{
     const el = document.getElementById('logExtra_'+f.key);
@@ -1802,7 +1993,50 @@ function formatLogExtraPlainText(l){
       return `第${i+1}筆 ${parts}`;
     }).join(' ｜ ');
   }
-  return config.fields.map(f=>renderField(f, l.extra[f.key])).filter(Boolean).join(' ・ ');
+  const base = config.fields.map(f=>renderField(f, l.extra[f.key])).filter(Boolean).join(' ・ ');
+  if(config.special === 'meeting' && l.extra.checklist && l.extra.checklist.length){
+    return [base, `準備:${l.extra.checklist.join('、')}`].filter(Boolean).join(' ・ ');
+  }
+  return base;
+}
+
+function buildMeetingMessage(l, clientName){
+  const extra = l.extra || {};
+  const lines = ['面談通知'];
+  if(l.date) lines.push(`日期:${l.date}${extra.meetingTime ? ' '+extra.meetingTime : (l.time?' '+l.time:'')}`);
+  if(extra.address) lines.push(`地址:${extra.address}`);
+  if(extra.parking) lines.push(`停車場:${extra.parking}`);
+  if(extra.checklist && extra.checklist.length) lines.push(`請準備:${extra.checklist.join('、')}`);
+  if(l.note) lines.push(l.note);
+  return lines.join('\n');
+}
+
+async function copyMeetingNoticeFromView(clientId, logId){
+  const client = DATA.clients.find(c=>c.id===clientId);
+  if(!client) return;
+  const l = (client.serviceLogs||[]).find(x=>x.id===logId);
+  if(!l) return;
+  const text = buildMeetingMessage(l, client.name);
+  try{
+    await navigator.clipboard.writeText(text);
+    showToast('已複製面談通知文字,可以貼給客戶');
+  }catch(e){
+    showToast('複製失敗,請手動選取文字複製');
+  }
+}
+
+async function copyMeetingNotice(logId){
+  const l = (editingCtx.tempLogs||[]).find(x=>x.id===logId);
+  if(!l) return;
+  const nameEl = document.getElementById('f_name');
+  const clientName = nameEl ? nameEl.value.trim() : '';
+  const text = buildMeetingMessage(l, clientName);
+  try{
+    await navigator.clipboard.writeText(text);
+    showToast('已複製面談通知文字,可以貼給客戶');
+  }catch(e){
+    showToast('複製失敗,請手動選取文字複製');
+  }
 }
 
 function formatLogExtra(l, multiline){
@@ -1836,6 +2070,9 @@ function formatLogExtra(l, multiline){
     const html = renderField(f, l.extra[f.key]);
     if(html) parts.push(html);
   });
+  if(config.special === 'meeting' && l.extra.checklist && l.extra.checklist.length){
+    parts.push(`${esc('準備')}:${esc(l.extra.checklist.join('、'))}`);
+  }
   return parts.join(flatSep);
 }
 
@@ -1856,7 +2093,7 @@ async function addServiceLogEntry(force){
   const type = document.getElementById('logType').value;
   const n = noteEl.value.trim();
   const extra = collectLogExtraFields(type);
-  const hasSignal = n || editingCtx.logDraftTouched || Object.keys(extra).length > 0;
+  const hasSignal = n || editingCtx.logDraftTouched;
   if(!force && !hasSignal) return false;
   editingCtx.tempLogs.unshift({id:uid(), date:d, time:t, type, note:n, extra});
   noteEl.value='';
@@ -1890,6 +2127,7 @@ function flushPendingViewingItem(){
 async function flushPendingClientInputs(){
   addPhoneEntry();
   addLineNameEntry();
+  addNeedsAreaEntry();
   addPropertyRecordEntry();
   flushPendingViewingItem();
   await addServiceLogEntry(false);
@@ -2229,7 +2467,8 @@ function renderLogList(){
         ${l.note ? esc(l.note) : '<span style="color:var(--ink-soft);">(無備註)</span>'}
         ${extraText ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">${extraText}</div>` : ''}
       </div>
-      <div style="display:flex; gap:4px; flex-shrink:0;">
+      <div style="display:flex; gap:4px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end;">
+        ${l.type==='面談' ? `<button class="btn btn-ghost btn-sm" onclick="copyMeetingNotice('${l.id}')">📋 複製通知</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="startLogEdit('${l.id}')">✎</button>
         <button class="rm" onclick="removeLogEntry('${l.id}')" title="刪除">✕</button>
       </div>
@@ -2275,8 +2514,30 @@ function renderEditLogExtraFields(logId){
   }
 
   const extra = (l && l.extra) || {};
+
+  if(config.special === 'meeting'){
+    container.innerHTML = `
+      <div class="pt-hint" style="margin:0 0 4px;">地址 / 停車場 / 面談時間 / 準備資料</div>
+      <input type="text" id="editLogExtra-${logId}-address" placeholder="地址" value="${esc(extra.address||config.fields[0].default)}" style="margin-bottom:6px;">
+      <input type="text" id="editLogExtra-${logId}-parking" placeholder="停車場" value="${esc(extra.parking||config.fields[1].default)}" style="margin-bottom:6px;">
+      <input type="time" id="editLogExtra-${logId}-meetingTime" value="${esc(extra.meetingTime||'')}" style="margin-bottom:6px;">
+      <select id="editLogExtra-${logId}-party" style="margin-bottom:6px;" onchange="updateEditMeetingChecklist('${logId}')">
+        <option value="">請選擇買方或賣方</option>
+        <option ${extra.party==='賣方'?'selected':''}>賣方</option>
+        <option ${extra.party==='買方'?'selected':''}>買方</option>
+      </select>
+      <div id="editMeetingChecklistPreview-${logId}" style="font-size:12px; color:var(--ink-soft); background:var(--stone); border:1px solid var(--line); border-radius:2px; padding:8px 10px;">${extra.checklist&&extra.checklist.length?`請準備:${esc(extra.checklist.join('、'))}`:'選擇買方或賣方後,這裡會顯示要準備的資料'}</div>
+    `;
+    return;
+  }
+
   container.innerHTML = `<div class="pt-hint" style="margin:0 0 4px;">${config.fields.map(f=>f.label).join(' / ')}</div>` +
     config.fields.map(f=>`<input type="${f.type||'text'}" id="editLogExtra-${logId}-${f.key}" placeholder="${esc(f.label)}" value="${esc(extra[f.key]||'')}" style="margin-bottom:6px;">`).join('');
+}
+function updateEditMeetingChecklist(logId){
+  const party = document.getElementById(`editLogExtra-${logId}-party`).value;
+  const list = MEETING_CHECKLISTS[party];
+  document.getElementById('editMeetingChecklistPreview-'+logId).textContent = list ? `請準備:${list.join('、')}` : '選擇買方或賣方後,這裡會顯示要準備的資料';
 }
 
 function drawEditViewingItemsList(logId){
@@ -2326,6 +2587,18 @@ async function saveLogEdit(logId){
   if(config){
     if(config.repeating){
       if(editingCtx.editingLogViewingItems && editingCtx.editingLogViewingItems.length) extra = {items: editingCtx.editingLogViewingItems};
+    }else if(config.special === 'meeting'){
+      const addressEl = document.getElementById(`editLogExtra-${logId}-address`);
+      const parkingEl = document.getElementById(`editLogExtra-${logId}-parking`);
+      const timeEl = document.getElementById(`editLogExtra-${logId}-meetingTime`);
+      const partyEl = document.getElementById(`editLogExtra-${logId}-party`);
+      if(addressEl && addressEl.value.trim()) extra.address = addressEl.value.trim();
+      if(parkingEl && parkingEl.value.trim()) extra.parking = parkingEl.value.trim();
+      if(timeEl && timeEl.value) extra.meetingTime = timeEl.value;
+      if(partyEl && partyEl.value){
+        extra.party = partyEl.value;
+        extra.checklist = MEETING_CHECKLISTS[partyEl.value] || [];
+      }
     }else{
       config.fields.forEach(f=>{
         const el = document.getElementById(`editLogExtra-${logId}-${f.key}`);
@@ -2401,7 +2674,7 @@ async function saveClient(){
     idNumber: document.getElementById('f_idNumber').value.trim(),
     homeAddress: document.getElementById('f_homeAddress').value.trim(),
     clientNeeds: document.getElementById('f_clientNeeds').value.trim(),
-    needsAreas: Array.from(document.querySelectorAll('.f_needs_area_cb:checked')).map(cb=>cb.value),
+    needsAreas: (editingCtx.tempNeedsAreas || []).map(a=>a.value),
     needsPropertyTypes: Array.from(document.querySelectorAll('.f_needs_type_cb:checked')).map(cb=>cb.value),
     needsParking: document.getElementById('f_needsParking').value,
     needsLayout: document.getElementById('f_needsLayout').value.trim(),
@@ -2517,6 +2790,11 @@ document.getElementById('lightboxClose').onclick = closeLightbox;
 document.getElementById('lightboxOverlay').addEventListener('click', (e)=>{
   if(e.target.id==='lightboxOverlay') closeLightbox();
 });
+document.getElementById('dayAgendaClose').onclick = closeDayAgenda;
+document.getElementById('dayAgendaCloseBtn').onclick = closeDayAgenda;
+document.getElementById('dayAgendaOverlay').addEventListener('click', (e)=>{
+  if(e.target.id==='dayAgendaOverlay') closeDayAgenda();
+});
 
 function viewInfoRow(label, valueHtml){
   if(!valueHtml) return '';
@@ -2551,7 +2829,10 @@ async function viewClientModal(id){
     }
   }
 
-  const phonesHtml = phones.length ? esc(phones.map(p=>p.owner ? `${p.number}(${p.owner})` : p.number).join('、')) : '';
+  const phonesHtml = phones.length ? phones.map(p=>{
+    const link = `<a href="tel:${encodeURIComponent(p.number)}" style="color:var(--jade-deep); text-decoration:underline;">${esc(p.number)}</a>`;
+    return p.owner ? `${link}(${esc(p.owner)})` : link;
+  }).join('、') : '';
   const lineNamesHtml = lineNames.length ? esc(lineNames.join('、')) : '';
 
   const recordsHtml = records.length ? records.map(r=>{
@@ -2600,7 +2881,8 @@ async function viewClientModal(id){
   const logs = (item.serviceLogs||[]).slice().sort((a,b)=>((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||'')));
   const logsHtml = logs.length ? `<div class="log-list">${logs.map(l=>{
     const extraText = formatLogExtra(l, true);
-    return `<div class="log-entry"><div><div class="log-entry-date">${esc(l.date||'—')}${l.time?' '+esc(l.time):''}</div>${l.type ? `<span class="stamp stamp-pending" style="margin-top:4px;">${esc(l.type)}</span>` : ''}</div><div class="log-entry-note">${l.note ? esc(l.note) : '<span style="color:var(--ink-soft);">(無備註)</span>'}${extraText ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:4px; line-height:1.8;">${extraText}</div>` : ''}</div></div>`;
+    const copyBtn = l.type==='面談' ? `<button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="copyMeetingNoticeFromView('${item.id}','${l.id}')">📋 複製通知</button>` : '';
+    return `<div class="log-entry"><div><div class="log-entry-date">${esc(l.date||'—')}${l.time?' '+esc(l.time):''}</div>${l.type ? `<span class="stamp stamp-pending" style="margin-top:4px;">${esc(l.type)}</span>` : ''}</div><div class="log-entry-note">${l.note ? esc(l.note) : '<span style="color:var(--ink-soft);">(無備註)</span>'}${extraText ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:4px; line-height:1.8;">${extraText}</div>` : ''}${copyBtn}</div></div>`;
   }).join('')}</div>` : '<div class="empty-state" style="padding:12px;">尚無服務紀錄</div>';
 
   let cardPhotoHtml = '';
@@ -2626,7 +2908,7 @@ async function viewClientModal(id){
     ${viewInfoRow('來源', esc(item.source))}
     ${viewInfoRow('物件地址', esc(item.propertyAddress))}
     ${viewInfoRow('LINE 名', lineNamesHtml)}
-    ${viewInfoRow('LINE ID', esc(item.lineId))}
+    ${viewInfoRow('LINE ID', item.lineId ? `<a href="https://line.me/ti/p/~${encodeURIComponent(item.lineId)}" target="_blank" rel="noopener" style="color:var(--jade-deep); text-decoration:underline;">${esc(item.lineId)} ↗</a>` : '')}
     ${viewInfoRow('FB', esc(item.fb))}
     ${viewInfoRow('公司名稱', esc(item.company))}
     ${viewInfoRow('身份證字號', esc(item.idNumber))}
@@ -3724,7 +4006,7 @@ function drawCalendar(){
     (c.serviceLogs||[]).forEach(l=>{
       if(!l.date) return;
       if(!events[l.date]) events[l.date] = [];
-      events[l.date].push({clientId:c.id, logId:l.id, clientName:c.name, time:l.time||'', note:l.note||'', completed: !!l.completed});
+      events[l.date].push({clientId:c.id, logId:l.id, clientName:c.name, time:l.time||'', note:l.note||'', type:l.type||'', completed: !!l.completed});
     });
   });
 
@@ -3739,14 +4021,10 @@ function drawCalendar(){
     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const dayEvents = (events[dateStr]||[]).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));
     const isToday = dateStr === todayStr;
-    cells += `<div class="cal-cell ${isToday?'cal-today':''}">
+    const doneCount = dayEvents.filter(e=>e.completed).length;
+    cells += `<div class="cal-cell ${isToday?'cal-today':''}" ${dayEvents.length?`onclick="openDayAgenda('${dateStr}')" style="cursor:pointer;"`:''}>
       <div class="cal-daynum">${d}</div>
-      <div class="cal-events">
-        ${dayEvents.map(e=>`<div class="cal-event ${e.completed?'cal-event-done':''}" title="${esc(e.note)}">
-          <input type="checkbox" ${e.completed?'checked':''} onclick="event.stopPropagation(); toggleCalendarEventDone('${e.clientId}','${e.logId}')">
-          <span onclick="viewClientModal('${e.clientId}')">${e.time?esc(e.time)+' ':''}${esc(e.clientName)}</span>
-        </div>`).join('')}
-      </div>
+      ${dayEvents.length ? `<div class="cal-event-count">${dayEvents.length} 個行程${doneCount?` · ${doneCount}已完成`:''}</div>` : ''}
     </div>`;
   }
 
@@ -3754,6 +4032,35 @@ function drawCalendar(){
     <div class="cal-weekdays"><div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div></div>
     <div class="cal-grid">${cells}</div>
   `;
+}
+
+function openDayAgenda(dateStr){
+  const events = [];
+  DATA.clients.forEach(c=>{
+    (c.serviceLogs||[]).forEach(l=>{
+      if(l.date === dateStr) events.push({clientId:c.id, logId:l.id, clientName:c.name, time:l.time||'', note:l.note||'', type:l.type||'', completed:!!l.completed});
+    });
+  });
+  events.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+
+  document.getElementById('dayAgendaTitle').textContent = dateStr + ' 的行程';
+  document.getElementById('dayAgendaBody').innerHTML = events.length ? `<div class="log-list">${events.map(e=>`
+    <div class="log-entry">
+      <input type="checkbox" ${e.completed?'checked':''} style="margin-top:2px;" onclick="event.stopPropagation(); handleDayAgendaToggle('${e.clientId}','${e.logId}','${dateStr}')">
+      <div class="log-entry-note" style="cursor:pointer;" onclick="closeDayAgenda(); viewClientModal('${e.clientId}')">
+        <b>${e.time?esc(e.time)+' ':''}${e.type?`[${esc(e.type)}] `:''}${esc(e.clientName)}</b>
+        ${e.note?`<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${esc(e.note)}</div>`:''}
+      </div>
+    </div>
+  `).join('')}</div>` : '<div class="empty-state">這天沒有行程</div>';
+  document.getElementById('dayAgendaOverlay').classList.add('open');
+}
+function closeDayAgenda(){
+  document.getElementById('dayAgendaOverlay').classList.remove('open');
+}
+async function handleDayAgendaToggle(clientId, logId, dateStr){
+  await toggleCalendarEventDone(clientId, logId);
+  openDayAgenda(dateStr);
 }
 
 async function toggleCalendarEventDone(clientId, logId){
