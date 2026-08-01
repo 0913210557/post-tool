@@ -4313,6 +4313,7 @@ function exportAllUpcomingToICS(){
 /* ===================== Google Calendar sync (OAuth, no public URL) ===================== */
 let gcalAccessToken = null;
 let gcalTokenClient = null;
+let gcalRefreshTimer = null;
 
 function gcalSignIn(){
   const clientId = document.getElementById('gcalClientIdInput').value.trim();
@@ -4340,6 +4341,9 @@ function gcalRequestToken(clientId, silent){
       if(statusEl) statusEl.textContent = '已登入 Google，可以同步';
       if(btnEl) btnEl.disabled = false;
       if(!silent) showToast('已登入 Google');
+      /* Google access tokens typically expire after ~1 hour. Proactively refresh every 45 minutes so a long-open tab doesn't quietly go stale. */
+      if(gcalRefreshTimer) clearInterval(gcalRefreshTimer);
+      gcalRefreshTimer = setInterval(()=>{ gcalRequestToken(clientId, true); }, 45*60*1000);
     },
   });
   gcalTokenClient.requestAccessToken(silent ? { prompt: '' } : {});
@@ -4387,17 +4391,19 @@ async function gcalAutoSyncClient(clientId){
   const client = DATA.clients.find(c=>c.id===clientId);
   if(!client) return;
   let dataChanged = false;
+  let failed = false;
   for(const log of (client.serviceLogs||[])){
     if(!log.date) continue;
     const body = gcalBuildEventBody(client, log);
     try{
       if(log.gcalEventId){
-        await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${log.gcalEventId}`, {
+        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${log.gcalEventId}`, {
           method: 'PATCH',
           headers: { 'Authorization': 'Bearer ' + gcalAccessToken, 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
           keepalive: true
         });
+        if(!res.ok){ if(res.status===401) gcalHandleExpiredToken(); failed = true; }
       }else{
         const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
           method: 'POST',
@@ -4409,24 +4415,47 @@ async function gcalAutoSyncClient(clientId){
           const data = await res.json();
           log.gcalEventId = data.id;
           dataChanged = true;
+        }else{
+          if(res.status===401) gcalHandleExpiredToken();
+          failed = true;
         }
       }
-    }catch(e){ console.error(e); }
+    }catch(e){ console.error(e); failed = true; }
   }
   if(dataChanged) await saveType('clients');
   const statusEl = document.getElementById('gcalStatus');
-  if(statusEl) statusEl.textContent = '已自動同步（' + new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}) + '）';
+  if(statusEl && gcalAccessToken){
+    statusEl.textContent = failed
+      ? '同步時發生錯誤，部分行程可能沒有同步成功'
+      : '已自動同步（' + new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}) + '）';
+  }
+}
+
+function gcalHandleExpiredToken(){
+  gcalAccessToken = null;
+  const statusEl = document.getElementById('gcalStatus');
+  const btnEl = document.getElementById('gcalSyncBtn');
+  if(statusEl) statusEl.textContent = 'Google 登入已過期，請重新按「登入 Google」';
+  if(btnEl) btnEl.disabled = true;
+  showToast('Google 登入已過期，同步已暫停，請重新登入');
 }
 
 async function gcalAutoDeleteEvent(gcalEventId){
   if(!gcalAccessToken || !gcalEventId) return;
   try{
-    await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${gcalEventId}`, {
+    const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${gcalEventId}`, {
       method: 'DELETE',
       headers: { 'Authorization': 'Bearer ' + gcalAccessToken },
       keepalive: true
     });
-  }catch(e){ console.error(e); }
+    if(!res.ok && res.status !== 410 && res.status !== 404){
+      if(res.status===401){ gcalHandleExpiredToken(); return; }
+      showToast('Google 日曆行程刪除失敗（狀態碼 ' + res.status + '），可能需要手動到 Google 日曆刪除');
+    }
+  }catch(e){
+    console.error(e);
+    showToast('Google 日曆行程刪除失敗，可能需要手動到 Google 日曆刪除');
+  }
 }
 
 async function gcalSyncEvents(){
