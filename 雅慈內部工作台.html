@@ -1873,6 +1873,41 @@ function getClientKnownAddressesAndUrls(){
   return { addresses: [...addresses].filter(Boolean), urls: [...urls].filter(Boolean) };
 }
 
+function extractAddressOrUrlFromLog(l){
+  if(!l.extra) return null;
+  const extra = l.extra;
+  if(extra.items && extra.items.length){
+    const it = extra.items.find(x=>x.address || x.url);
+    if(it) return { address: it.address||'', url: it.url||'' };
+    return null;
+  }
+  if(extra.address || extra.url || extra.propertyAddress){
+    return { address: extra.address || extra.propertyAddress || '', url: extra.url || '' };
+  }
+  return null;
+}
+
+function scheduleViewingFromLog(logId){
+  const l = (editingCtx.tempLogs||[]).find(x=>x.id===logId);
+  if(!l) return;
+  const info = extractAddressOrUrlFromLog(l);
+  if(!info) return;
+  const typeEl = document.getElementById('logType');
+  if(!typeEl) return;
+  typeEl.value = '帶看';
+  editingCtx.logDraftTouched = true;
+  renderLogExtraFields();
+  const showBtn = document.getElementById('showViewingItemFormBtn');
+  if(showBtn) showBtn.click();
+  const addrEl = document.getElementById('viewItem_address');
+  if(addrEl && info.address) addrEl.value = info.address;
+  const urlEl = document.getElementById('viewItem_url');
+  if(urlEl && info.url) urlEl.value = info.url;
+  const section = document.getElementById('logExtraFields');
+  if(section) section.scrollIntoView({behavior:'smooth', block:'center'});
+  showToast('已帶入地址/網址,請補其他資料後按「確認加入」');
+}
+
 function scheduleViewingFromRecord(recordId){
   const rec = (editingCtx.tempPropertyRecords||[]).find(r=>r.id===recordId);
   if(!rec) return;
@@ -2527,6 +2562,7 @@ function renderLogList(){
       </div>`;
     }
     const extraText = formatLogExtra(l);
+    const addrInfo = extractAddressOrUrlFromLog(l);
     return `
     <div class="log-entry">
       <div>
@@ -2539,6 +2575,7 @@ function renderLogList(){
       </div>
       <div style="display:flex; gap:4px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end;">
         ${l.type==='面談' ? `<button class="btn btn-ghost btn-sm" onclick="copyMeetingNotice('${l.id}')">📋 複製通知</button>` : ''}
+        ${addrInfo ? `<button class="btn btn-ghost btn-sm" onclick="scheduleViewingFromLog('${l.id}')">➜ 排帶看</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="startLogEdit('${l.id}')">✎</button>
         <button class="rm" onclick="removeLogEntry('${l.id}')" title="刪除">✕</button>
       </div>
