@@ -4185,6 +4185,7 @@ function renderCalendar(){
             <option value="30" ${gcalGetReminderMinutes()==='30'?'selected':''}>提前 30 分鐘</option>
             <option value="60" ${gcalGetReminderMinutes()==='60'?'selected':''}>提前 1 小時</option>
             <option value="120" ${gcalGetReminderMinutes()==='120'?'selected':''}>提前 2 小時</option>
+            <option value="720" ${gcalGetReminderMinutes()==='720'?'selected':''}>提前 12 小時</option>
             <option value="1440" ${gcalGetReminderMinutes()==='1440'?'selected':''}>提前 1 天</option>
             <option value="default" ${gcalGetReminderMinutes()==='default'?'selected':''}>使用 Google 日曆預設</option>
           </select>
@@ -4378,7 +4379,7 @@ function gcalTryAutoSignIn(){
 
 function gcalGetReminderMinutes(){
   const v = localStorage.getItem('gcal_reminder_minutes');
-  return v === null ? '30' : v;
+  return v === null ? '720' : v;
 }
 function gcalSaveReminderSetting(){
   const v = document.getElementById('gcalReminderSelect').value;
