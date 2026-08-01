@@ -3919,12 +3919,6 @@ function ptRenderPhotoGrid(photos){
   const step = document.getElementById('ptPhotoStep');
   const grid = document.getElementById('ptPhotoGrid');
 
-  if(!photos.length){
-    step.style.display = 'none';
-    grid.innerHTML = '';
-    return;
-  }
-
   step.style.display = 'block';
   grid.innerHTML = photos.map((url, i) => `
     <div class="pt-photo-thumb" id="pt-photo-${i}">
@@ -4050,7 +4044,7 @@ ${trimmed}
 - building_ping：建坪（含「坪」字）
 - layout：格局（例如「3房2廳2衛」）
 - address：完整地址（含縣市、區、路名、門牌），找不到就填空字串，絕對不要編造
-- description：房屋描述／屋況／賣點，濃縮成 100-200 字繁體中文
+- description：房屋描述／屋況／賣點，濃縮成 150-250 字繁體中文。原文如果分成好幾段或好幾個重點，請保留這個分段，段落之間用 \n 換行符號隔開，不要擠成一整段
 
 只回傳一個 JSON 物件，不要任何前言、說明或 markdown 符號，格式如下：
 {"title":"","price":"","land_ping":"","building_ping":"","layout":"","address":"","description":""}`;
