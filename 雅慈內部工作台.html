@@ -2196,7 +2196,10 @@ async function addServiceLogEntry(force){
   renderLogExtraFields();
   editingCtx.logDraftTouched = false;
   renderLogList();
-  if(await persistServiceLogsIfExisting()) showToast('服務紀錄已儲存');
+  if(await persistServiceLogsIfExisting()){
+    showToast('服務紀錄已儲存');
+    gcalAutoSyncClient(editingCtx.id);
+  }
   return true;
 }
 
@@ -2223,6 +2226,9 @@ async function flushPendingClientInputs(){
   addLineNameEntry();
   addNeedsAreaEntry();
   addPropertyRecordEntry();
+  if(editingCtx.editingLogId){
+    await saveLogEdit(editingCtx.editingLogId);
+  }
   flushPendingViewingItem();
   await addServiceLogEntry(false);
 }
@@ -2715,13 +2721,20 @@ async function saveLogEdit(logId){
   editingCtx.editingLogId = null;
   editingCtx.editingLogViewingItems = [];
   renderLogList();
-  if(await persistServiceLogsIfExisting()) showToast('服務紀錄已儲存');
+  if(await persistServiceLogsIfExisting()){
+    showToast('服務紀錄已儲存');
+    gcalAutoSyncClient(editingCtx.id);
+  }
 }
 
 async function removeLogEntry(logId){
+  const removed = (editingCtx.tempLogs||[]).find(l=>l.id===logId);
   editingCtx.tempLogs = editingCtx.tempLogs.filter(l=>l.id!==logId);
   renderLogList();
-  if(await persistServiceLogsIfExisting()) showToast('服務紀錄已刪除');
+  if(await persistServiceLogsIfExisting()){
+    showToast('服務紀錄已刪除');
+    if(removed && removed.gcalEventId) gcalAutoDeleteEvent(removed.gcalEventId);
+  }
 }
 
 async function renderAttachmentGrid(){
@@ -4166,8 +4179,9 @@ function renderCalendar(){
             <input type="text" id="gcalClientIdInput" placeholder="貼上你的 Client ID" value="${esc(localStorage.getItem('gcal_client_id')||'')}" style="flex:1;">
             <button class="btn btn-ghost btn-sm" onclick="gcalSignIn()">登入 Google</button>
           </div>
-          <div id="gcalStatus" style="font-size:12px; color:var(--ink-soft); margin-top:8px;">尚未登入</div>
-          <button class="btn btn-primary btn-sm" style="margin-top:8px;" id="gcalSyncBtn" onclick="gcalSyncEvents()" disabled>同步全部行程到 Google 日曆</button>
+          <div id="gcalStatus" style="font-size:12px; color:var(--ink-soft); margin-top:8px;">${gcalAccessToken ? '已登入 Google，可以同步' : '尚未登入'}</div>
+          <div class="pt-hint" style="margin-top:8px;">登入後,新增/編輯/刪除服務紀錄時會自動同步,不用手動按。下面這顆按鈕只是保險用的「全部重新同步」,平常不用點。</div>
+          <button class="btn btn-ghost btn-sm" style="margin-top:8px;" id="gcalSyncBtn" onclick="gcalSyncEvents()" ${gcalAccessToken?'':'disabled'}>全部重新同步一次</button>
         </div>
       </div>
     </div>
@@ -4307,27 +4321,47 @@ function gcalSignIn(){
   const clientId = document.getElementById('gcalClientIdInput').value.trim();
   if(!clientId){ showToast('請先貼上 Google Client ID'); return; }
   localStorage.setItem('gcal_client_id', clientId);
+  gcalRequestToken(clientId, false);
+}
 
+function gcalRequestToken(clientId, silent){
   if(typeof google === 'undefined' || !google.accounts){
-    showToast('Google 登入元件還沒載入完成，請稍等幾秒再試一次');
+    if(!silent) showToast('Google 登入元件還沒載入完成，請稍等幾秒再試一次');
     return;
   }
-
   gcalTokenClient = google.accounts.oauth2.initTokenClient({
     client_id: clientId,
     scope: 'https://www.googleapis.com/auth/calendar.events',
     callback: (resp)=>{
       if(resp.error){
-        showToast('登入失敗：' + resp.error);
+        if(!silent) showToast('登入失敗：' + resp.error);
         return;
       }
       gcalAccessToken = resp.access_token;
-      document.getElementById('gcalStatus').textContent = '已登入 Google，可以同步';
-      document.getElementById('gcalSyncBtn').disabled = false;
-      showToast('已登入 Google');
+      const statusEl = document.getElementById('gcalStatus');
+      const btnEl = document.getElementById('gcalSyncBtn');
+      if(statusEl) statusEl.textContent = '已登入 Google，可以同步';
+      if(btnEl) btnEl.disabled = false;
+      if(!silent) showToast('已登入 Google');
     },
   });
-  gcalTokenClient.requestAccessToken();
+  gcalTokenClient.requestAccessToken(silent ? { prompt: '' } : {});
+}
+
+/* Try to silently re-authenticate on page load if a Client ID is already saved and this browser previously granted access. May not always succeed — Google can still require a click depending on session state. */
+function gcalTryAutoSignIn(){
+  const clientId = localStorage.getItem('gcal_client_id');
+  if(!clientId) return;
+  let attempts = 0;
+  const tryNow = ()=>{
+    attempts++;
+    if(typeof google !== 'undefined' && google.accounts){
+      gcalRequestToken(clientId, true);
+    }else if(attempts < 10){
+      setTimeout(tryNow, 300);
+    }
+  };
+  tryNow();
 }
 
 function gcalBuildEventBody(client, l){
@@ -4348,6 +4382,54 @@ function gcalBuildEventBody(client, l){
     start: { date: l.date },
     end: { date: l.date },
   };
+}
+
+/* Silent, targeted sync for one client's logs — used to auto-sync right after a save, without needing the manual button. Does nothing if not signed in. */
+async function gcalAutoSyncClient(clientId){
+  if(!gcalAccessToken || !clientId) return;
+  const client = DATA.clients.find(c=>c.id===clientId);
+  if(!client) return;
+  let dataChanged = false;
+  for(const log of (client.serviceLogs||[])){
+    if(!log.date) continue;
+    const body = gcalBuildEventBody(client, log);
+    try{
+      if(log.gcalEventId){
+        await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${log.gcalEventId}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': 'Bearer ' + gcalAccessToken, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          keepalive: true
+        });
+      }else{
+        const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + gcalAccessToken, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          keepalive: true
+        });
+        if(res.ok){
+          const data = await res.json();
+          log.gcalEventId = data.id;
+          dataChanged = true;
+        }
+      }
+    }catch(e){ console.error(e); }
+  }
+  if(dataChanged) await saveType('clients');
+  const statusEl = document.getElementById('gcalStatus');
+  if(statusEl) statusEl.textContent = '已自動同步（' + new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}) + '）';
+}
+
+async function gcalAutoDeleteEvent(gcalEventId){
+  if(!gcalAccessToken || !gcalEventId) return;
+  try{
+    await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${gcalEventId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + gcalAccessToken },
+      keepalive: true
+    });
+  }catch(e){ console.error(e); }
 }
 
 async function gcalSyncEvents(){
@@ -4497,6 +4579,7 @@ window.__appBoot = async function(){
     });
   }
   render();
+  gcalTryAutoSignIn();
 };
 </script>
 </body>
