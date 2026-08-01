@@ -1850,6 +1850,46 @@ function addPropertyRecordEntry(){
   return true;
 }
 
+function getClientKnownAddressesAndUrls(){
+  const addresses = new Set();
+  const urls = new Set();
+  (editingCtx.tempPropertyRecords||[]).forEach(r=>{
+    if(r.content) addresses.add(r.content.split('\n')[0].trim());
+  });
+  (editingCtx.tempLogs||[]).forEach(l=>{
+    const config = SERVICE_LOG_EXTRA_FIELDS[l.type];
+    if(!config || !l.extra) return;
+    if(config.repeating && l.extra.items){
+      l.extra.items.forEach(it=>{
+        if(it.address) addresses.add(it.address);
+        if(it.url) urls.add(it.url);
+      });
+    }else{
+      if(l.extra.address) addresses.add(l.extra.address);
+      if(l.extra.url) urls.add(l.extra.url);
+      if(l.extra.propertyAddress) addresses.add(l.extra.propertyAddress);
+    }
+  });
+  return { addresses: [...addresses].filter(Boolean), urls: [...urls].filter(Boolean) };
+}
+
+function scheduleViewingFromRecord(recordId){
+  const rec = (editingCtx.tempPropertyRecords||[]).find(r=>r.id===recordId);
+  if(!rec) return;
+  const typeEl = document.getElementById('logType');
+  if(!typeEl) return;
+  typeEl.value = '帶看';
+  editingCtx.logDraftTouched = true;
+  renderLogExtraFields();
+  const showBtn = document.getElementById('showViewingItemFormBtn');
+  if(showBtn) showBtn.click();
+  const addrEl = document.getElementById('viewItem_address');
+  if(addrEl) addrEl.value = rec.content.split('\n')[0].trim();
+  const section = document.getElementById('logExtraFields');
+  if(section) section.scrollIntoView({behavior:'smooth', block:'center'});
+  showToast('已帶入地址,請補其他資料後按「確認加入」');
+}
+
 function renderLogExtraFields(){
   const container = document.getElementById('logExtraFields');
   if(!container) return;
@@ -1858,13 +1898,19 @@ function renderLogExtraFields(){
   if(!config){ container.innerHTML = ''; return; }
 
   if(config.repeating){
+    const known = getClientKnownAddressesAndUrls();
     container.innerHTML = `
       <div class="pt-hint" style="margin:0 0 4px;">這筆服務的詳細項目(可加入多筆)</div>
       <div class="log-list" id="viewingItemsList"></div>
       <button class="btn btn-ghost btn-sm" type="button" id="showViewingItemFormBtn" style="margin-top:6px;">＋ 新增物件</button>
       <div id="viewingItemFormFields" style="display:none; margin-top:8px;">
-        <div class="pt-hint" style="margin:0 0 4px;">${config.fields.map(f=>f.label).join(' / ')}</div>
-        ${config.fields.map(f=>`<input type="${f.type||'text'}" id="viewItem_${f.key}" placeholder="${esc(f.label)}" style="margin-bottom:6px;">`).join('')}
+        <div class="pt-hint" style="margin:0 0 4px;">${config.fields.map(f=>f.label).join(' / ')}(地址、網址可從之前紀錄過的選)</div>
+        ${config.fields.map(f=>{
+          const listAttr = f.key==='address' ? ' list="viewItemAddressList"' : (f.key==='url' ? ' list="viewItemUrlList"' : '');
+          return `<input type="${f.type||'text'}" id="viewItem_${f.key}"${listAttr} placeholder="${esc(f.label)}" style="margin-bottom:6px;">`;
+        }).join('')}
+        <datalist id="viewItemAddressList">${known.addresses.map(a=>`<option value="${esc(a)}">`).join('')}</datalist>
+        <datalist id="viewItemUrlList">${known.urls.map(u=>`<option value="${esc(u)}">`).join('')}</datalist>
         <button class="btn btn-ghost btn-sm" type="button" id="addViewingItemBtn">確認加入</button>
         <button class="btn btn-ghost btn-sm" type="button" id="cancelViewingItemBtn">取消</button>
       </div>
@@ -2240,6 +2286,7 @@ function renderPropertyRecordList(){
           ${ownerLine}
         </div>
         <div style="display:flex; gap:4px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end;">
+          <button class="btn btn-ghost btn-sm" onclick="scheduleViewingFromRecord('${r.id}')">➜ 排帶看</button>
           <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordAlbum('${r.id}')">📎 相簿/檔案${photoCount?`(${photoCount})`:''}</button>
           <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordHistory('${r.id}')">📈 變更紀錄${history.length?`(${history.length})`:''}</button>
           <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordOwners('${r.id}')">👤 屋主${owners.length?`(${owners.length})`:''}</button>
