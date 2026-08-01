@@ -4150,6 +4150,7 @@ function renderCalendar(){
         <div id="calLabel" style="font-weight:700; padding:0 8px; display:flex; align-items:center; min-width:90px; justify-content:center;"></div>
         <button class="btn btn-ghost btn-sm" id="calNext">下個月 ›</button>
         <button class="btn btn-ghost btn-sm" id="calToday">回到今天</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportAllUpcomingToICS()">📅 匯出全部到行事曆</button>
       </div>
     </div>
     <div class="section-block"><div class="section-block-body" id="calGrid" style="padding:0;"></div></div>
@@ -4199,6 +4200,86 @@ function drawCalendar(){
   `;
 }
 
+function icsEscape(s){
+  return String(s||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
+}
+function icsPad(n){ return String(n).padStart(2,'0'); }
+function buildICSEvent(title, dateStr, timeStr, description){
+  let dtStartLine, dtEndLine;
+  if(timeStr){
+    const start = new Date(dateStr + 'T' + timeStr + ':00');
+    const end = new Date(start.getTime() + 60*60*1000);
+    const fmt = d => `${d.getFullYear()}${icsPad(d.getMonth()+1)}${icsPad(d.getDate())}T${icsPad(d.getHours())}${icsPad(d.getMinutes())}00`;
+    dtStartLine = `DTSTART:${fmt(start)}`;
+    dtEndLine = `DTEND:${fmt(end)}`;
+  }else{
+    const flat = dateStr.replace(/-/g,'');
+    dtStartLine = `DTSTART;VALUE=DATE:${flat}`;
+    dtEndLine = `DTEND;VALUE=DATE:${flat}`;
+  }
+  return [
+    'BEGIN:VEVENT',
+    `UID:${Date.now()}-${Math.random().toString(36).slice(2)}@yaci-realty`,
+    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').split('.')[0]}Z`,
+    dtStartLine,
+    dtEndLine,
+    `SUMMARY:${icsEscape(title)}`,
+    description ? `DESCRIPTION:${icsEscape(description)}` : '',
+    'END:VEVENT'
+  ].filter(Boolean).join('\r\n');
+}
+function buildICSFile(vevents){
+  return ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//雅慈工作台//行事曆匯出//ZH','CALSCALE:GREGORIAN', ...vevents, 'END:VCALENDAR'].join('\r\n');
+}
+function downloadICSFile(filename, content){
+  const blob = new Blob([content], {type:'text/calendar;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportSingleEventToICS(clientId, logId){
+  const client = DATA.clients.find(c=>c.id===clientId);
+  if(!client) return;
+  const l = (client.serviceLogs||[]).find(x=>x.id===logId);
+  if(!l || !l.date) return;
+  const title = `${l.type||'行程'} - ${client.name}`;
+  const vevent = buildICSEvent(title, l.date, l.time, l.note||'');
+  downloadICSFile(`${l.type||'行程'}_${client.name}_${l.date}.ics`, buildICSFile([vevent]));
+  showToast('已下載行事曆檔,開啟後選擇要加入的行事曆 App(例如 Jorte)');
+}
+
+function exportDayToICS(dateStr){
+  const vevents = [];
+  DATA.clients.forEach(c=>{
+    (c.serviceLogs||[]).forEach(l=>{
+      if(l.date === dateStr){
+        vevents.push(buildICSEvent(`${l.type||'行程'} - ${c.name}`, l.date, l.time, l.note||''));
+      }
+    });
+  });
+  if(vevents.length===0){ showToast('這天沒有行程可以匯出'); return; }
+  downloadICSFile(`行事曆_${dateStr}.ics`, buildICSFile(vevents));
+  showToast('已下載行事曆檔,開啟後選擇要加入的行事曆 App(例如 Jorte)');
+}
+
+function exportAllUpcomingToICS(){
+  const vevents = [];
+  DATA.clients.forEach(c=>{
+    (c.serviceLogs||[]).forEach(l=>{
+      if(l.date) vevents.push(buildICSEvent(`${l.type||'行程'} - ${c.name}`, l.date, l.time, l.note||''));
+    });
+  });
+  if(vevents.length===0){ showToast('目前沒有任何有日期的服務紀錄可以匯出'); return; }
+  downloadICSFile(`雅慈工作台行事曆_${new Date().toISOString().slice(0,10)}.ics`, buildICSFile(vevents));
+  showToast('已下載完整行事曆檔,開啟後選擇要加入的行事曆 App(例如 Jorte)');
+}
+
 function openDayAgenda(dateStr){
   const events = [];
   DATA.clients.forEach(c=>{
@@ -4209,7 +4290,9 @@ function openDayAgenda(dateStr){
   events.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 
   document.getElementById('dayAgendaTitle').textContent = dateStr + ' 的行程';
-  document.getElementById('dayAgendaBody').innerHTML = events.length ? `<div class="log-list">${events.map(e=>{
+  document.getElementById('dayAgendaBody').innerHTML = events.length ? `
+    <button class="btn btn-ghost btn-sm" style="margin-bottom:10px;" onclick="exportDayToICS('${dateStr}')">📅 這天全部匯出到行事曆</button>
+    <div class="log-list">${events.map(e=>{
     const isImportant = !CALENDAR_ROUTINE_TYPES.includes(e.type);
     const lineStyle = isImportant ? 'color:var(--brick); font-size:15px;' : '';
     return `
@@ -4219,6 +4302,7 @@ function openDayAgenda(dateStr){
         <b style="${lineStyle}">${e.time?esc(e.time)+' ':''}${e.type?`[${esc(e.type)}] `:''}${esc(e.clientName)}</b>
         ${e.note?`<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${esc(e.note)}</div>`:''}
       </div>
+      <button class="btn btn-ghost btn-sm" style="flex-shrink:0;" onclick="event.stopPropagation(); exportSingleEventToICS('${e.clientId}','${e.logId}')" title="加入 Jorte / 手機行事曆">📅</button>
     </div>
   `;
   }).join('')}</div>` : '<div class="empty-state">這天沒有行程</div>';
