@@ -4894,10 +4894,12 @@ function openDayAgenda(dateStr){
     <div class="log-list">${events.map(e=>{
     const isImportant = !CALENDAR_ROUTINE_TYPES.includes(e.type);
     const lineStyle = isImportant ? 'color:var(--brick); font-size:15px;' : '';
+    const trashMatch = e.note && e.note.match(/垃圾車\s*[\d:：]+/);
+    const trashLabel = trashMatch ? ` ${esc(trashMatch[0])}` : '';
     return `
     <div class="log-entry">
       <div class="log-entry-note" style="cursor:pointer;" onclick="closeDayAgenda(); viewClientModal('${e.clientId}')">
-        <b style="${lineStyle}">${e.time?esc(e.time)+' ':''}${e.type?`[${esc(e.type)}] `:''}${esc(e.clientName)}</b>
+        <b style="${lineStyle}">${e.time?esc(e.time)+' ':''}${e.type?`[${esc(e.type)}] `:''}${esc(e.clientName)}${trashLabel}</b>
         ${e.note?`<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${esc(e.note)}</div>`:''}
       </div>
       <button class="btn btn-ghost btn-sm" style="flex-shrink:0;" onclick="event.stopPropagation(); exportSingleEventToICS('${e.clientId}','${e.logId}')" title="加入 Jorte / 手機行事曆">📅</button>
