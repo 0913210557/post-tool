@@ -1830,6 +1830,22 @@ function removeNeedsAreaEntry(areaId){
   renderNeedsAreaList();
 }
 
+function maybeOfferCreateDeal(clientName, caseName){
+  if(!confirm('這筆物件已標記「已成交」,要建立一筆業績成交紀錄嗎?(只會帶入客戶姓名跟案名,金額等要自己補)')) return;
+  DATA.deals.push({
+    id: uid(),
+    caseName: caseName || '',
+    clientName: clientName || '',
+    amount: '',
+    rate: '',
+    commission: '',
+    closedDate: new Date().toISOString().slice(0,10),
+  });
+  saveType('deals').then(()=>{
+    showToast('已建立業績成交草稿,記得到「業績成交」頁面補上金額等資料');
+  });
+}
+
 function addPropertyRecordEntry(){
   const contentEl = document.getElementById('propertyRecordContent');
   if(!contentEl) return false;
@@ -1848,6 +1864,10 @@ function addPropertyRecordEntry(){
   document.getElementById('propertyRecordAskingPrice').value='';
   document.getElementById('propertyRecordBottomPrice').value='';
   renderPropertyRecordList();
+  if(category === '已成交'){
+    const nameEl = document.getElementById('f_name');
+    maybeOfferCreateDeal(nameEl ? nameEl.value.trim() : '', content);
+  }
   return true;
 }
 
@@ -2415,6 +2435,7 @@ function savePropertyRecordEdit(recordId){
   if(!content){ showToast('請輸入物件內容'); return; }
   const rec = (editingCtx.tempPropertyRecords||[]).find(r=>r.id===recordId);
   if(!rec) return;
+  const wasSold = rec.category === '已成交';
   if(!rec.priceHistory) rec.priceHistory = [];
   if((askingPrice||'') !== (rec.askingPrice||'') || (bottomPrice||'') !== (rec.bottomPrice||'')){
     rec.priceHistory.push({id:uid(), date:new Date().toISOString().slice(0,10), askingPrice, bottomPrice, note:'變更'});
@@ -2426,6 +2447,10 @@ function savePropertyRecordEdit(recordId){
   rec.bottomPrice = bottomPrice;
   editingCtx.editingRecordId = null;
   renderPropertyRecordList();
+  if(category === '已成交' && !wasSold){
+    const nameEl = document.getElementById('f_name');
+    maybeOfferCreateDeal(nameEl ? nameEl.value.trim() : '', content);
+  }
 }
 
 async function loadPropertyRecordAlbum(recordId){
@@ -4204,17 +4229,9 @@ function renderCalendar(){
           <span>📋 值班表快速勾選(免費,手動選日期)</span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
         </div>
         <div id="dutyRosterBody" style="display:none; margin-top:10px;">
-          <div class="pt-hint" style="margin:0 0 6px;">勾選這個月你值班的日期(切換上方月份,下面的日期也會跟著換)</div>
-          <div id="dutyRosterDayGrid" style="display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:10px;"></div>
-          <div class="pt-hint" style="margin:0 0 4px;">班別(時間會自動帶入,晚班會自動加垃圾車時間)</div>
-          <div class="field-row">
-            <select id="dutyRosterShiftSelect">
-              <option value="早班">早班</option>
-              <option value="中班">中班</option>
-              <option value="晚班">晚班</option>
-            </select>
-            <input type="text" id="dutyRosterNoteInput" placeholder="其他備註(選填)">
-          </div>
+          <div class="pt-hint" style="margin:0 0 6px;">每一天選當天的班別(時間會自動帶入,晚班會自動加垃圾車時間;選「不值班」就不會建立)</div>
+          <div id="dutyRosterDayGrid" style="max-height:340px; overflow-y:auto; border:1px solid var(--line); border-radius:2px; padding:2px 8px; margin-bottom:10px;"></div>
+          <input type="text" id="dutyRosterNoteInput" placeholder="其他備註(選填,套用到這次全部送出的天數)">
           <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="dutyRosterSubmit()">＋ 加入這些值班行程</button>
         </div>
       </div>
@@ -4235,13 +4252,20 @@ function renderDutyRosterGrid(){
   const year = calendarMonth.getFullYear();
   const month = calendarMonth.getMonth();
   const daysInMonth = new Date(year, month+1, 0).getDate();
+  const weekdayNames = ['日','一','二','三','四','五','六'];
   let html = '';
   for(let d=1; d<=daysInMonth; d++){
     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    html += `<label style="display:flex; flex-direction:column; align-items:center; gap:2px; font-size:11px; cursor:pointer; padding:4px; border:1px solid var(--line); border-radius:2px;">
-      <input type="checkbox" class="duty-day-cb" value="${dateStr}" style="width:auto;">
-      ${d}
-    </label>`;
+    const dow = new Date(year, month, d).getDay();
+    html += `<div style="display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--line);">
+      <div style="width:64px; font-size:12px; color:var(--ink-soft); flex-shrink:0;">${month+1}/${d}（${weekdayNames[dow]}）</div>
+      <select class="duty-day-shift-select" data-date="${dateStr}" style="flex:1;">
+        <option value="">不值班</option>
+        <option value="早班">早班</option>
+        <option value="中班">中班</option>
+        <option value="晚班">晚班</option>
+      </select>
+    </div>`;
   }
   grid.innerHTML = html;
 }
@@ -4277,9 +4301,9 @@ function getDutyShiftInfo(dateStr, shiftType){
 }
 
 async function dutyRosterSubmit(){
-  const checked = Array.from(document.querySelectorAll('.duty-day-cb:checked')).map(cb=>cb.value);
-  if(checked.length===0){ showToast('請至少勾選一天'); return; }
-  const shiftType = document.getElementById('dutyRosterShiftSelect').value;
+  const selects = Array.from(document.querySelectorAll('.duty-day-shift-select'));
+  const picks = selects.filter(s=>s.value).map(s=>({date: s.dataset.date, shift: s.value}));
+  if(picks.length===0){ showToast('請至少選一天的班別'); return; }
   const extraNote = document.getElementById('dutyRosterNoteInput').value.trim();
 
   let dutyClient = getDutyRosterClient();
@@ -4288,15 +4312,15 @@ async function dutyRosterSubmit(){
     DATA.clients.push(dutyClient);
   }
   if(!dutyClient.serviceLogs) dutyClient.serviceLogs = [];
-  checked.forEach(dateStr=>{
-    const info = getDutyShiftInfo(dateStr, shiftType);
+  picks.forEach(({date, shift})=>{
+    const info = getDutyShiftInfo(date, shift);
     const note = [info.note, extraNote].filter(Boolean).join('　');
-    dutyClient.serviceLogs.push({ id: uid(), date: dateStr, time: info.time, endTime: info.endTime, type: '值班', note });
+    dutyClient.serviceLogs.push({ id: uid(), date, time: info.time, endTime: info.endTime, type: '值班', note });
   });
   await saveType('clients');
-  showToast(`已加入 ${checked.length} 筆值班行程`);
+  showToast(`已加入 ${picks.length} 筆值班行程`);
   gcalAutoSyncClient(dutyClient.id);
-  document.querySelectorAll('.duty-day-cb').forEach(cb=>cb.checked=false);
+  selects.forEach(s=>{ s.value=''; });
   document.getElementById('dutyRosterNoteInput').value = '';
   drawCalendar();
 }
