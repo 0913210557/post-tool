@@ -4178,6 +4178,17 @@ function renderCalendar(){
             <button class="btn btn-ghost btn-sm" onclick="gcalSignIn()">登入 Google</button>
           </div>
           <div id="gcalStatus" style="font-size:12px; color:var(--ink-soft); margin-top:8px;">${gcalAccessToken ? '已登入 Google，可以同步' : '尚未登入'}</div>
+          <div class="pt-hint" style="margin-top:12px; margin-bottom:4px;">提醒時間(套用到之後同步的每一筆行程)</div>
+          <select id="gcalReminderSelect" onchange="gcalSaveReminderSetting()">
+            <option value="0" ${gcalGetReminderMinutes()==='0'?'selected':''}>行程開始時</option>
+            <option value="10" ${gcalGetReminderMinutes()==='10'?'selected':''}>提前 10 分鐘</option>
+            <option value="30" ${gcalGetReminderMinutes()==='30'?'selected':''}>提前 30 分鐘</option>
+            <option value="60" ${gcalGetReminderMinutes()==='60'?'selected':''}>提前 1 小時</option>
+            <option value="120" ${gcalGetReminderMinutes()==='120'?'selected':''}>提前 2 小時</option>
+            <option value="1440" ${gcalGetReminderMinutes()==='1440'?'selected':''}>提前 1 天</option>
+            <option value="default" ${gcalGetReminderMinutes()==='default'?'selected':''}>使用 Google 日曆預設</option>
+          </select>
+          <div class="pt-hint" style="margin-top:4px;">改了之後,新增/編輯行程時會套用新設定;想讓「已經同步過」的舊行程也套用新提醒時間,按下面「全部重新同步一次」</div>
           <div class="pt-hint" style="margin-top:8px;">登入後,新增/編輯/刪除服務紀錄時會自動同步,不用手動按。下面這顆按鈕只是保險用的「全部重新同步」,平常不用點。</div>
           <button class="btn btn-ghost btn-sm" style="margin-top:8px;" id="gcalSyncBtn" onclick="gcalSyncEvents()" ${gcalAccessToken?'':'disabled'}>全部重新同步一次</button>
         </div>
@@ -4365,16 +4376,34 @@ function gcalTryAutoSignIn(){
   tryNow();
 }
 
+function gcalGetReminderMinutes(){
+  const v = localStorage.getItem('gcal_reminder_minutes');
+  return v === null ? '30' : v;
+}
+function gcalSaveReminderSetting(){
+  const v = document.getElementById('gcalReminderSelect').value;
+  localStorage.setItem('gcal_reminder_minutes', v);
+  showToast('提醒時間已更新,之後同步的行程會套用');
+}
+
 function gcalBuildEventBody(client, l){
   const summary = `${l.type||'行程'} - ${client.name}`;
+  const reminderMinutes = gcalGetReminderMinutes();
+  const reminders = reminderMinutes === 'default'
+    ? { useDefault: true }
+    : { useDefault: false, overrides: [{ method: 'popup', minutes: parseInt(reminderMinutes, 10) }] };
   if(l.time){
     const start = new Date(l.date + 'T' + l.time + ':00');
-    const end = new Date(start.getTime() + 60*60*1000);
+    const oneHourLater = new Date(start.getTime() + 60*60*1000);
+    const endOfDay = new Date(start);
+    endOfDay.setHours(23, 59, 0, 0);
+    const end = oneHourLater > endOfDay ? endOfDay : oneHourLater;
     return {
       summary,
       description: l.note || '',
       start: { dateTime: start.toISOString(), timeZone: 'Asia/Taipei' },
       end: { dateTime: end.toISOString(), timeZone: 'Asia/Taipei' },
+      reminders,
     };
   }
   return {
@@ -4382,6 +4411,7 @@ function gcalBuildEventBody(client, l){
     description: l.note || '',
     start: { date: l.date },
     end: { date: l.date },
+    reminders,
   };
 }
 
