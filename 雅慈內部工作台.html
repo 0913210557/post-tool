@@ -1873,24 +1873,30 @@ function getClientKnownAddressesAndUrls(){
   return { addresses: [...addresses].filter(Boolean), urls: [...urls].filter(Boolean) };
 }
 
-function extractAddressOrUrlFromLog(l){
+function extractCarryoverFieldsFromLog(l){
   if(!l.extra) return null;
   const extra = l.extra;
-  if(extra.items && extra.items.length){
-    const it = extra.items.find(x=>x.address || x.url);
-    if(it) return { address: it.address||'', url: it.url||'' };
-    return null;
-  }
-  if(extra.address || extra.url || extra.propertyAddress){
-    return { address: extra.address || extra.propertyAddress || '', url: extra.url || '' };
-  }
-  return null;
+  const source = (extra.items && extra.items.length) ? extra.items.find(x=>x.address || x.url) : extra;
+  if(!source) return null;
+  const result = {};
+  if(source.address) result.address = source.address;
+  else if(source.propertyAddress) result.address = source.propertyAddress;
+  if(source.url) result.url = source.url;
+  if(source.devCompany) result.devCompany = source.devCompany;
+  if(source.devAgent) result.devAgent = source.devAgent;
+  if(source.devPhone) result.devPhone = source.devPhone;
+  if(source.viewMethod) result.viewMethod = source.viewMethod;
+  if(source.commissionSplit) result.commissionSplit = source.commissionSplit;
+  if(source.other) result.other = source.other;
+  if(source.writtenBottomPrice) result.writtenBottomPrice = source.writtenBottomPrice;
+  else if(source.bottomPrice) result.writtenBottomPrice = source.bottomPrice;
+  return Object.keys(result).length ? result : null;
 }
 
 function scheduleViewingFromLog(logId){
   const l = (editingCtx.tempLogs||[]).find(x=>x.id===logId);
   if(!l) return;
-  const info = extractAddressOrUrlFromLog(l);
+  const info = extractCarryoverFieldsFromLog(l);
   if(!info) return;
   const typeEl = document.getElementById('logType');
   if(!typeEl) return;
@@ -1899,30 +1905,13 @@ function scheduleViewingFromLog(logId){
   renderLogExtraFields();
   const showBtn = document.getElementById('showViewingItemFormBtn');
   if(showBtn) showBtn.click();
-  const addrEl = document.getElementById('viewItem_address');
-  if(addrEl && info.address) addrEl.value = info.address;
-  const urlEl = document.getElementById('viewItem_url');
-  if(urlEl && info.url) urlEl.value = info.url;
+  Object.keys(info).forEach(key=>{
+    const el = document.getElementById('viewItem_'+key);
+    if(el) el.value = info[key];
+  });
   const section = document.getElementById('logExtraFields');
   if(section) section.scrollIntoView({behavior:'smooth', block:'center'});
-  showToast('已帶入地址/網址,請補其他資料後按「確認加入」');
-}
-
-function scheduleViewingFromRecord(recordId){
-  const rec = (editingCtx.tempPropertyRecords||[]).find(r=>r.id===recordId);
-  if(!rec) return;
-  const typeEl = document.getElementById('logType');
-  if(!typeEl) return;
-  typeEl.value = '帶看';
-  editingCtx.logDraftTouched = true;
-  renderLogExtraFields();
-  const showBtn = document.getElementById('showViewingItemFormBtn');
-  if(showBtn) showBtn.click();
-  const addrEl = document.getElementById('viewItem_address');
-  if(addrEl) addrEl.value = rec.content.split('\n')[0].trim();
-  const section = document.getElementById('logExtraFields');
-  if(section) section.scrollIntoView({behavior:'smooth', block:'center'});
-  showToast('已帶入地址,請補其他資料後按「確認加入」');
+  showToast('已帶入之前記錄的資料,請補其他細節後按「確認加入」');
 }
 
 function renderLogExtraFields(){
@@ -2321,7 +2310,6 @@ function renderPropertyRecordList(){
           ${ownerLine}
         </div>
         <div style="display:flex; gap:4px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end;">
-          <button class="btn btn-ghost btn-sm" onclick="scheduleViewingFromRecord('${r.id}')">➜ 排帶看</button>
           <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordAlbum('${r.id}')">📎 相簿/檔案${photoCount?`(${photoCount})`:''}</button>
           <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordHistory('${r.id}')">📈 變更紀錄${history.length?`(${history.length})`:''}</button>
           <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordOwners('${r.id}')">👤 屋主${owners.length?`(${owners.length})`:''}</button>
@@ -2562,7 +2550,7 @@ function renderLogList(){
       </div>`;
     }
     const extraText = formatLogExtra(l);
-    const addrInfo = extractAddressOrUrlFromLog(l);
+    const addrInfo = extractCarryoverFieldsFromLog(l);
     return `
     <div class="log-entry">
       <div>
