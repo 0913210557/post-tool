@@ -363,8 +363,6 @@
   .cal-event:hover{ background:var(--jade-deep); }
   .cal-event input[type=checkbox]{ width:11px; height:11px; flex-shrink:0; cursor:pointer; margin:0; }
   .cal-event span{ overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
-  .cal-event-done{ background:var(--stone-deep) !important; color:var(--ink-soft); }
-  .cal-event-done span{ text-decoration:line-through; }
   .cal-event-count{ font-size:11px; background:var(--jade); color:#fff; padding:3px 6px; border-radius:2px; text-align:center; }
   .cal-cell:hover .cal-event-count{ background:var(--jade-deep); }
   .cal-event-count-important{ background:var(--brick); font-weight:700; }
@@ -4204,7 +4202,7 @@ function drawCalendar(){
     (c.serviceLogs||[]).forEach(l=>{
       if(!l.date) return;
       if(!events[l.date]) events[l.date] = [];
-      events[l.date].push({clientId:c.id, logId:l.id, clientName:c.name, time:l.time||'', note:l.note||'', type:l.type||'', completed: !!l.completed});
+      events[l.date].push({clientId:c.id, logId:l.id, clientName:c.name, time:l.time||'', note:l.note||'', type:l.type||''});
     });
   });
 
@@ -4219,11 +4217,10 @@ function drawCalendar(){
     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const dayEvents = (events[dateStr]||[]).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));
     const isToday = dateStr === todayStr;
-    const doneCount = dayEvents.filter(e=>e.completed).length;
     const hasImportant = dayEvents.some(e=>!CALENDAR_ROUTINE_TYPES.includes(e.type));
     cells += `<div class="cal-cell ${isToday?'cal-today':''}" ${dayEvents.length?`onclick="openDayAgenda('${dateStr}')" style="cursor:pointer;"`:''}>
       <div class="cal-daynum">${d}</div>
-      ${dayEvents.length ? `<div class="cal-event-count${hasImportant?' cal-event-count-important':''}">${dayEvents.length} 個行程${doneCount?` · ${doneCount}已完成`:''}</div>` : ''}
+      ${dayEvents.length ? `<div class="cal-event-count${hasImportant?' cal-event-count-important':''}">${dayEvents.length} 個行程</div>` : ''}
     </div>`;
   }
 
@@ -4482,7 +4479,7 @@ function openDayAgenda(dateStr){
   const events = [];
   DATA.clients.forEach(c=>{
     (c.serviceLogs||[]).forEach(l=>{
-      if(l.date === dateStr) events.push({clientId:c.id, logId:l.id, clientName:c.name, time:l.time||'', note:l.note||'', type:l.type||'', completed:!!l.completed});
+      if(l.date === dateStr) events.push({clientId:c.id, logId:l.id, clientName:c.name, time:l.time||'', note:l.note||'', type:l.type||''});
     });
   });
   events.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
@@ -4495,7 +4492,6 @@ function openDayAgenda(dateStr){
     const lineStyle = isImportant ? 'color:var(--brick); font-size:15px;' : '';
     return `
     <div class="log-entry">
-      <input type="checkbox" ${e.completed?'checked':''} style="margin-top:2px;" onclick="event.stopPropagation(); handleDayAgendaToggle('${e.clientId}','${e.logId}','${dateStr}')">
       <div class="log-entry-note" style="cursor:pointer;" onclick="closeDayAgenda(); viewClientModal('${e.clientId}')">
         <b style="${lineStyle}">${e.time?esc(e.time)+' ':''}${e.type?`[${esc(e.type)}] `:''}${esc(e.clientName)}</b>
         ${e.note?`<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${esc(e.note)}</div>`:''}
@@ -4508,20 +4504,6 @@ function openDayAgenda(dateStr){
 }
 function closeDayAgenda(){
   document.getElementById('dayAgendaOverlay').classList.remove('open');
-}
-async function handleDayAgendaToggle(clientId, logId, dateStr){
-  await toggleCalendarEventDone(clientId, logId);
-  openDayAgenda(dateStr);
-}
-
-async function toggleCalendarEventDone(clientId, logId){
-  const idx = DATA.clients.findIndex(c=>c.id===clientId);
-  if(idx===-1) return;
-  const client = DATA.clients[idx];
-  const logs = (client.serviceLogs||[]).map(l=> l.id===logId ? {...l, completed: !l.completed} : l);
-  DATA.clients[idx] = {...client, serviceLogs:logs};
-  await saveType('clients');
-  drawCalendar();
 }
 
 /* ===================== Modal plumbing ===================== */
