@@ -454,6 +454,7 @@
     <div class="modal-body" id="viewModalBody"></div>
     <div class="modal-foot">
       <button class="btn btn-ghost" id="viewModalCloseBtn">關閉</button>
+      <button class="btn btn-ghost" id="viewModalAddLogBtn">＋ 新增服務紀錄</button>
       <button class="btn btn-primary" id="viewModalEditBtn">✎ 編輯</button>
     </div>
   </div>
@@ -1692,7 +1693,7 @@ async function openClientModal(id){
 
     <div class="field"><label>備註</label><textarea id="f_notes">${esc(item.notes)}</textarea></div>
 
-    <div class="field field-divider">
+    <div class="field field-divider" id="serviceLogSection">
       <div class="field-sub-title">服務紀錄</div>
       <div class="log-add-row" style="flex-wrap:wrap;">
         <input type="date" id="logDate" value="${new Date().toISOString().slice(0,10)}">
@@ -3042,6 +3043,15 @@ document.getElementById('viewModalOverlay').addEventListener('click', (e)=>{
 document.getElementById('viewModalEditBtn').onclick = ()=>{
   document.getElementById('viewModalOverlay').classList.remove('open');
   if(currentViewClientId) openClientModal(currentViewClientId);
+};
+document.getElementById('viewModalAddLogBtn').onclick = async ()=>{
+  document.getElementById('viewModalOverlay').classList.remove('open');
+  if(!currentViewClientId) return;
+  await openClientModal(currentViewClientId);
+  const section = document.getElementById('serviceLogSection');
+  if(section) section.scrollIntoView({behavior:'smooth', block:'start'});
+  const noteEl = document.getElementById('logNote');
+  if(noteEl) noteEl.focus();
 };
 
 /* ===================== Listings Page ===================== */
