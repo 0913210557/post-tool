@@ -787,14 +787,39 @@ function exportExcel(){
     };
   });
 
-  const dealRows = DATA.deals.map(d=>({
-    '案件名稱': d.caseName || '',
-    '客戶': d.clientName || '',
-    '成交金額(萬)': d.amount || '',
-    '抽成比例(%)': d.rate || '',
-    '抽成金額(元)': d.commission || '',
-    '成交日期': d.closedDate || '',
-  }));
+  const dealsAscByDate = [...DATA.deals].sort((a,b)=>(a.closedDate||'').localeCompare(b.closedDate||''));
+  const dealOrderMap = {};
+  dealsAscByDate.forEach((d,i)=>{ dealOrderMap[d.id] = i+1; });
+  const dealRows = DATA.deals.map(d=>{
+    const collected = (d.collections||[]).reduce((s,c)=>s+(Number(c.personalAmount)||0),0);
+    const expected = dealPersonalAmountFromGross(Number(d.buyerFee||0) + Number(d.sellerFee||0));
+    return {
+      '序號': dealOrderMap[d.id],
+      '客戶姓名': d.clientName || '',
+      '案件名稱': d.caseName || '',
+      '物件地址': d.propertyAddress || '',
+      '成交日期': d.closedDate || '',
+      '成交金額(萬)': d.amount || '',
+      '買方服務費': d.buyerFee || '',
+      '賣方服務費': d.sellerFee || '',
+      '實際業績': (Number(d.buyerFee||0) + Number(d.sellerFee||0)) || '',
+      '開發-店名': d.devStore || '',
+      '開發-業務': d.devAgent || '',
+      '開發-比例%': d.devPercent || '',
+      '開發-金額': d.devAmount || '',
+      '銷售-店名': d.saleStore || '',
+      '銷售-業務': d.saleAgent || '',
+      '銷售-比例%': d.salePercent || '',
+      '銷售-金額': d.saleAmount || '',
+      '買方姓名': d.buyerName || '',
+      '買方電話': d.buyerPhone || '',
+      '賣方姓名': d.sellerName || '',
+      '賣方電話': d.sellerPhone || '',
+      '應收業績(我方)': expected,
+      '已領金額': collected,
+      '備註': d.notes || '',
+    };
+  });
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(clientRows), '客戶');
@@ -1830,19 +1855,20 @@ function removeNeedsAreaEntry(areaId){
   renderNeedsAreaList();
 }
 
-function maybeOfferCreateDeal(clientName, caseName){
-  if(!confirm('這筆物件已標記「已成交」,要建立一筆業績成交紀錄嗎?(只會帶入客戶姓名跟案名,金額等要自己補)')) return;
+function maybeOfferCreateDeal(clientName, caseName, propertyAddress){
+  if(!confirm('這筆物件已標記「已成交」,要建立一筆業績成交紀錄嗎?(只會帶入客戶姓名、案名、物件地址,其他要自己補)')) return;
   DATA.deals.push({
     id: uid(),
     caseName: caseName || '',
     clientName: clientName || '',
+    propertyAddress: propertyAddress || '',
     amount: '',
-    rate: '',
     commission: '',
     closedDate: new Date().toISOString().slice(0,10),
+    collections: [],
   });
   saveType('deals').then(()=>{
-    showToast('已建立業績成交草稿,記得到「業績成交」頁面補上金額等資料');
+    showToast('已建立業績成交草稿,記得到「業績成交」頁面補上其他資料');
   });
 }
 
@@ -1866,7 +1892,7 @@ function addPropertyRecordEntry(){
   renderPropertyRecordList();
   if(category === '已成交'){
     const nameEl = document.getElementById('f_name');
-    maybeOfferCreateDeal(nameEl ? nameEl.value.trim() : '', content);
+    maybeOfferCreateDeal(nameEl ? nameEl.value.trim() : '', content, content);
   }
   return true;
 }
@@ -2449,7 +2475,7 @@ function savePropertyRecordEdit(recordId){
   renderPropertyRecordList();
   if(category === '已成交' && !wasSold){
     const nameEl = document.getElementById('f_name');
-    maybeOfferCreateDeal(nameEl ? nameEl.value.trim() : '', content);
+    maybeOfferCreateDeal(nameEl ? nameEl.value.trim() : '', content, content);
   }
 }
 
@@ -3369,53 +3395,191 @@ function renderDeals(){
 
 function drawDealTable(){
   const wrap = document.getElementById('dealTableWrap');
+  const ascByDate = [...DATA.deals].sort((a,b)=>(a.closedDate||'').localeCompare(b.closedDate||''));
+  const orderMap = {};
+  ascByDate.forEach((d,i)=>{ orderMap[d.id] = i+1; });
   const list = [...DATA.deals].sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有成交紀錄</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
-    <th>案件</th><th>客戶</th><th>成交金額(萬)</th><th>抽成比例</th><th>抽成金額</th><th>成交日</th><th></th>
+    <th>序號</th><th>案件</th><th>客戶</th><th>物件地址</th><th>成交金額(萬)</th><th>應收業績</th><th>已領</th><th>成交日</th><th></th>
   </tr></thead><tbody>
-    ${list.map(d=>`<tr class="row-hover">
+    ${list.map(d=>{
+      const collected = (d.collections||[]).reduce((s,c)=>s+(Number(c.personalAmount)||0),0);
+      const expected = dealPersonalAmountFromGross(Number(d.buyerFee||0) + Number(d.sellerFee||0));
+      return `<tr class="row-hover">
+      <td>第${orderMap[d.id]}件</td>
       <td>${esc(d.caseName)}</td>
       <td>${esc(d.clientName||'—')}</td>
+      <td>${esc(d.propertyAddress||'—')}</td>
       <td>${d.amount?Number(d.amount).toLocaleString():'—'}</td>
-      <td>${d.rate?d.rate+'%':'—'}</td>
-      <td>$${Number(d.commission||0).toLocaleString()}</td>
+      <td>$${expected.toLocaleString()}</td>
+      <td>$${collected.toLocaleString()}</td>
       <td>${esc(d.closedDate||'—')}</td>
       <td><div class="row-actions">
         <button class="icon-btn" onclick="openDealModal('${d.id}')" title="編輯">✎</button>
         <button class="icon-btn" onclick="deleteItem('deals','${d.id}')" title="刪除">🗑</button>
       </div></td>
-    </tr>`).join('')}
+    </tr>`;
+    }).join('')}
   </tbody></table>`;
 }
 
+const DEAL_COMPANY_CUT_RATE = 0.5;
+const DEAL_EXEC_FEE_RATE = 0.1;
+function dealPersonalAmountFromGross(gross){
+  return Math.round(Number(gross||0) * DEAL_COMPANY_CUT_RATE * (1 - DEAL_EXEC_FEE_RATE));
+}
+
 function openDealModal(id){
-  const item = id ? DATA.deals.find(d=>d.id===id) : {caseName:'',clientName:'',amount:'',rate:'',commission:'',closedDate:''};
-  editingCtx = {type:'deals', id: id||null};
+  const item = id ? DATA.deals.find(d=>d.id===id) : {
+    caseName:'', clientName:'', propertyAddress:'', closedDate:'', amount:'',
+    buyerFee:'', sellerFee:'',
+    devStore:'', devAgent:'', devPercent:'', devAmount:'',
+    saleStore:'', saleAgent:'', salePercent:'', saleAmount:'',
+    buyerName:'', buyerPhone:'', sellerName:'', sellerPhone:'',
+    notes:'', collections:[],
+  };
+  editingCtx = {type:'deals', id: id||null, tempCollections: (item.collections||[]).map(c=>({...c}))};
   document.getElementById('modalTitle').textContent = id ? '編輯成交案' : '新增成交案';
   document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>客戶姓名</label><input id="f_clientName" value="${esc(item.clientName)}"></div>
     <div class="field"><label>案件名稱</label><input id="f_caseName" value="${esc(item.caseName)}"></div>
-    <div class="field"><label>客戶</label><input id="f_clientName" value="${esc(item.clientName)}"></div>
+    <div class="field"><label>物件地址</label><input id="f_propertyAddress" value="${esc(item.propertyAddress)}"></div>
     <div class="field-row">
-      <div class="field"><label>成交金額(萬)</label><input type="number" id="f_amount" value="${esc(item.amount)}"></div>
-      <div class="field"><label>抽成比例(%)</label><input type="number" id="f_rate" value="${esc(item.rate)}"></div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>抽成金額(元)</label><input type="number" id="f_commission" value="${esc(item.commission)}"></div>
       <div class="field"><label>成交日期</label><input type="date" id="f_closedDate" value="${esc(item.closedDate)}"></div>
+      <div class="field"><label>成交金額(萬)</label><input type="number" id="f_amount" value="${esc(item.amount)}"></div>
+    </div>
+
+    <div class="field field-divider">
+      <div class="field-sub-title">服務費 / 實際業績</div>
+      <div class="field-row">
+        <div class="field"><label>買方服務費</label><input type="number" id="f_buyerFee" value="${esc(item.buyerFee)}" oninput="updateDealExpectedDisplay()"></div>
+        <div class="field"><label>賣方服務費</label><input type="number" id="f_sellerFee" value="${esc(item.sellerFee)}" oninput="updateDealExpectedDisplay()"></div>
+      </div>
+      <div class="pt-hint" style="margin-top:4px;">實際業績(自動加總) <b id="dealActualPerformance">$0</b></div>
+    </div>
+
+    <div class="field field-divider">
+      <div class="field-sub-title">業績分配</div>
+      <div class="pt-hint" style="margin:0 0 4px;">開發</div>
+      <div class="field-row">
+        <input type="text" id="f_devStore" placeholder="店名" value="${esc(item.devStore)}">
+        <input type="text" id="f_devAgent" placeholder="業務" value="${esc(item.devAgent)}">
+      </div>
+      <div class="field-row" style="margin-top:6px;">
+        <input type="number" id="f_devPercent" placeholder="比例%" value="${esc(item.devPercent)}">
+        <input type="number" id="f_devAmount" placeholder="金額" value="${esc(item.devAmount)}">
+      </div>
+      <div class="pt-hint" style="margin:12px 0 4px;">銷售</div>
+      <div class="field-row">
+        <input type="text" id="f_saleStore" placeholder="店名" value="${esc(item.saleStore)}">
+        <input type="text" id="f_saleAgent" placeholder="業務" value="${esc(item.saleAgent)}">
+      </div>
+      <div class="field-row" style="margin-top:6px;">
+        <input type="number" id="f_salePercent" placeholder="比例%" value="${esc(item.salePercent)}">
+        <input type="number" id="f_saleAmount" placeholder="金額" value="${esc(item.saleAmount)}">
+      </div>
+    </div>
+
+    <div class="field field-divider">
+      <div class="field-sub-title">買賣方聯絡資訊</div>
+      <div class="field-row">
+        <input type="text" id="f_buyerName" placeholder="買方姓名" value="${esc(item.buyerName)}">
+        <input type="text" id="f_buyerPhone" placeholder="買方電話" value="${esc(item.buyerPhone)}">
+      </div>
+      <div class="field-row" style="margin-top:6px;">
+        <input type="text" id="f_sellerName" placeholder="賣方姓名" value="${esc(item.sellerName)}">
+        <input type="text" id="f_sellerPhone" placeholder="賣方電話" value="${esc(item.sellerPhone)}">
+      </div>
+    </div>
+
+    <div class="field"><label>備註</label><textarea id="f_notes">${esc(item.notes)}</textarea></div>
+
+    <div class="field field-divider">
+      <div class="field-sub-title">領款紀錄</div>
+      <div class="pt-hint" id="dealCollectionsSummary" style="margin:0 0 8px;"></div>
+      <div class="log-list" id="dealCollectionsList"></div>
+      <div class="field-row" style="margin-top:8px;">
+        <input type="date" id="dealCollectionDate">
+        <input type="number" id="dealCollectionGross" placeholder="這筆業績金額">
+      </div>
+      <div class="pt-hint" style="margin:4px 0;">實得 = 業績金額 × ${DEAL_COMPANY_CUT_RATE*100}%(公司抽成) × ${100-DEAL_EXEC_FEE_RATE*100}%(扣執行業務所得後)</div>
+      <button class="btn btn-ghost btn-sm" onclick="addDealCollection()">＋ 新增領款紀錄</button>
     </div>
   `;
   openModal();
+  updateDealExpectedDisplay();
+  renderDealCollectionsList();
+}
+
+function updateDealExpectedDisplay(){
+  const el = document.getElementById('dealActualPerformance');
+  if(!el) return;
+  const buyerFee = Number(document.getElementById('f_buyerFee').value || 0);
+  const sellerFee = Number(document.getElementById('f_sellerFee').value || 0);
+  el.textContent = '$' + (buyerFee + sellerFee).toLocaleString();
+}
+
+function renderDealCollectionsList(){
+  const wrap = document.getElementById('dealCollectionsList');
+  if(!wrap) return;
+  const list = editingCtx.tempCollections || [];
+  wrap.innerHTML = list.length ? list.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(c=>`
+    <div class="log-entry">
+      <div class="log-entry-date">${esc(c.date||'—')}</div>
+      <div class="log-entry-note">業績 $${Number(c.grossAmount||0).toLocaleString()} → 實得 $${Number(c.personalAmount||0).toLocaleString()}</div>
+      <button class="rm" onclick="removeDealCollection('${c.id}')" title="刪除">✕</button>
+    </div>
+  `).join('') : '<div class="empty-state" style="padding:12px;">尚無領款紀錄</div>';
+
+  const totalPersonal = list.reduce((s,c)=>s+(Number(c.personalAmount)||0),0);
+  const buyerFee = Number((document.getElementById('f_buyerFee')||{}).value || 0);
+  const sellerFee = Number((document.getElementById('f_sellerFee')||{}).value || 0);
+  const expected = dealPersonalAmountFromGross(buyerFee + sellerFee);
+  const sumEl = document.getElementById('dealCollectionsSummary');
+  if(sumEl) sumEl.textContent = `已領 $${totalPersonal.toLocaleString()} / 應收 $${expected.toLocaleString()}（尚未領 $${Math.max(expected-totalPersonal,0).toLocaleString()}）`;
+}
+
+function addDealCollection(){
+  const date = document.getElementById('dealCollectionDate').value;
+  const gross = document.getElementById('dealCollectionGross').value.trim();
+  if(!date || !gross){ showToast('請輸入日期跟這筆業績金額'); return; }
+  const personalAmount = dealPersonalAmountFromGross(gross);
+  editingCtx.tempCollections.push({id:uid(), date, grossAmount:gross, personalAmount});
+  document.getElementById('dealCollectionDate').value = '';
+  document.getElementById('dealCollectionGross').value = '';
+  renderDealCollectionsList();
+}
+function removeDealCollection(collectionId){
+  editingCtx.tempCollections = editingCtx.tempCollections.filter(c=>c.id!==collectionId);
+  renderDealCollectionsList();
 }
 
 async function saveDeal(){
+  const buyerFee = document.getElementById('f_buyerFee').value;
+  const sellerFee = document.getElementById('f_sellerFee').value;
   const vals = {
-    caseName: document.getElementById('f_caseName').value.trim(),
     clientName: document.getElementById('f_clientName').value.trim(),
-    amount: document.getElementById('f_amount').value,
-    rate: document.getElementById('f_rate').value,
-    commission: document.getElementById('f_commission').value,
+    caseName: document.getElementById('f_caseName').value.trim(),
+    propertyAddress: document.getElementById('f_propertyAddress').value.trim(),
     closedDate: document.getElementById('f_closedDate').value,
+    amount: document.getElementById('f_amount').value,
+    buyerFee, sellerFee,
+    devStore: document.getElementById('f_devStore').value.trim(),
+    devAgent: document.getElementById('f_devAgent').value.trim(),
+    devPercent: document.getElementById('f_devPercent').value,
+    devAmount: document.getElementById('f_devAmount').value,
+    saleStore: document.getElementById('f_saleStore').value.trim(),
+    saleAgent: document.getElementById('f_saleAgent').value.trim(),
+    salePercent: document.getElementById('f_salePercent').value,
+    saleAmount: document.getElementById('f_saleAmount').value,
+    buyerName: document.getElementById('f_buyerName').value.trim(),
+    buyerPhone: document.getElementById('f_buyerPhone').value.trim(),
+    sellerName: document.getElementById('f_sellerName').value.trim(),
+    sellerPhone: document.getElementById('f_sellerPhone').value.trim(),
+    notes: document.getElementById('f_notes').value.trim(),
+    commission: dealPersonalAmountFromGross(Number(buyerFee||0) + Number(sellerFee||0)),
+    collections: editingCtx.tempCollections || [],
   };
   if(!vals.caseName){ showToast('請輸入案件名稱'); return false; }
   if(editingCtx.id){
