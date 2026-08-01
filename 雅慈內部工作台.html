@@ -3964,6 +3964,9 @@ async function ptFetchReadablePageText(url){
   if(!res.ok) throw new Error(`網頁讀取服務回應錯誤 (狀態碼 ${res.status})`);
   const text = await res.text();
   if(!text || text.trim().length < 20) throw new Error('讀取到的網頁內容是空的，該網址可能需要登入或封鎖了自動讀取');
+  if(/(?:error 403|forbidden|request blocked|cloudfront|access denied|驗證碼|captcha)/i.test(text.slice(0, 800))){
+    throw new Error('這個網站擋掉了自動讀取（防機器人保護），沒辦法自動抓取任何欄位或照片，請直接手動輸入資料');
+  }
   return text.trim();
 }
 
@@ -4172,7 +4175,7 @@ function drawCalendar(){
   });
 
   const firstDay = new Date(year, month, 1);
-  const startWeekday = firstDay.getDay();
+  const startWeekday = (firstDay.getDay() + 6) % 7;
   const daysInMonth = new Date(year, month+1, 0).getDate();
   const todayStr = new Date().toISOString().slice(0,10);
 
@@ -4191,7 +4194,7 @@ function drawCalendar(){
   }
 
   document.getElementById('calGrid').innerHTML = `
-    <div class="cal-weekdays"><div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div></div>
+    <div class="cal-weekdays"><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div></div>
     <div class="cal-grid">${cells}</div>
   `;
 }
