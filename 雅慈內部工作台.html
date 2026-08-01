@@ -746,7 +746,7 @@ function exportExcel(){
     showToast('Excel 匯出元件載入失敗,請檢查網路連線');
     return;
   }
-  const clientRows = DATA.clients.map(c=>{
+  const clientRows = DATA.clients.filter(c=>!c.isDutyRosterClient).map(c=>{
     const records = getClientPropertyRecords(c);
     const byCat = cat => records.filter(r=>r.category===cat).map(r=>{
       const price = [r.askingPrice?`開價${r.askingPrice}萬`:'', r.bottomPrice?`底價${r.bottomPrice}萬`:''].filter(Boolean).join('/');
@@ -1097,7 +1097,7 @@ const CLIENT_TYPES = ['買方','賣方','租客','房東'];
 const CLIENT_STATUSES = ['追蹤中','委託中','已成交','已買到','已售出','已流失'];
 const NEEDS_PROPERTY_TYPES = ['電梯','公寓','透天別墅','套房','廠房','農地','建地'];
 const NEEDS_PARKING_OPTIONS = ['需要','不需要','不限'];
-const SERVICE_LOG_TYPES = ['帶看','收斡','退斡','買方聯絡','賣方聯絡','復看','簽委託','驗屋','面談','拍照/實境','續約','拜訪','契變','結案'];
+const SERVICE_LOG_TYPES = ['帶看','收斡','退斡','買方聯絡','賣方聯絡','復看','簽委託','驗屋','面談','拍照/實境','續約','拜訪','契變','結案','值班'];
 const SERVICE_LOG_EXTRA_FIELDS = {
   '帶看': { repeating: true, fields: [
     {key:'viewOrder', label:'帶看順序'},
@@ -1331,15 +1331,17 @@ function drawClientTable(){
   const q = (document.getElementById('clientSearch').value||'').toLowerCase();
   const st = document.getElementById('clientStatusFilter').value;
   let list = DATA.clients.filter(c=>{
+    if(c.isDutyRosterClient) return false;
     const matchQ = !q || clientSearchText(c).includes(q);
     const matchSt = !st || (st==='__uncategorized__' ? getClientStatuses(c).length===0 : getClientStatuses(c).includes(st));
     return matchQ && matchSt;
   });
   const countLabel = document.getElementById('clientCountLabel');
+  const realClientCount = DATA.clients.filter(c=>!c.isDutyRosterClient).length;
   if(countLabel){
     countLabel.textContent = (q || st)
-      ? `符合條件 ${list.length} 筆(共 ${DATA.clients.length} 筆)`
-      : `共 ${DATA.clients.length} 筆`;
+      ? `符合條件 ${list.length} 筆(共 ${realClientCount} 筆)`
+      : `共 ${realClientCount} 筆`;
   }
   const wrap = document.getElementById('clientTableWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">沒有符合的客戶</div>'; return; }
@@ -4196,11 +4198,106 @@ function renderCalendar(){
       </div>
     </div>
 
+    <div class="section-block" style="margin-bottom:16px;">
+      <div class="section-block-body" style="padding:14px 16px;">
+        <div class="field-sub-title" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;" onclick="toggleFieldSection('dutyRosterBody', this)">
+          <span>📋 值班表快速勾選(免費,手動選日期)</span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
+        </div>
+        <div id="dutyRosterBody" style="display:none; margin-top:10px;">
+          <div class="pt-hint" style="margin:0 0 6px;">勾選這個月你值班的日期(切換上方月份,下面的日期也會跟著換)</div>
+          <div id="dutyRosterDayGrid" style="display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:10px;"></div>
+          <div class="pt-hint" style="margin:0 0 4px;">班別(時間會自動帶入,晚班會自動加垃圾車時間)</div>
+          <div class="field-row">
+            <select id="dutyRosterShiftSelect">
+              <option value="早班">早班</option>
+              <option value="中班">中班</option>
+              <option value="晚班">晚班</option>
+            </select>
+            <input type="text" id="dutyRosterNoteInput" placeholder="其他備註(選填)">
+          </div>
+          <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="dutyRosterSubmit()">＋ 加入這些值班行程</button>
+        </div>
+      </div>
+    </div>
+
     <div class="section-block"><div class="section-block-body" id="calGrid" style="padding:0;"></div></div>
   `;
-  document.getElementById('calPrev').onclick = ()=>{ calendarMonth.setMonth(calendarMonth.getMonth()-1); drawCalendar(); };
-  document.getElementById('calNext').onclick = ()=>{ calendarMonth.setMonth(calendarMonth.getMonth()+1); drawCalendar(); };
-  document.getElementById('calToday').onclick = ()=>{ calendarMonth = new Date(); drawCalendar(); };
+  document.getElementById('calPrev').onclick = ()=>{ calendarMonth.setMonth(calendarMonth.getMonth()-1); drawCalendar(); renderDutyRosterGrid(); };
+  document.getElementById('calNext').onclick = ()=>{ calendarMonth.setMonth(calendarMonth.getMonth()+1); drawCalendar(); renderDutyRosterGrid(); };
+  document.getElementById('calToday').onclick = ()=>{ calendarMonth = new Date(); drawCalendar(); renderDutyRosterGrid(); };
+  drawCalendar();
+  renderDutyRosterGrid();
+}
+
+function renderDutyRosterGrid(){
+  const grid = document.getElementById('dutyRosterDayGrid');
+  if(!grid) return;
+  const year = calendarMonth.getFullYear();
+  const month = calendarMonth.getMonth();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  let html = '';
+  for(let d=1; d<=daysInMonth; d++){
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    html += `<label style="display:flex; flex-direction:column; align-items:center; gap:2px; font-size:11px; cursor:pointer; padding:4px; border:1px solid var(--line); border-radius:2px;">
+      <input type="checkbox" class="duty-day-cb" value="${dateStr}" style="width:auto;">
+      ${d}
+    </label>`;
+  }
+  grid.innerHTML = html;
+}
+
+function getDutyRosterClient(){
+  return DATA.clients.find(c=>c.isDutyRosterClient);
+}
+
+const DUTY_SHIFT_SCHEDULE = {
+  weekday: {
+    '早班': { start:'09:30', end:'13:00' },
+    '中班': { start:'13:00', end:'17:00' },
+    '晚班': { start:'17:00', end:'20:30' },
+  },
+  sunday: {
+    '早班': { start:'09:30', end:'12:00' },
+    '中班': { start:'12:00', end:'15:00' },
+    '晚班': { start:'15:00', end:'18:00' },
+  },
+};
+const DUTY_TRASH_TIME = { 0: null, 1: '20:00', 2: '19:30', 3: null, 4: '20:00', 5: '19:30', 6: '19:30' };
+
+function getDutyShiftInfo(dateStr, shiftType){
+  const dow = new Date(dateStr + 'T00:00:00').getDay();
+  const sched = dow === 0 ? DUTY_SHIFT_SCHEDULE.sunday : DUTY_SHIFT_SCHEDULE.weekday;
+  const times = sched[shiftType];
+  let note = `${shiftType} ${times.start}-${times.end}`;
+  if(shiftType === '晚班'){
+    const trash = DUTY_TRASH_TIME[dow];
+    if(trash) note += `，垃圾車 ${trash}`;
+  }
+  return { time: times.start, endTime: times.end, note };
+}
+
+async function dutyRosterSubmit(){
+  const checked = Array.from(document.querySelectorAll('.duty-day-cb:checked')).map(cb=>cb.value);
+  if(checked.length===0){ showToast('請至少勾選一天'); return; }
+  const shiftType = document.getElementById('dutyRosterShiftSelect').value;
+  const extraNote = document.getElementById('dutyRosterNoteInput').value.trim();
+
+  let dutyClient = getDutyRosterClient();
+  if(!dutyClient){
+    dutyClient = { id: uid(), name: '📋 值班表', phones:[], types:[], statuses:[], isDutyRosterClient: true, serviceLogs:[] };
+    DATA.clients.push(dutyClient);
+  }
+  if(!dutyClient.serviceLogs) dutyClient.serviceLogs = [];
+  checked.forEach(dateStr=>{
+    const info = getDutyShiftInfo(dateStr, shiftType);
+    const note = [info.note, extraNote].filter(Boolean).join('　');
+    dutyClient.serviceLogs.push({ id: uid(), date: dateStr, time: info.time, endTime: info.endTime, type: '值班', note });
+  });
+  await saveType('clients');
+  showToast(`已加入 ${checked.length} 筆值班行程`);
+  gcalAutoSyncClient(dutyClient.id);
+  document.querySelectorAll('.duty-day-cb').forEach(cb=>cb.checked=false);
+  document.getElementById('dutyRosterNoteInput').value = '';
   drawCalendar();
 }
 
@@ -4399,10 +4496,16 @@ function gcalBuildEventBody(client, l){
     : { useDefault: false, overrides: [{ method: 'popup', minutes: parseInt(reminderMinutes, 10) }] };
   if(l.time){
     const start = new Date(l.date + 'T' + l.time + ':00');
-    const oneHourLater = new Date(start.getTime() + 60*60*1000);
     const endOfDay = new Date(start);
     endOfDay.setHours(23, 59, 0, 0);
-    const end = oneHourLater > endOfDay ? endOfDay : oneHourLater;
+    let candidateEnd;
+    if(l.endTime){
+      candidateEnd = new Date(l.date + 'T' + l.endTime + ':00');
+      if(candidateEnd <= start) candidateEnd = new Date(start.getTime() + 60*60*1000);
+    }else{
+      candidateEnd = new Date(start.getTime() + 60*60*1000);
+    }
+    const end = candidateEnd > endOfDay ? endOfDay : candidateEnd;
     return {
       summary,
       description: l.note || '',
