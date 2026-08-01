@@ -4229,10 +4229,9 @@ function renderCalendar(){
           <span>📋 值班表快速勾選(免費,手動選日期)</span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
         </div>
         <div id="dutyRosterBody" style="display:none; margin-top:10px;">
-          <div class="pt-hint" style="margin:0 0 6px;">每一天選當天的班別(時間會自動帶入,晚班會自動加垃圾車時間;選「不值班」就不會建立)</div>
+          <div class="pt-hint" style="margin:0 0 6px;">每一天選當天的班別(時間自動帶入,晚班自動加垃圾車時間)。灰底代表已經有排班,可以直接改成別的班別或改回「不值班」取消,調班也是在這裡改</div>
           <div id="dutyRosterDayGrid" style="max-height:340px; overflow-y:auto; border:1px solid var(--line); border-radius:2px; padding:2px 8px; margin-bottom:10px;"></div>
-          <input type="text" id="dutyRosterNoteInput" placeholder="其他備註(選填,套用到這次全部送出的天數)">
-          <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="dutyRosterSubmit()">＋ 加入這些值班行程</button>
+          <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="dutyRosterSubmit()">儲存這個月的值班表</button>
         </div>
       </div>
     </div>
@@ -4246,6 +4245,18 @@ function renderCalendar(){
   renderDutyRosterGrid();
 }
 
+function findDutyLogForDate(dutyClient, dateStr){
+  if(!dutyClient || !dutyClient.serviceLogs) return null;
+  return dutyClient.serviceLogs.find(l=>l.date===dateStr && l.type==='值班') || null;
+}
+function guessShiftTypeFromLog(log){
+  if(!log || !log.note) return '';
+  if(log.note.startsWith('早班')) return '早班';
+  if(log.note.startsWith('中班')) return '中班';
+  if(log.note.startsWith('晚班')) return '晚班';
+  return '';
+}
+
 function renderDutyRosterGrid(){
   const grid = document.getElementById('dutyRosterDayGrid');
   if(!grid) return;
@@ -4253,17 +4264,20 @@ function renderDutyRosterGrid(){
   const month = calendarMonth.getMonth();
   const daysInMonth = new Date(year, month+1, 0).getDate();
   const weekdayNames = ['日','一','二','三','四','五','六'];
+  const dutyClient = getDutyRosterClient();
   let html = '';
   for(let d=1; d<=daysInMonth; d++){
     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const dow = new Date(year, month, d).getDay();
-    html += `<div style="display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--line);">
+    const existing = findDutyLogForDate(dutyClient, dateStr);
+    const currentShift = guessShiftTypeFromLog(existing);
+    html += `<div style="display:flex; align-items:center; gap:8px; padding:6px 4px; border-bottom:1px solid var(--line); ${existing?'background:var(--stone);':''}">
       <div style="width:64px; font-size:12px; color:var(--ink-soft); flex-shrink:0;">${month+1}/${d}（${weekdayNames[dow]}）</div>
       <select class="duty-day-shift-select" data-date="${dateStr}" style="flex:1;">
-        <option value="">不值班</option>
-        <option value="早班">早班</option>
-        <option value="中班">中班</option>
-        <option value="晚班">晚班</option>
+        <option value="" ${currentShift===''?'selected':''}>不值班</option>
+        <option value="早班" ${currentShift==='早班'?'selected':''}>早班</option>
+        <option value="中班" ${currentShift==='中班'?'selected':''}>中班</option>
+        <option value="晚班" ${currentShift==='晚班'?'selected':''}>晚班</option>
       </select>
     </div>`;
   }
@@ -4302,9 +4316,7 @@ function getDutyShiftInfo(dateStr, shiftType){
 
 async function dutyRosterSubmit(){
   const selects = Array.from(document.querySelectorAll('.duty-day-shift-select'));
-  const picks = selects.filter(s=>s.value).map(s=>({date: s.dataset.date, shift: s.value}));
-  if(picks.length===0){ showToast('請至少選一天的班別'); return; }
-  const extraNote = document.getElementById('dutyRosterNoteInput').value.trim();
+  if(selects.length===0) return;
 
   let dutyClient = getDutyRosterClient();
   if(!dutyClient){
@@ -4312,17 +4324,51 @@ async function dutyRosterSubmit(){
     DATA.clients.push(dutyClient);
   }
   if(!dutyClient.serviceLogs) dutyClient.serviceLogs = [];
-  picks.forEach(({date, shift})=>{
-    const info = getDutyShiftInfo(date, shift);
-    const note = [info.note, extraNote].filter(Boolean).join('　');
-    dutyClient.serviceLogs.push({ id: uid(), date, time: info.time, endTime: info.endTime, type: '值班', note });
+
+  let addedCount = 0, updatedCount = 0, removedCount = 0;
+  const toDeleteFromGcal = [];
+
+  selects.forEach(s=>{
+    const dateStr = s.dataset.date;
+    const shift = s.value;
+    const existingIdx = dutyClient.serviceLogs.findIndex(l=>l.date===dateStr && l.type==='值班');
+    if(!shift){
+      if(existingIdx !== -1){
+        const removed = dutyClient.serviceLogs[existingIdx];
+        dutyClient.serviceLogs.splice(existingIdx,1);
+        removedCount++;
+        if(removed.gcalEventId) toDeleteFromGcal.push(removed.gcalEventId);
+      }
+      return;
+    }
+    const info = getDutyShiftInfo(dateStr, shift);
+    const note = info.note;
+    if(existingIdx !== -1){
+      const existing = dutyClient.serviceLogs[existingIdx];
+      const changed = existing.time !== info.time || existing.endTime !== info.endTime || existing.note !== note;
+      if(changed){
+        existing.time = info.time;
+        existing.endTime = info.endTime;
+        existing.note = note;
+        updatedCount++;
+      }
+    }else{
+      dutyClient.serviceLogs.push({ id: uid(), date: dateStr, time: info.time, endTime: info.endTime, type: '值班', note });
+      addedCount++;
+    }
   });
+
   await saveType('clients');
-  showToast(`已加入 ${picks.length} 筆值班行程`);
+  for(const gid of toDeleteFromGcal){ await gcalAutoDeleteEvent(gid); }
   gcalAutoSyncClient(dutyClient.id);
-  selects.forEach(s=>{ s.value=''; });
-  document.getElementById('dutyRosterNoteInput').value = '';
+
+  const parts = [];
+  if(addedCount) parts.push(`新增 ${addedCount} 筆`);
+  if(updatedCount) parts.push(`更新 ${updatedCount} 筆`);
+  if(removedCount) parts.push(`移除 ${removedCount} 筆`);
+  showToast(parts.length ? parts.join('、') : '沒有變更');
   drawCalendar();
+  renderDutyRosterGrid();
 }
 
 function drawCalendar(){
