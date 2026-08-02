@@ -3511,10 +3511,9 @@ function drawDealTable(){
 
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有成交紀錄</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
-    <th>序號</th><th>案件</th><th>客戶</th><th>物件地址</th><th>成交金額(萬)</th><th>實際業績</th><th>已領</th><th>成交日</th><th></th>
+    <th>序號</th><th>案件</th><th>客戶</th><th>物件地址</th><th>成交金額(萬)</th><th>實際業績</th><th>成交日</th><th></th>
   </tr></thead><tbody>
     ${list.map(d=>{
-      const collected = (d.collections||[]).reduce((s,c)=>s+(Number(c.personalAmount)||0),0);
       const actualPerformance = dealActualPerformance(d);
       return `<tr class="row-hover" style="cursor:pointer;" onclick="viewDealModal('${d.id}')">
       <td>${esc(d._orderLabel)}</td>
@@ -3523,7 +3522,6 @@ function drawDealTable(){
       <td>${esc(d.propertyAddress||'—')}</td>
       <td>${d.amount?Number(d.amount).toLocaleString():'—'}</td>
       <td>$${actualPerformance.toLocaleString()}</td>
-      <td>$${collected.toLocaleString()}</td>
       <td>${esc(d.closedDate||'—')}</td>
       <td onclick="event.stopPropagation()"><div class="row-actions">
         <button class="icon-btn" onclick="openDealModal('${d.id}')" title="編輯">✎</button>
@@ -3629,7 +3627,6 @@ function openDealModal(id){
         <input type="date" id="dealCollectionDate">
         <input type="number" id="dealCollectionAmount" placeholder="這筆領到的金額">
       </div>
-      <div class="pt-hint" style="margin:4px 0;">以「應領金額」為基準,自動算出這筆佔應領金額的比例</div>
       <button class="btn btn-ghost btn-sm" onclick="addDealCollection()">＋ 新增領款紀錄</button>
     </div>
   `;
