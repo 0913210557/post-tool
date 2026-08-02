@@ -3165,11 +3165,12 @@ async function viewDealModal(id){
     return `<div class="photo-chip" style="cursor:pointer;" onclick="openLightboxByIndex(${idx})"><img src="${src}"></div>`;
   }).join('')}</div>` : '<div class="empty-state" style="padding:12px;">尚無相關資料</div>';
 
+  const expectedCollection = Math.round(actualPerformance * 0.5 * 0.9);
   const collectionsHtml = (item.collections||[]).length
     ? `<div class="log-list">${item.collections.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(c=>{
         const amt = Number(c.personalAmount||0);
-        const pct = actualPerformance>0 ? (amt/actualPerformance*100).toFixed(1) : '0';
-        return `<div class="log-entry"><div class="log-entry-date">${esc(c.date||'—')}</div><div class="log-entry-note">$${amt.toLocaleString()}（佔實際業績 ${pct}%）</div></div>`;
+        const pct = expectedCollection>0 ? (amt/expectedCollection*100).toFixed(1) : '0';
+        return `<div class="log-entry"><div class="log-entry-date">${esc(c.date||'—')}</div><div class="log-entry-note">$${amt.toLocaleString()}（佔應領金額 ${pct}%）</div></div>`;
       }).join('')}</div>`
     : '<div class="empty-state" style="padding:12px;">尚無領款紀錄</div>';
 
@@ -3628,7 +3629,7 @@ function openDealModal(id){
         <input type="date" id="dealCollectionDate">
         <input type="number" id="dealCollectionAmount" placeholder="這筆領到的金額">
       </div>
-      <div class="pt-hint" style="margin:4px 0;">以「實際業績」為基準,自動算出這筆佔實際業績的比例</div>
+      <div class="pt-hint" style="margin:4px 0;">以「應領金額」為基準,自動算出這筆佔應領金額的比例</div>
       <button class="btn btn-ghost btn-sm" onclick="addDealCollection()">＋ 新增領款紀錄</button>
     </div>
   `;
@@ -3721,17 +3722,18 @@ function renderDealCollectionsList(){
   if(!wrap) return;
   const list = editingCtx.tempCollections || [];
   const total = getDealPersonalPerformanceTotal();
+  const expectedCollection = Math.round(total * 0.5 * 0.9);
 
   const expectedEl = document.getElementById('dealExpectedCollectionAmount');
-  if(expectedEl) expectedEl.textContent = '$' + Math.round(total * 0.5 * 0.9).toLocaleString();
+  if(expectedEl) expectedEl.textContent = '$' + expectedCollection.toLocaleString();
 
   wrap.innerHTML = list.length ? list.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(c=>{
     const amt = Number(c.personalAmount||0);
-    const pct = total>0 ? (amt/total*100).toFixed(1) : '0';
+    const pct = expectedCollection>0 ? (amt/expectedCollection*100).toFixed(1) : '0';
     return `
     <div class="log-entry">
       <div class="log-entry-date">${esc(c.date||'—')}</div>
-      <div class="log-entry-note">$${amt.toLocaleString()}（佔實際業績 ${pct}%　算法：${amt.toLocaleString()} ÷ 實際業績 ${total.toLocaleString()} × 100%）</div>
+      <div class="log-entry-note">$${amt.toLocaleString()}（佔應領金額 ${pct}%　算法：${amt.toLocaleString()} ÷ 應領金額 ${expectedCollection.toLocaleString()} × 100%）</div>
       <button class="rm" onclick="removeDealCollection('${c.id}')" title="刪除">✕</button>
     </div>
   `;
@@ -3739,7 +3741,7 @@ function renderDealCollectionsList(){
 
   const totalCollected = list.reduce((s,c)=>s+(Number(c.personalAmount)||0),0);
   const sumEl = document.getElementById('dealCollectionsSummary');
-  if(sumEl) sumEl.textContent = `已領 $${totalCollected.toLocaleString()} / 實際業績 $${total.toLocaleString()}（尚未領 $${Math.max(total-totalCollected,0).toLocaleString()}）`;
+  if(sumEl) sumEl.textContent = `已領 $${totalCollected.toLocaleString()} / 應領金額 $${expectedCollection.toLocaleString()}（尚未領 $${Math.max(expectedCollection-totalCollected,0).toLocaleString()}）`;
 }
 
 function addDealCollection(){
