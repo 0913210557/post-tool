@@ -3579,26 +3579,30 @@ function openDealModal(id){
       <div class="pt-hint" style="margin:0 0 4px;">開發</div>
       <div class="field-row">
         <input type="text" id="f_devStore" placeholder="店名" value="${esc(item.devStore)}">
-        <input type="text" id="f_devAgent" placeholder="業務" value="${esc(item.devAgent)}" oninput="updateDealPersonalPerformanceDisplay(); renderDealCollectionsList();">
+        <input type="text" id="f_devAgent" placeholder="業務" value="${esc(item.devAgent)}">
       </div>
       <div class="field-row" style="margin-top:6px;">
         <input type="number" id="f_devPercent" placeholder="比例%" value="${esc(item.devPercent)}">
-        <input type="number" id="f_devAmount" placeholder="金額" value="${esc(item.devAmount)}" oninput="updateDealPersonalPerformanceDisplay(); renderDealCollectionsList();">
+        <input type="number" id="f_devAmount" placeholder="金額" value="${esc(item.devAmount)}">
       </div>
       <div class="pt-hint" style="margin:12px 0 4px;">銷售</div>
       <div class="field-row">
         <input type="text" id="f_saleStore" placeholder="店名" value="${esc(item.saleStore)}">
-        <input type="text" id="f_saleAgent" placeholder="業務" value="${esc(item.saleAgent)}" oninput="updateDealPersonalPerformanceDisplay(); renderDealCollectionsList();">
+        <input type="text" id="f_saleAgent" placeholder="業務" value="${esc(item.saleAgent)}">
       </div>
       <div class="field-row" style="margin-top:6px;">
         <input type="number" id="f_salePercent" placeholder="比例%" value="${esc(item.salePercent)}">
-        <input type="number" id="f_saleAmount" placeholder="金額" value="${esc(item.saleAmount)}" oninput="updateDealPersonalPerformanceDisplay(); renderDealCollectionsList();">
+        <input type="number" id="f_saleAmount" placeholder="金額" value="${esc(item.saleAmount)}">
       </div>
     </div>
 
     <div class="field field-divider">
       <div class="field-sub-title">實際業績</div>
-      <div class="pt-hint">自動偵測開發／銷售裡「業務」欄位是 ${esc(DEAL_MY_NAME)} 的那一筆金額 <b id="dealPersonalPerformance">$0</b></div>
+      <div class="pt-hint" style="margin:0 0 6px;">預設自動偵測開發／銷售裡「業務」欄位只要有出現 ${esc(DEAL_MY_NAME)}(同一格有其他人名字也算)的那一筆金額,你也可以直接改成正確的數字</div>
+      <div class="field-row">
+        <input type="number" id="f_actualPerformance" value="${esc(item.actualPerformance !== undefined && item.actualPerformance !== '' ? item.actualPerformance : dealActualPerformance(item))}" oninput="renderDealCollectionsList()">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="redetectDealPersonalPerformance()">重新自動偵測</button>
+      </div>
     </div>
 
     <div class="field field-divider">
@@ -3629,7 +3633,6 @@ function openDealModal(id){
   `;
   openModal();
   updateDealExpectedDisplay();
-  updateDealPersonalPerformanceDisplay();
   renderDealCollectionsList();
   renderDealAttachmentGrid();
   document.getElementById('dealAttachmentInput').onchange = async (e)=>{
@@ -3683,25 +3686,33 @@ function updateDealExpectedDisplay(){
 
 const DEAL_MY_NAME = '張雅慈';
 function dealActualPerformance(d){
+  if(d.actualPerformance !== undefined && d.actualPerformance !== '' && d.actualPerformance !== null){
+    return Number(d.actualPerformance) || 0;
+  }
   let amount = 0;
-  if((d.devAgent||'').trim() === DEAL_MY_NAME) amount += Number(d.devAmount||0);
-  if((d.saleAgent||'').trim() === DEAL_MY_NAME) amount += Number(d.saleAmount||0);
+  if((d.devAgent||'').includes(DEAL_MY_NAME)) amount += Number(d.devAmount||0);
+  if((d.saleAgent||'').includes(DEAL_MY_NAME)) amount += Number(d.saleAmount||0);
   return amount;
 }
 function getDealPersonalPerformanceTotal(){
+  return Number((document.getElementById('f_actualPerformance')||{}).value || 0);
+}
+function detectDealPersonalPerformanceFromAllocation(){
   const devAgent = ((document.getElementById('f_devAgent')||{}).value || '').trim();
   const saleAgent = ((document.getElementById('f_saleAgent')||{}).value || '').trim();
   const devAmount = Number((document.getElementById('f_devAmount')||{}).value || 0);
   const saleAmount = Number((document.getElementById('f_saleAmount')||{}).value || 0);
   let amount = 0;
-  if(devAgent === DEAL_MY_NAME) amount += devAmount;
-  if(saleAgent === DEAL_MY_NAME) amount += saleAmount;
+  if(devAgent.includes(DEAL_MY_NAME)) amount += devAmount;
+  if(saleAgent.includes(DEAL_MY_NAME)) amount += saleAmount;
   return amount;
 }
-function updateDealPersonalPerformanceDisplay(){
-  const el = document.getElementById('dealPersonalPerformance');
+function redetectDealPersonalPerformance(){
+  const el = document.getElementById('f_actualPerformance');
   if(!el) return;
-  el.textContent = '$' + getDealPersonalPerformanceTotal().toLocaleString();
+  el.value = detectDealPersonalPerformanceFromAllocation();
+  renderDealCollectionsList();
+  showToast('已重新偵測,記得確認金額對不對');
 }
 
 function renderDealCollectionsList(){
@@ -3764,6 +3775,7 @@ async function saveDeal(){
     sellerName: document.getElementById('f_sellerName').value.trim(),
     sellerPhone: document.getElementById('f_sellerPhone').value.trim(),
     notes: document.getElementById('f_notes').value.trim(),
+    actualPerformance: document.getElementById('f_actualPerformance').value,
     commission: getDealPersonalPerformanceTotal(),
     collections: editingCtx.tempCollections || [],
   };
