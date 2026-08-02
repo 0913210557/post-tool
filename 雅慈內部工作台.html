@@ -1411,7 +1411,7 @@ function renderSoldClients(){
     <div class="page-head">
       <div>
         <div class="page-title"><span class="eyebrow">SOLD</span>已成交客戶</div>
-        <div class="page-desc">客戶的「物件記錄」只要標記「已成交」,就會自動出現在這裡 · <span id="soldClientCountLabel">共 0 筆</span></div>
+        <div class="page-desc">客戶狀態只要標記「已成交」、「已買到」或「已售出」,就會自動出現在這裡 · <span id="soldClientCountLabel">共 0 筆</span></div>
       </div>
     </div>
     <div class="toolbar">
@@ -1427,9 +1427,11 @@ function getClientGreetingCards(c){
   return c.greetingCards || [];
 }
 
+const SOLD_STATUS_SET = ['已成交','已買到','已售出'];
+
 function drawSoldClientTable(){
   const q = (document.getElementById('soldClientSearch').value||'').toLowerCase();
-  const allSold = DATA.clients.filter(c=>getClientPropertyRecords(c).some(r=>r.category==='已成交'));
+  const allSold = DATA.clients.filter(c=>getClientStatuses(c).some(s=>SOLD_STATUS_SET.includes(s)));
   let list = allSold.filter(c=>{
     return !q || clientSearchText(c).includes(q);
   });
@@ -1440,15 +1442,17 @@ function drawSoldClientTable(){
   const wrap = document.getElementById('soldClientTableWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">目前沒有已成交客戶</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
-    <th>姓名</th><th>電話</th><th>已成交物件</th><th>賀卡紀錄</th><th></th>
+    <th>姓名</th><th>電話</th><th>狀態</th><th>已成交物件</th><th>賀卡紀錄</th><th></th>
   </tr></thead><tbody>
     ${list.map(c=>{
       const soldItems = getClientPropertyRecords(c).filter(r=>r.category==='已成交').map(r=>r.content).join('、');
+      const statuses = getClientStatuses(c).filter(s=>SOLD_STATUS_SET.includes(s)).join('、');
       const cards = getClientGreetingCards(c).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
       const cardsHtml = cards.map(g=>`<span class="tag-soft" style="margin-right:4px; white-space:nowrap;" title="${esc(g.note||'')}">🧧 ${esc((g.date||'').slice(0,4))}<span style="cursor:pointer; margin-left:3px;" onclick="event.stopPropagation(); removeGreetingCard('${c.id}','${g.id}')">✕</span></span>`).join('');
       return `<tr class="row-hover" style="cursor:pointer;" onclick="viewClientModal('${c.id}')">
       <td>${esc(c.name)}</td>
       <td>${clientPhoneSummary(c)}</td>
+      <td>${esc(statuses||'—')}</td>
       <td>${esc(soldItems||'—')}</td>
       <td onclick="event.stopPropagation()">${cardsHtml}<button class="icon-btn" onclick="openGreetingCardModal('${c.id}')" title="新增賀卡紀錄">🧧＋</button></td>
       <td onclick="event.stopPropagation()"><div class="row-actions">
@@ -1498,7 +1502,7 @@ function renderEntrustedProperties(){
     <div class="page-head">
       <div>
         <div class="page-title"><span class="eyebrow">ENTRUSTED</span>物件委託</div>
-        <div class="page-desc">客戶的「物件記錄」只要標記「委託中」,就會自動出現在這裡 · <span id="entrustedCountLabel">共 0 筆</span></div>
+        <div class="page-desc">客戶狀態只要標記「委託中」,就會自動出現在這裡 · <span id="entrustedCountLabel">共 0 筆</span></div>
       </div>
     </div>
     <div class="toolbar">
@@ -1512,7 +1516,7 @@ function renderEntrustedProperties(){
 
 function drawEntrustedTable(){
   const q = (document.getElementById('entrustedSearch').value||'').toLowerCase();
-  const allEntrusted = DATA.clients.filter(c=>getClientPropertyRecords(c).some(r=>r.category==='委託中'));
+  const allEntrusted = DATA.clients.filter(c=>getClientStatuses(c).includes('委託中'));
   let list = allEntrusted.filter(c=>{
     return !q || clientSearchText(c).includes(q);
   });
@@ -1521,13 +1525,16 @@ function drawEntrustedTable(){
     countLabel.textContent = q ? `符合條件 ${list.length} 筆(共 ${allEntrusted.length} 筆)` : `共 ${allEntrusted.length} 筆`;
   }
   const wrap = document.getElementById('entrustedTableWrap');
-  if(list.length===0){ wrap.innerHTML = '<div class="empty-state">目前沒有委託中的物件,到客戶資料裡新增「物件記錄」並選「委託中」即可</div>'; return; }
+  if(list.length===0){ wrap.innerHTML = '<div class="empty-state">目前沒有委託中的客戶,把客戶狀態設為「委託中」即可</div>'; return; }
 
   const rows = [];
   list.forEach(c=>{
-    getClientPropertyRecords(c).filter(r=>r.category==='委託中').forEach(r=>{
-      rows.push({client:c, record:r});
-    });
+    const records = getClientPropertyRecords(c).filter(r=>r.category==='委託中');
+    if(records.length===0){
+      rows.push({client:c, record:null});
+    }else{
+      records.forEach(r=>rows.push({client:c, record:r}));
+    }
   });
 
   wrap.innerHTML = `<table><thead><tr>
@@ -1536,10 +1543,10 @@ function drawEntrustedTable(){
     ${rows.map(({client:c, record:r})=>`<tr class="row-hover" style="cursor:pointer;" onclick="viewClientModal('${c.id}')">
       <td>${esc(c.name)}</td>
       <td>${clientPhoneSummary(c)}</td>
-      <td>${esc(r.content||'—')}</td>
-      <td>${esc(r.entrustDate||'—')}</td>
-      <td>${r.askingPrice?esc(r.askingPrice)+'萬':'—'}</td>
-      <td>${r.bottomPrice?esc(r.bottomPrice)+'萬':'—'}</td>
+      <td>${esc((r&&r.content)||'—')}</td>
+      <td>${esc((r&&r.entrustDate)||'—')}</td>
+      <td>${(r&&r.askingPrice)?esc(r.askingPrice)+'萬':'—'}</td>
+      <td>${(r&&r.bottomPrice)?esc(r.bottomPrice)+'萬':'—'}</td>
       <td onclick="event.stopPropagation()"><div class="row-actions">
         <button class="icon-btn" onclick="openClientModal('${c.id}')" title="編輯">✎</button>
       </div></td>
