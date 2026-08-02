@@ -3419,9 +3419,15 @@ function drawDealTable(){
     ascByDate.forEach((d,i)=>{ d._orderLabel = `${t}${i+1}件`; });
   });
 
-  let list = [...DATA.deals];
-  if(typeFilter) list = list.filter(d=>(d.dealType||'售')===typeFilter);
-  list.sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+  let list;
+  if(typeFilter){
+    list = DATA.deals.filter(d=>(d.dealType||'售')===typeFilter)
+      .sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+  }else{
+    const sale = DATA.deals.filter(d=>(d.dealType||'售')==='售').sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+    const rent = DATA.deals.filter(d=>(d.dealType||'售')==='租').sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+    list = [...sale, ...rent];
+  }
 
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有成交紀錄</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
