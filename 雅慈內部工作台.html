@@ -3378,12 +3378,10 @@ async function saveContent(){
 /* ===================== Deals Page ===================== */
 function renderDeals(){
   const main = document.getElementById('main');
-  const totalCommission = DATA.deals.reduce((s,d)=>s+(Number(d.commission)||0),0);
   main.innerHTML = `
     <div class="page-head">
       <div>
         <div class="page-title"><span class="eyebrow">DEALS</span>業績成交</div>
-        <div class="page-desc">累計抽成 <strong>$${totalCommission.toLocaleString()}</strong> 元</div>
       </div>
       <button class="btn btn-primary" id="addDealBtn">＋ 新增成交案</button>
     </div>
@@ -3398,7 +3396,7 @@ function drawDealTable(){
   const ascByDate = [...DATA.deals].sort((a,b)=>(a.closedDate||'').localeCompare(b.closedDate||''));
   const orderMap = {};
   ascByDate.forEach((d,i)=>{ orderMap[d.id] = i+1; });
-  const list = [...DATA.deals].sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+  const list = [...DATA.deals].sort((a,b)=>orderMap[b.id]-orderMap[a.id]);
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有成交紀錄</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
     <th>序號</th><th>案件</th><th>客戶</th><th>物件地址</th><th>成交金額(萬)</th><th>應收業績</th><th>已領</th><th>成交日</th><th></th>
