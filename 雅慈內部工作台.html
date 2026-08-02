@@ -1411,7 +1411,7 @@ function renderSoldClients(){
     <div class="page-head">
       <div>
         <div class="page-title"><span class="eyebrow">SOLD</span>已成交客戶</div>
-        <div class="page-desc">客戶狀態只要標記「已成交」、「已買到」或「已售出」,就會自動出現在這裡 · <span id="soldClientCountLabel">共 0 筆</span></div>
+        <div class="page-desc">客戶狀態只要標記「已成交」,就會自動出現在這裡 · <span id="soldClientCountLabel">共 0 筆</span></div>
       </div>
     </div>
     <div class="toolbar">
@@ -1427,7 +1427,7 @@ function getClientGreetingCards(c){
   return c.greetingCards || [];
 }
 
-const SOLD_STATUS_SET = ['已成交','已買到','已售出'];
+const SOLD_STATUS_SET = ['已成交'];
 
 function drawSoldClientTable(){
   const q = (document.getElementById('soldClientSearch').value||'').toLowerCase();
@@ -3410,16 +3410,25 @@ function renderDeals(){
         <button class="btn btn-primary" id="addDealBtn">＋ 新增成交案</button>
       </div>
     </div>
+    <div class="toolbar">
+      <input class="search-input" id="dealSearch" placeholder="搜尋客戶姓名 / 案件名稱 / 物件地址 / 買方 / 賣方…">
+    </div>
     <div class="section-block"><div class="section-block-body" id="dealTableWrap"></div></div>
   `;
   document.getElementById('addDealBtn').onclick = ()=>openDealModal();
   document.getElementById('dealTypeFilter').onchange = drawDealTable;
+  document.getElementById('dealSearch').oninput = drawDealTable;
   drawDealTable();
+}
+
+function dealSearchText(d){
+  return [d.clientName, d.caseName, d.propertyAddress, d.buyerName, d.sellerName, d.notes].filter(Boolean).join(' ').toLowerCase();
 }
 
 function drawDealTable(){
   const wrap = document.getElementById('dealTableWrap');
   const typeFilter = (document.getElementById('dealTypeFilter')||{}).value || '';
+  const q = ((document.getElementById('dealSearch')||{}).value || '').toLowerCase();
 
   ['售','租'].forEach(t=>{
     const ascByDate = DATA.deals.filter(d=>(d.dealType||'售')===t).sort((a,b)=>(a.closedDate||'').localeCompare(b.closedDate||''));
@@ -3435,6 +3444,7 @@ function drawDealTable(){
     const rent = DATA.deals.filter(d=>(d.dealType||'售')==='租').sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
     list = [...sale, ...rent];
   }
+  if(q) list = list.filter(d=>dealSearchText(d).includes(q));
 
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有成交紀錄</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
