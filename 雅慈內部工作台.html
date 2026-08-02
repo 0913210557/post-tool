@@ -3463,7 +3463,7 @@ function openDealModal(id){
     buyerName:'', buyerPhone:'', sellerName:'', sellerPhone:'',
     notes:'', collections:[],
   };
-  editingCtx = {type:'deals', id: id||null, tempCollections: (item.collections||[]).map(c=>({...c}))};
+  editingCtx = {type:'deals', id: id||null, tempCollections: (item.collections||[]).map(c=>({...c})), dealAttachments:[], removedDealAttachmentKeys:[], _dealAttachmentsLoaded:false};
   document.getElementById('modalTitle').textContent = id ? '編輯成交案' : '新增成交案';
   document.getElementById('modalBody').innerHTML = `
     <div class="field"><label>租售</label>
@@ -3478,6 +3478,12 @@ function openDealModal(id){
     <div class="field-row">
       <div class="field"><label>成交日期</label><input type="date" id="f_closedDate" value="${esc(item.closedDate)}"></div>
       <div class="field"><label>成交金額(萬)</label><input type="number" id="f_amount" value="${esc(item.amount)}"></div>
+    </div>
+
+    <div class="field field-divider">
+      <div class="field-sub-title">相關資料</div>
+      <div class="photo-grid" id="dealAttachmentGrid"><span class="tag-soft">載入中…</span></div>
+      <input type="file" accept="image/*" multiple id="dealAttachmentInput" style="display:none;">
     </div>
 
     <div class="field field-divider">
@@ -3540,6 +3546,46 @@ function openDealModal(id){
   openModal();
   updateDealExpectedDisplay();
   renderDealCollectionsList();
+  renderDealAttachmentGrid();
+  document.getElementById('dealAttachmentInput').onchange = async (e)=>{
+    const files = Array.from(e.target.files||[]);
+    for(const file of files){
+      const dataUrl = await resizeImage(file, 1400, 0.78);
+      editingCtx.dealAttachments.push({key:null, dataUrl});
+    }
+    e.target.value = '';
+    renderDealAttachmentGrid();
+  };
+}
+
+async function renderDealAttachmentGrid(){
+  const grid = document.getElementById('dealAttachmentGrid');
+  if(!grid) return;
+  if(editingCtx.dealAttachments.length===0 && editingCtx.id && !editingCtx._dealAttachmentsLoaded){
+    const item = DATA.deals.find(d=>d.id===editingCtx.id);
+    if(item && item.attachmentKeys && item.attachmentKeys.length){
+      for(const k of item.attachmentKeys){
+        const dataUrl = await loadPhoto(k);
+        if(dataUrl) editingCtx.dealAttachments.push({key:k, dataUrl});
+      }
+    }
+    editingCtx._dealAttachmentsLoaded = true;
+  }
+  const addTile = `<div class="upload-btn" id="addDealAttachmentTile">＋<br>新增照片</div>`;
+  grid.innerHTML = editingCtx.dealAttachments.map((p,idx)=>`
+    <div class="photo-chip">
+      <img src="${p.dataUrl}">
+      <button class="rm" onclick="removeDealAttachment(${idx})" title="移除">✕</button>
+    </div>
+  `).join('') + addTile;
+  const tile = document.getElementById('addDealAttachmentTile');
+  if(tile) tile.onclick = ()=>document.getElementById('dealAttachmentInput').click();
+}
+function removeDealAttachment(idx){
+  const p = editingCtx.dealAttachments[idx];
+  if(p.key) editingCtx.removedDealAttachmentKeys.push(p.key);
+  editingCtx.dealAttachments.splice(idx,1);
+  renderDealAttachmentGrid();
 }
 
 function updateDealExpectedDisplay(){
@@ -3613,6 +3659,17 @@ async function saveDeal(){
     collections: editingCtx.tempCollections || [],
   };
   if(!vals.caseName){ showToast('請輸入案件名稱'); return false; }
+
+  for(const k of editingCtx.removedDealAttachmentKeys) await deletePhoto(k);
+  for(const p of editingCtx.dealAttachments){
+    if(!p.key){
+      const newKey = 'photo:deal-doc:' + uid();
+      await savePhoto(newKey, p.dataUrl);
+      p.key = newKey;
+    }
+  }
+  vals.attachmentKeys = editingCtx.dealAttachments.map(p=>p.key);
+
   if(editingCtx.id){
     const idx = DATA.deals.findIndex(d=>d.id===editingCtx.id);
     DATA.deals[idx] = {...DATA.deals[idx], ...vals};
@@ -5139,6 +5196,7 @@ async function deleteItem(type, id){
     if(type==='clients' && item.attachmentKeys) for(const k of item.attachmentKeys) await deletePhoto(k);
     if(type==='clients' && item.propertyRecords) for(const r of item.propertyRecords) for(const k of (r.photoKeys||[])) await deletePhoto(k);
     if(type==='listings' && item.photoKeys) for(const k of item.photoKeys) await deletePhoto(k);
+    if(type==='deals' && item.attachmentKeys) for(const k of item.attachmentKeys) await deletePhoto(k);
   }
   DATA[type] = DATA[type].filter(x=>x.id!==id);
   await saveType(type);
