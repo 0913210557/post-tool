@@ -788,7 +788,7 @@ function exportExcel(){
   });
 
   ['售','租'].forEach(t=>{
-    const ascByDate = DATA.deals.filter(d=>(d.dealType||'售')===t).sort((a,b)=>(a.closedDate||'').localeCompare(b.closedDate||''));
+    const ascByDate = DATA.deals.filter(d=>(d.dealType||'售')===t).sort(dealDateAscComparator);
     ascByDate.forEach((d,i)=>{ d._orderLabel = `${t}${i+1}件`; });
   });
   const dealRows = DATA.deals.map(d=>{
@@ -1873,11 +1873,11 @@ function removeNeedsAreaEntry(areaId){
 }
 
 function maybeOfferCreateDeal(clientName, caseName, propertyAddress){
-  if(!confirm('這筆物件已標記「已成交」,要建立一筆業績成交紀錄嗎?(只會帶入客戶姓名、案名、物件地址,其他要自己補)')) return;
+  if(!confirm('這筆物件已標記「已成交」,要建立一筆業績成交紀錄嗎?(只會帶入客戶姓名、物件地址,其他要自己補)')) return;
   DATA.deals.push({
     id: uid(),
     dealType: '售',
-    caseName: caseName || '',
+    caseName: '',
     clientName: clientName || '',
     propertyAddress: propertyAddress || '',
     amount: '',
@@ -3494,17 +3494,17 @@ function drawDealTable(){
   const q = ((document.getElementById('dealSearch')||{}).value || '').toLowerCase();
 
   ['售','租'].forEach(t=>{
-    const ascByDate = DATA.deals.filter(d=>(d.dealType||'售')===t).sort((a,b)=>(a.closedDate||'').localeCompare(b.closedDate||''));
+    const ascByDate = DATA.deals.filter(d=>(d.dealType||'售')===t).sort(dealDateAscComparator);
     ascByDate.forEach((d,i)=>{ d._orderLabel = `${t}${i+1}件`; });
   });
 
   let list;
   if(typeFilter){
     list = DATA.deals.filter(d=>(d.dealType||'售')===typeFilter)
-      .sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+      .sort(dealDateDescComparator);
   }else{
-    const sale = DATA.deals.filter(d=>(d.dealType||'售')==='售').sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
-    const rent = DATA.deals.filter(d=>(d.dealType||'售')==='租').sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+    const sale = DATA.deals.filter(d=>(d.dealType||'售')==='售').sort(dealDateDescComparator);
+    const rent = DATA.deals.filter(d=>(d.dealType||'售')==='租').sort(dealDateDescComparator);
     list = [...sale, ...rent];
   }
   if(q) list = list.filter(d=>dealSearchText(d).includes(q));
@@ -3684,6 +3684,17 @@ function updateDealExpectedDisplay(){
 }
 
 const DEAL_MY_NAME = '張雅慈';
+function dealDateAscComparator(a,b){
+  const dc = (a.closedDate||'').localeCompare(b.closedDate||'');
+  if(dc !== 0) return dc;
+  return DATA.deals.indexOf(a) - DATA.deals.indexOf(b);
+}
+function dealDateDescComparator(a,b){
+  const dc = (b.closedDate||'').localeCompare(a.closedDate||'');
+  if(dc !== 0) return dc;
+  return DATA.deals.indexOf(a) - DATA.deals.indexOf(b);
+}
+
 function dealActualPerformance(d){
   if(d.actualPerformance !== undefined && d.actualPerformance !== '' && d.actualPerformance !== null){
     return Number(d.actualPerformance) || 0;
