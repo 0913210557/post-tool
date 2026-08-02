@@ -793,7 +793,7 @@ function exportExcel(){
   });
   const dealRows = DATA.deals.map(d=>{
     const collected = (d.collections||[]).reduce((s,c)=>s+(Number(c.personalAmount)||0),0);
-    const expected = dealPersonalAmountFromGross(Number(d.buyerFee||0) + Number(d.sellerFee||0));
+    const actualPerformance = dealActualPerformance(d);
     return {
       '序號': d._orderLabel || '',
       '租售': d.dealType || '售',
@@ -804,7 +804,7 @@ function exportExcel(){
       '成交金額(萬)': d.amount || '',
       '買方服務費': d.buyerFee || '',
       '賣方服務費': d.sellerFee || '',
-      '實際業績': (Number(d.buyerFee||0) + Number(d.sellerFee||0)) || '',
+      '總佣金': (Number(d.buyerFee||0) + Number(d.sellerFee||0)) || '',
       '開發-店名': d.devStore || '',
       '開發-業務': d.devAgent || '',
       '開發-比例%': d.devPercent || '',
@@ -817,7 +817,7 @@ function exportExcel(){
       '買方電話': d.buyerPhone || '',
       '賣方姓名': d.sellerName || '',
       '賣方電話': d.sellerPhone || '',
-      '應收業績(我方)': expected,
+      '實際業績': actualPerformance,
       '已領金額': collected,
       '備註': d.notes || '',
     };
@@ -3152,7 +3152,7 @@ async function viewDealModal(id){
   document.getElementById('viewModalAddLogBtn').style.display = 'none';
 
   const collected = (item.collections||[]).reduce((s,c)=>s+(Number(c.personalAmount)||0),0);
-  const expected = dealPersonalAmountFromGross(Number(item.buyerFee||0) + Number(item.sellerFee||0));
+  const actualPerformance = dealActualPerformance(item);
 
   const attachmentUrls = (item.attachmentKeys && item.attachmentKeys.length)
     ? await Promise.all(item.attachmentKeys.map(k=>loadPhoto(k)))
@@ -3166,9 +3166,11 @@ async function viewDealModal(id){
   }).join('')}</div>` : '<div class="empty-state" style="padding:12px;">尚無相關資料</div>';
 
   const collectionsHtml = (item.collections||[]).length
-    ? `<div class="log-list">${item.collections.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(c=>`
-        <div class="log-entry"><div class="log-entry-date">${esc(c.date||'—')}</div><div class="log-entry-note">業績 $${Number(c.grossAmount||0).toLocaleString()} → 實得 $${Number(c.personalAmount||0).toLocaleString()}</div></div>
-      `).join('')}</div>`
+    ? `<div class="log-list">${item.collections.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(c=>{
+        const amt = Number(c.personalAmount||0);
+        const pct = actualPerformance>0 ? (amt/actualPerformance*100).toFixed(1) : '0';
+        return `<div class="log-entry"><div class="log-entry-date">${esc(c.date||'—')}</div><div class="log-entry-note">$${amt.toLocaleString()}（佔實際業績 ${pct}%）</div></div>`;
+      }).join('')}</div>`
     : '<div class="empty-state" style="padding:12px;">尚無領款紀錄</div>';
 
   document.getElementById('viewModalBody').innerHTML = `
@@ -3179,8 +3181,8 @@ async function viewDealModal(id){
     ${viewInfoRow('成交金額', item.amount ? Number(item.amount).toLocaleString()+' 萬' : '')}
     ${viewInfoRow('買方服務費', item.buyerFee ? '$'+Number(item.buyerFee).toLocaleString() : '')}
     ${viewInfoRow('賣方服務費', item.sellerFee ? '$'+Number(item.sellerFee).toLocaleString() : '')}
-    ${viewInfoRow('實際業績', '$'+(Number(item.buyerFee||0)+Number(item.sellerFee||0)).toLocaleString())}
-    ${viewInfoRow('應收業績(我方)', '$'+expected.toLocaleString())}
+    ${viewInfoRow('總佣金', '$'+(Number(item.buyerFee||0)+Number(item.sellerFee||0)).toLocaleString())}
+    ${viewInfoRow('實際業績', '$'+actualPerformance.toLocaleString())}
     ${viewInfoRow('已領金額', '$'+collected.toLocaleString())}
     ${viewInfoRow('開發', [item.devStore, item.devAgent, item.devPercent?item.devPercent+'%':'', item.devAmount?'$'+Number(item.devAmount).toLocaleString():''].filter(Boolean).map(esc).join('　'))}
     ${viewInfoRow('銷售', [item.saleStore, item.saleAgent, item.salePercent?item.salePercent+'%':'', item.saleAmount?'$'+Number(item.saleAmount).toLocaleString():''].filter(Boolean).map(esc).join('　'))}
@@ -3508,18 +3510,18 @@ function drawDealTable(){
 
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有成交紀錄</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
-    <th>序號</th><th>案件</th><th>客戶</th><th>物件地址</th><th>成交金額(萬)</th><th>應收業績</th><th>已領</th><th>成交日</th><th></th>
+    <th>序號</th><th>案件</th><th>客戶</th><th>物件地址</th><th>成交金額(萬)</th><th>實際業績</th><th>已領</th><th>成交日</th><th></th>
   </tr></thead><tbody>
     ${list.map(d=>{
       const collected = (d.collections||[]).reduce((s,c)=>s+(Number(c.personalAmount)||0),0);
-      const expected = dealPersonalAmountFromGross(Number(d.buyerFee||0) + Number(d.sellerFee||0));
+      const actualPerformance = dealActualPerformance(d);
       return `<tr class="row-hover" style="cursor:pointer;" onclick="viewDealModal('${d.id}')">
       <td>${esc(d._orderLabel)}</td>
       <td>${esc(d.caseName)}</td>
       <td>${esc(d.clientName||'—')}</td>
       <td>${esc(d.propertyAddress||'—')}</td>
       <td>${d.amount?Number(d.amount).toLocaleString():'—'}</td>
-      <td>$${expected.toLocaleString()}</td>
+      <td>$${actualPerformance.toLocaleString()}</td>
       <td>$${collected.toLocaleString()}</td>
       <td>${esc(d.closedDate||'—')}</td>
       <td onclick="event.stopPropagation()"><div class="row-actions">
@@ -3529,12 +3531,6 @@ function drawDealTable(){
     </tr>`;
     }).join('')}
   </tbody></table>`;
-}
-
-const DEAL_COMPANY_CUT_RATE = 0.5;
-const DEAL_EXEC_FEE_RATE = 0.1;
-function dealPersonalAmountFromGross(gross){
-  return Math.round(Number(gross||0) * DEAL_COMPANY_CUT_RATE * (1 - DEAL_EXEC_FEE_RATE));
 }
 
 function openDealModal(id){
@@ -3583,20 +3579,20 @@ function openDealModal(id){
       <div class="pt-hint" style="margin:0 0 4px;">開發</div>
       <div class="field-row">
         <input type="text" id="f_devStore" placeholder="店名" value="${esc(item.devStore)}">
-        <input type="text" id="f_devAgent" placeholder="業務" value="${esc(item.devAgent)}" oninput="updateDealPersonalPerformanceDisplay()">
+        <input type="text" id="f_devAgent" placeholder="業務" value="${esc(item.devAgent)}" oninput="updateDealPersonalPerformanceDisplay(); renderDealCollectionsList();">
       </div>
       <div class="field-row" style="margin-top:6px;">
         <input type="number" id="f_devPercent" placeholder="比例%" value="${esc(item.devPercent)}">
-        <input type="number" id="f_devAmount" placeholder="金額" value="${esc(item.devAmount)}" oninput="updateDealPersonalPerformanceDisplay()">
+        <input type="number" id="f_devAmount" placeholder="金額" value="${esc(item.devAmount)}" oninput="updateDealPersonalPerformanceDisplay(); renderDealCollectionsList();">
       </div>
       <div class="pt-hint" style="margin:12px 0 4px;">銷售</div>
       <div class="field-row">
         <input type="text" id="f_saleStore" placeholder="店名" value="${esc(item.saleStore)}">
-        <input type="text" id="f_saleAgent" placeholder="業務" value="${esc(item.saleAgent)}" oninput="updateDealPersonalPerformanceDisplay()">
+        <input type="text" id="f_saleAgent" placeholder="業務" value="${esc(item.saleAgent)}" oninput="updateDealPersonalPerformanceDisplay(); renderDealCollectionsList();">
       </div>
       <div class="field-row" style="margin-top:6px;">
         <input type="number" id="f_salePercent" placeholder="比例%" value="${esc(item.salePercent)}">
-        <input type="number" id="f_saleAmount" placeholder="金額" value="${esc(item.saleAmount)}" oninput="updateDealPersonalPerformanceDisplay()">
+        <input type="number" id="f_saleAmount" placeholder="金額" value="${esc(item.saleAmount)}" oninput="updateDealPersonalPerformanceDisplay(); renderDealCollectionsList();">
       </div>
     </div>
 
@@ -3625,9 +3621,9 @@ function openDealModal(id){
       <div class="log-list" id="dealCollectionsList"></div>
       <div class="field-row" style="margin-top:8px;">
         <input type="date" id="dealCollectionDate">
-        <input type="number" id="dealCollectionGross" placeholder="這筆業績金額">
+        <input type="number" id="dealCollectionAmount" placeholder="這筆領到的金額">
       </div>
-      <div class="pt-hint" style="margin:4px 0;">實得 = 業績金額 × ${DEAL_COMPANY_CUT_RATE*100}%(公司抽成) × ${100-DEAL_EXEC_FEE_RATE*100}%(扣執行業務所得後)</div>
+      <div class="pt-hint" style="margin:4px 0;">以「實際業績」為基準,自動算出這筆佔實際業績的比例</div>
       <button class="btn btn-ghost btn-sm" onclick="addDealCollection()">＋ 新增領款紀錄</button>
     </div>
   `;
@@ -3686,47 +3682,57 @@ function updateDealExpectedDisplay(){
 }
 
 const DEAL_MY_NAME = '張雅慈';
-function updateDealPersonalPerformanceDisplay(){
-  const el = document.getElementById('dealPersonalPerformance');
-  if(!el) return;
-  const devAgent = (document.getElementById('f_devAgent').value || '').trim();
-  const saleAgent = (document.getElementById('f_saleAgent').value || '').trim();
-  const devAmount = Number(document.getElementById('f_devAmount').value || 0);
-  const saleAmount = Number(document.getElementById('f_saleAmount').value || 0);
+function dealActualPerformance(d){
+  let amount = 0;
+  if((d.devAgent||'').trim() === DEAL_MY_NAME) amount += Number(d.devAmount||0);
+  if((d.saleAgent||'').trim() === DEAL_MY_NAME) amount += Number(d.saleAmount||0);
+  return amount;
+}
+function getDealPersonalPerformanceTotal(){
+  const devAgent = ((document.getElementById('f_devAgent')||{}).value || '').trim();
+  const saleAgent = ((document.getElementById('f_saleAgent')||{}).value || '').trim();
+  const devAmount = Number((document.getElementById('f_devAmount')||{}).value || 0);
+  const saleAmount = Number((document.getElementById('f_saleAmount')||{}).value || 0);
   let amount = 0;
   if(devAgent === DEAL_MY_NAME) amount += devAmount;
   if(saleAgent === DEAL_MY_NAME) amount += saleAmount;
-  el.textContent = '$' + amount.toLocaleString();
+  return amount;
+}
+function updateDealPersonalPerformanceDisplay(){
+  const el = document.getElementById('dealPersonalPerformance');
+  if(!el) return;
+  el.textContent = '$' + getDealPersonalPerformanceTotal().toLocaleString();
 }
 
 function renderDealCollectionsList(){
   const wrap = document.getElementById('dealCollectionsList');
   if(!wrap) return;
   const list = editingCtx.tempCollections || [];
-  wrap.innerHTML = list.length ? list.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(c=>`
+  const total = getDealPersonalPerformanceTotal();
+  wrap.innerHTML = list.length ? list.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(c=>{
+    const amt = Number(c.personalAmount||0);
+    const pct = total>0 ? (amt/total*100).toFixed(1) : '0';
+    return `
     <div class="log-entry">
       <div class="log-entry-date">${esc(c.date||'—')}</div>
-      <div class="log-entry-note">業績 $${Number(c.grossAmount||0).toLocaleString()} → 實得 $${Number(c.personalAmount||0).toLocaleString()}</div>
+      <div class="log-entry-note">$${amt.toLocaleString()}（佔實際業績 ${pct}%　算法：${amt.toLocaleString()} ÷ 實際業績 ${total.toLocaleString()} × 100%）</div>
       <button class="rm" onclick="removeDealCollection('${c.id}')" title="刪除">✕</button>
     </div>
-  `).join('') : '<div class="empty-state" style="padding:12px;">尚無領款紀錄</div>';
+  `;
+  }).join('') : '<div class="empty-state" style="padding:12px;">尚無領款紀錄</div>';
 
-  const totalPersonal = list.reduce((s,c)=>s+(Number(c.personalAmount)||0),0);
-  const buyerFee = Number((document.getElementById('f_buyerFee')||{}).value || 0);
-  const sellerFee = Number((document.getElementById('f_sellerFee')||{}).value || 0);
-  const expected = dealPersonalAmountFromGross(buyerFee + sellerFee);
+  const totalCollected = list.reduce((s,c)=>s+(Number(c.personalAmount)||0),0);
   const sumEl = document.getElementById('dealCollectionsSummary');
-  if(sumEl) sumEl.textContent = `已領 $${totalPersonal.toLocaleString()} / 應收 $${expected.toLocaleString()}（尚未領 $${Math.max(expected-totalPersonal,0).toLocaleString()}）`;
+  if(sumEl) sumEl.textContent = `已領 $${totalCollected.toLocaleString()} / 實際業績 $${total.toLocaleString()}（尚未領 $${Math.max(total-totalCollected,0).toLocaleString()}）`;
 }
 
 function addDealCollection(){
   const date = document.getElementById('dealCollectionDate').value;
-  const gross = document.getElementById('dealCollectionGross').value.trim();
-  if(!date || !gross){ showToast('請輸入日期跟這筆業績金額'); return; }
-  const personalAmount = dealPersonalAmountFromGross(gross);
-  editingCtx.tempCollections.push({id:uid(), date, grossAmount:gross, personalAmount});
+  const amount = document.getElementById('dealCollectionAmount').value.trim();
+  if(!date || !amount){ showToast('請輸入日期跟這筆領到的金額'); return; }
+  editingCtx.tempCollections.push({id:uid(), date, personalAmount:amount});
   document.getElementById('dealCollectionDate').value = '';
-  document.getElementById('dealCollectionGross').value = '';
+  document.getElementById('dealCollectionAmount').value = '';
   renderDealCollectionsList();
 }
 function removeDealCollection(collectionId){
@@ -3758,7 +3764,7 @@ async function saveDeal(){
     sellerName: document.getElementById('f_sellerName').value.trim(),
     sellerPhone: document.getElementById('f_sellerPhone').value.trim(),
     notes: document.getElementById('f_notes').value.trim(),
-    commission: dealPersonalAmountFromGross(Number(buyerFee||0) + Number(sellerFee||0)),
+    commission: getDealPersonalPerformanceTotal(),
     collections: editingCtx.tempCollections || [],
   };
   if(!vals.caseName){ showToast('請輸入案件名稱'); return false; }
