@@ -1520,20 +1520,28 @@ function drawEntrustedTable(){
   }
   const wrap = document.getElementById('entrustedTableWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">目前沒有委託中的物件,到客戶資料裡新增「物件記錄」並選「委託中」即可</div>'; return; }
+
+  const rows = [];
+  list.forEach(c=>{
+    getClientPropertyRecords(c).filter(r=>r.category==='委託中').forEach(r=>{
+      rows.push({client:c, record:r});
+    });
+  });
+
   wrap.innerHTML = `<table><thead><tr>
-    <th>姓名</th><th>電話</th><th>委託中物件</th><th></th>
+    <th>姓名</th><th>電話</th><th>物件內容</th><th>委託時間</th><th>開價</th><th>底價</th><th></th>
   </tr></thead><tbody>
-    ${list.map(c=>{
-      const items = getClientPropertyRecords(c).filter(r=>r.category==='委託中').map(r=>r.content).join('、');
-      return `<tr class="row-hover" style="cursor:pointer;" onclick="viewClientModal('${c.id}')">
+    ${rows.map(({client:c, record:r})=>`<tr class="row-hover" style="cursor:pointer;" onclick="viewClientModal('${c.id}')">
       <td>${esc(c.name)}</td>
       <td>${clientPhoneSummary(c)}</td>
-      <td>${esc(items||'—')}</td>
+      <td>${esc(r.content||'—')}</td>
+      <td>${esc(r.entrustDate||'—')}</td>
+      <td>${r.askingPrice?esc(r.askingPrice)+'萬':'—'}</td>
+      <td>${r.bottomPrice?esc(r.bottomPrice)+'萬':'—'}</td>
       <td onclick="event.stopPropagation()"><div class="row-actions">
         <button class="icon-btn" onclick="openClientModal('${c.id}')" title="編輯">✎</button>
       </div></td>
-    </tr>`;
-    }).join('')}
+    </tr>`).join('')}
   </tbody></table>`;
 }
 
