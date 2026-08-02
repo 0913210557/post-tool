@@ -3692,7 +3692,7 @@ function dealDateAscComparator(a,b){
 function dealDateDescComparator(a,b){
   const dc = (b.closedDate||'').localeCompare(a.closedDate||'');
   if(dc !== 0) return dc;
-  return DATA.deals.indexOf(a) - DATA.deals.indexOf(b);
+  return DATA.deals.indexOf(b) - DATA.deals.indexOf(a);
 }
 
 function dealActualPerformance(d){
