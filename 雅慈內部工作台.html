@@ -4886,7 +4886,7 @@ function gcalBuildEventBody(client, l){
   const reminders = reminderMinutes === 'default'
     ? { useDefault: true }
     : { useDefault: false, overrides: [{ method: 'popup', minutes: parseInt(reminderMinutes, 10) }] };
-  const colorId = GCAL_TYPE_COLOR_ID[l.type];
+  const colorId = GCAL_TYPE_COLOR_ID[l.type] || '11';
   if(l.time){
     const start = new Date(l.date + 'T' + l.time + ':00');
     const endOfDay = new Date(start);
