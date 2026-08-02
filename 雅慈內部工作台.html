@@ -3570,12 +3570,12 @@ function openDealModal(id){
     </div>
 
     <div class="field field-divider">
-      <div class="field-sub-title">服務費 / 實際業績</div>
+      <div class="field-sub-title">服務費</div>
       <div class="field-row">
         <div class="field"><label>買方服務費</label><input type="number" id="f_buyerFee" value="${esc(item.buyerFee)}" oninput="updateDealExpectedDisplay()"></div>
         <div class="field"><label>賣方服務費</label><input type="number" id="f_sellerFee" value="${esc(item.sellerFee)}" oninput="updateDealExpectedDisplay()"></div>
       </div>
-      <div class="pt-hint" style="margin-top:4px;">實際業績(自動加總) <b id="dealActualPerformance">$0</b></div>
+      <div class="pt-hint" style="margin-top:4px;">總佣金(自動加總) <b id="dealActualPerformance">$0</b></div>
     </div>
 
     <div class="field field-divider">
@@ -3583,21 +3583,26 @@ function openDealModal(id){
       <div class="pt-hint" style="margin:0 0 4px;">開發</div>
       <div class="field-row">
         <input type="text" id="f_devStore" placeholder="店名" value="${esc(item.devStore)}">
-        <input type="text" id="f_devAgent" placeholder="業務" value="${esc(item.devAgent)}">
+        <input type="text" id="f_devAgent" placeholder="業務" value="${esc(item.devAgent)}" oninput="updateDealPersonalPerformanceDisplay()">
       </div>
       <div class="field-row" style="margin-top:6px;">
         <input type="number" id="f_devPercent" placeholder="比例%" value="${esc(item.devPercent)}">
-        <input type="number" id="f_devAmount" placeholder="金額" value="${esc(item.devAmount)}">
+        <input type="number" id="f_devAmount" placeholder="金額" value="${esc(item.devAmount)}" oninput="updateDealPersonalPerformanceDisplay()">
       </div>
       <div class="pt-hint" style="margin:12px 0 4px;">銷售</div>
       <div class="field-row">
         <input type="text" id="f_saleStore" placeholder="店名" value="${esc(item.saleStore)}">
-        <input type="text" id="f_saleAgent" placeholder="業務" value="${esc(item.saleAgent)}">
+        <input type="text" id="f_saleAgent" placeholder="業務" value="${esc(item.saleAgent)}" oninput="updateDealPersonalPerformanceDisplay()">
       </div>
       <div class="field-row" style="margin-top:6px;">
         <input type="number" id="f_salePercent" placeholder="比例%" value="${esc(item.salePercent)}">
-        <input type="number" id="f_saleAmount" placeholder="金額" value="${esc(item.saleAmount)}">
+        <input type="number" id="f_saleAmount" placeholder="金額" value="${esc(item.saleAmount)}" oninput="updateDealPersonalPerformanceDisplay()">
       </div>
+    </div>
+
+    <div class="field field-divider">
+      <div class="field-sub-title">實際業績</div>
+      <div class="pt-hint">自動偵測開發／銷售裡「業務」欄位是 ${esc(DEAL_MY_NAME)} 的那一筆金額 <b id="dealPersonalPerformance">$0</b></div>
     </div>
 
     <div class="field field-divider">
@@ -3628,6 +3633,7 @@ function openDealModal(id){
   `;
   openModal();
   updateDealExpectedDisplay();
+  updateDealPersonalPerformanceDisplay();
   renderDealCollectionsList();
   renderDealAttachmentGrid();
   document.getElementById('dealAttachmentInput').onchange = async (e)=>{
@@ -3677,6 +3683,20 @@ function updateDealExpectedDisplay(){
   const buyerFee = Number(document.getElementById('f_buyerFee').value || 0);
   const sellerFee = Number(document.getElementById('f_sellerFee').value || 0);
   el.textContent = '$' + (buyerFee + sellerFee).toLocaleString();
+}
+
+const DEAL_MY_NAME = '張雅慈';
+function updateDealPersonalPerformanceDisplay(){
+  const el = document.getElementById('dealPersonalPerformance');
+  if(!el) return;
+  const devAgent = (document.getElementById('f_devAgent').value || '').trim();
+  const saleAgent = (document.getElementById('f_saleAgent').value || '').trim();
+  const devAmount = Number(document.getElementById('f_devAmount').value || 0);
+  const saleAmount = Number(document.getElementById('f_saleAmount').value || 0);
+  let amount = 0;
+  if(devAgent === DEAL_MY_NAME) amount += devAmount;
+  if(saleAgent === DEAL_MY_NAME) amount += saleAmount;
+  el.textContent = '$' + amount.toLocaleString();
 }
 
 function renderDealCollectionsList(){
