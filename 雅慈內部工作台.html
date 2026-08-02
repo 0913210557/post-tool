@@ -3621,6 +3621,7 @@ function openDealModal(id){
 
     <div class="field field-divider">
       <div class="field-sub-title">領款紀錄</div>
+      <div class="pt-hint" style="margin:0 0 4px;">應領金額 = 實際業績 × 50%(公司抽成) × 90%(扣10%執行業務所得後) <b id="dealExpectedCollectionAmount">$0</b></div>
       <div class="pt-hint" id="dealCollectionsSummary" style="margin:0 0 8px;"></div>
       <div class="log-list" id="dealCollectionsList"></div>
       <div class="field-row" style="margin-top:8px;">
@@ -3720,6 +3721,10 @@ function renderDealCollectionsList(){
   if(!wrap) return;
   const list = editingCtx.tempCollections || [];
   const total = getDealPersonalPerformanceTotal();
+
+  const expectedEl = document.getElementById('dealExpectedCollectionAmount');
+  if(expectedEl) expectedEl.textContent = '$' + Math.round(total * 0.5 * 0.9).toLocaleString();
+
   wrap.innerHTML = list.length ? list.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(c=>{
     const amt = Number(c.personalAmount||0);
     const pct = total>0 ? (amt/total*100).toFixed(1) : '0';
