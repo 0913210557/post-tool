@@ -4485,10 +4485,8 @@ function getDutyRosterClient(){
 function getOrCreatePersonalScheduleClient(){
   let c = getDutyRosterClient();
   if(!c){
-    c = { id: uid(), name: '📋 個人行程', phones:[], types:[], statuses:[], isDutyRosterClient: true, serviceLogs:[] };
+    c = { id: uid(), name: '📋 值班表', phones:[], types:[], statuses:[], isDutyRosterClient: true, serviceLogs:[] };
     DATA.clients.push(c);
-  }else if(c.name === '📋 值班表'){
-    c.name = '📋 個人行程';
   }
   if(!c.serviceLogs) c.serviceLogs = [];
   return c;
@@ -4925,7 +4923,8 @@ const GCAL_TYPE_COLOR_ID = {
 };
 
 function gcalBuildEventBody(client, l){
-  const summary = `${l.type||'行程'} - ${client.name}`;
+  const trashMatch = l.note && l.note.match(/垃圾車\s*[\d:：]+/);
+  const summary = `${l.type||'行程'} - ${client.name}${trashMatch ? ' ' + trashMatch[0] : ''}`;
   const reminderMinutes = gcalGetReminderMinutes();
   const reminders = reminderMinutes === 'default'
     ? { useDefault: true }
