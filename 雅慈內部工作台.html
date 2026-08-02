@@ -4346,7 +4346,6 @@ function renderCalendar(){
     <div class="page-head">
       <div>
         <div class="page-title"><span class="eyebrow">CALENDAR</span>行事曆</div>
-        <div class="page-desc">依日期彙整所有客戶的服務紀錄,點紀錄可直接開啟該客戶</div>
       </div>
       <div class="toolbar" style="margin:0;">
         <button class="btn btn-ghost btn-sm" id="calPrev">‹ 上個月</button>
@@ -4390,41 +4389,13 @@ function renderCalendar(){
     <div class="section-block" style="margin-bottom:16px;">
       <div class="section-block-body" style="padding:14px 16px;">
         <div class="field-sub-title" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;" onclick="toggleFieldSection('dutyRosterBody', this)">
-          <span>📋 值班表快速勾選(免費,手動選日期)</span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
+          <span>📋 值班表<span id="landGodWarningBadge"></span></span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
         </div>
         <div id="dutyRosterBody" style="display:none; margin-top:10px;">
-          <div class="pt-hint" style="margin:0 0 6px;">每一天選當天的班別(時間自動帶入,晚班自動加垃圾車時間)。灰底代表已經有排班,可以直接改成別的班別或改回「不值班」取消,調班也是在這裡改</div>
+          <button class="btn btn-ghost btn-sm" onclick="generateLandGodEvents()">🏮 產生未來24個月的拜拜行程</button>
+          <div id="landGodStatus" class="pt-hint" style="margin:6px 0 12px;"></div>
           <div id="dutyRosterDayGrid" style="max-height:340px; overflow-y:auto; border:1px solid var(--line); border-radius:2px; padding:2px 8px; margin-bottom:10px;"></div>
           <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="dutyRosterSubmit()">儲存這個月的值班表</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-block" style="margin-bottom:16px;">
-      <div class="section-block-body" style="padding:14px 16px;">
-        <div class="field-sub-title" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;" onclick="toggleFieldSection('monthlyMeetingBody', this)">
-          <span>📅 月會</span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
-        </div>
-        <div id="monthlyMeetingBody" style="display:none; margin-top:10px;">
-          <div class="pt-hint" style="margin:0 0 6px;">選這個月月會的日期時間,新增後會自動同步到 Google 日曆/Jorte</div>
-          <div class="field-row">
-            <input type="date" id="monthlyMeetingDate">
-            <input type="time" id="monthlyMeetingTime">
-          </div>
-          <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="addMonthlyMeeting()">＋ 新增月會到行事曆</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-block" style="margin-bottom:16px;">
-      <div class="section-block-body" style="padding:14px 16px;">
-        <div class="field-sub-title" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;" onclick="toggleFieldSection('landGodBody', this)">
-          <span>🏮 土地公拜拜(農曆初二、十六)<span id="landGodWarningBadge"></span></span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
-        </div>
-        <div id="landGodBody" style="display:none; margin-top:10px;">
-          <div class="pt-hint" style="margin:0 0 6px;">按下面按鈕會自動算出未來24個月每個農曆初二、十六對應的國曆日期,遇到週日會自動提前到週六,已經加過的日期不會重複加入</div>
-          <div id="landGodStatus" class="pt-hint" style="margin:0 0 6px;"></div>
-          <button class="btn btn-primary btn-sm" onclick="generateLandGodEvents()">＋ 產生未來24個月的拜拜行程</button>
         </div>
       </div>
     </div>
@@ -4465,7 +4436,8 @@ function renderDutyRosterGrid(){
     const dow = new Date(year, month, d).getDay();
     const existing = findDutyLogForDate(dutyClient, dateStr);
     const currentShift = guessShiftTypeFromLog(existing);
-    html += `<div style="display:flex; align-items:center; gap:8px; padding:6px 4px; border-bottom:1px solid var(--line); ${existing?'background:var(--stone);':''}">
+    const hasMeeting = !!(dutyClient && dutyClient.serviceLogs && dutyClient.serviceLogs.find(l=>l.date===dateStr && l.type==='月會'));
+    html += `<div style="display:flex; align-items:center; gap:8px; padding:6px 4px; border-bottom:1px solid var(--line); ${existing||hasMeeting?'background:var(--stone);':''}">
       <div style="width:64px; font-size:12px; color:var(--ink-soft); flex-shrink:0;">${month+1}/${d}（${weekdayNames[dow]}）</div>
       <select class="duty-day-shift-select" data-date="${dateStr}" style="flex:1;">
         <option value="" ${currentShift===''?'selected':''}>不值班</option>
@@ -4473,6 +4445,9 @@ function renderDutyRosterGrid(){
         <option value="中班" ${currentShift==='中班'?'selected':''}>中班</option>
         <option value="晚班" ${currentShift==='晚班'?'selected':''}>晚班</option>
       </select>
+      <label style="display:flex; align-items:center; gap:4px; font-size:12px; flex-shrink:0; white-space:nowrap;">
+        <input type="checkbox" class="duty-day-meeting-cb" data-date="${dateStr}" ${hasMeeting?'checked':''}> 月會
+      </label>
     </div>`;
   }
   grid.innerHTML = html;
@@ -4490,20 +4465,6 @@ function getOrCreatePersonalScheduleClient(){
   }
   if(!c.serviceLogs) c.serviceLogs = [];
   return c;
-}
-
-async function addMonthlyMeeting(){
-  const date = document.getElementById('monthlyMeetingDate').value;
-  const time = document.getElementById('monthlyMeetingTime').value;
-  if(!date){ showToast('請選日期'); return; }
-  const client = getOrCreatePersonalScheduleClient();
-  client.serviceLogs.push({ id: uid(), date, time: time||'', type:'月會', note:'月會' });
-  await saveType('clients');
-  showToast('已新增月會到行事曆');
-  gcalAutoSyncClient(client.id);
-  document.getElementById('monthlyMeetingDate').value = '';
-  document.getElementById('monthlyMeetingTime').value = '';
-  drawCalendar();
 }
 
 async function generateLandGodEvents(){
@@ -4679,7 +4640,8 @@ function getDutyShiftInfo(dateStr, shiftType){
 
 async function dutyRosterSubmit(){
   const selects = Array.from(document.querySelectorAll('.duty-day-shift-select'));
-  if(selects.length===0) return;
+  const meetingCbs = Array.from(document.querySelectorAll('.duty-day-meeting-cb'));
+  if(selects.length===0 && meetingCbs.length===0) return;
 
   const dutyClient = getOrCreatePersonalScheduleClient();
 
@@ -4716,6 +4678,21 @@ async function dutyRosterSubmit(){
     }
   });
 
+  meetingCbs.forEach(cb=>{
+    const dateStr = cb.dataset.date;
+    const checked = cb.checked;
+    const existingIdx = dutyClient.serviceLogs.findIndex(l=>l.date===dateStr && l.type==='月會');
+    if(checked && existingIdx===-1){
+      dutyClient.serviceLogs.push({ id: uid(), date: dateStr, time:'', type:'月會', note:'月會' });
+      addedCount++;
+    }else if(!checked && existingIdx!==-1){
+      const removed = dutyClient.serviceLogs[existingIdx];
+      dutyClient.serviceLogs.splice(existingIdx,1);
+      removedCount++;
+      if(removed.gcalEventId) toDeleteFromGcal.push(removed.gcalEventId);
+    }
+  });
+
   await saveType('clients');
   for(const gid of toDeleteFromGcal){ await gcalAutoDeleteEvent(gid); }
   gcalAutoSyncClient(dutyClient.id);
@@ -4727,6 +4704,7 @@ async function dutyRosterSubmit(){
   showToast(parts.length ? parts.join('、') : '沒有變更');
   drawCalendar();
   renderDutyRosterGrid();
+  updateLandGodWarning();
 }
 
 function drawCalendar(){
@@ -4808,31 +4786,6 @@ function downloadICSFile(filename, content){
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-}
-
-function exportSingleEventToICS(clientId, logId){
-  const client = DATA.clients.find(c=>c.id===clientId);
-  if(!client) return;
-  const l = (client.serviceLogs||[]).find(x=>x.id===logId);
-  if(!l || !l.date) return;
-  const title = `${l.type||'行程'} - ${client.name}`;
-  const vevent = buildICSEvent(title, l.date, l.time, l.note||'');
-  downloadICSFile(`${l.type||'行程'}_${client.name}_${l.date}.ics`, buildICSFile([vevent]));
-  showToast('已下載行事曆檔,開啟後選擇要加入的行事曆 App(例如 Jorte)');
-}
-
-function exportDayToICS(dateStr){
-  const vevents = [];
-  DATA.clients.forEach(c=>{
-    (c.serviceLogs||[]).forEach(l=>{
-      if(l.date === dateStr){
-        vevents.push(buildICSEvent(`${l.type||'行程'} - ${c.name}`, l.date, l.time, l.note||''));
-      }
-    });
-  });
-  if(vevents.length===0){ showToast('這天沒有行程可以匯出'); return; }
-  downloadICSFile(`行事曆_${dateStr}.ics`, buildICSFile(vevents));
-  showToast('已下載行事曆檔,開啟後選擇要加入的行事曆 App(例如 Jorte)');
 }
 
 function exportAllUpcomingToICS(){
@@ -4924,7 +4877,9 @@ const GCAL_TYPE_COLOR_ID = {
 
 function gcalBuildEventBody(client, l){
   const trashMatch = l.note && l.note.match(/垃圾車\s*[\d:：]+/);
-  const summary = `${l.type||'行程'} - ${client.name}${trashMatch ? ' ' + trashMatch[0] : ''}`;
+  const summary = client.isDutyRosterClient
+    ? `${l.type||'行程'}${trashMatch ? ' ' + trashMatch[0] : ''}`
+    : `${l.type||'行程'} - ${client.name}${trashMatch ? ' ' + trashMatch[0] : ''}`;
   const reminderMinutes = gcalGetReminderMinutes();
   const reminders = reminderMinutes === 'default'
     ? { useDefault: true }
@@ -5094,7 +5049,6 @@ function openDayAgenda(dateStr){
 
   document.getElementById('dayAgendaTitle').textContent = dateStr + ' 的行程';
   document.getElementById('dayAgendaBody').innerHTML = events.length ? `
-    <button class="btn btn-ghost btn-sm" style="margin-bottom:10px;" onclick="exportDayToICS('${dateStr}')">📅 這天全部匯出到行事曆</button>
     <div class="log-list">${events.map(e=>{
     const isImportant = !CALENDAR_ROUTINE_TYPES.includes(e.type);
     const lineStyle = isImportant ? 'color:var(--brick); font-size:15px;' : '';
@@ -5106,7 +5060,6 @@ function openDayAgenda(dateStr){
         <b style="${lineStyle}">${e.time?esc(e.time)+' ':''}${e.type?`[${esc(e.type)}] `:''}${esc(e.clientName)}${trashLabel}</b>
         ${e.note?`<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${esc(e.note)}</div>`:''}
       </div>
-      <button class="btn btn-ghost btn-sm" style="flex-shrink:0;" onclick="event.stopPropagation(); exportSingleEventToICS('${e.clientId}','${e.logId}')" title="加入 Jorte / 手機行事曆">📅</button>
     </div>
   `;
   }).join('')}</div>` : '<div class="empty-state">這天沒有行程</div>';
