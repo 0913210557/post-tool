@@ -787,14 +787,16 @@ function exportExcel(){
     };
   });
 
-  const dealsAscByDate = [...DATA.deals].sort((a,b)=>(a.closedDate||'').localeCompare(b.closedDate||''));
-  const dealOrderMap = {};
-  dealsAscByDate.forEach((d,i)=>{ dealOrderMap[d.id] = i+1; });
+  ['售','租'].forEach(t=>{
+    const ascByDate = DATA.deals.filter(d=>(d.dealType||'售')===t).sort((a,b)=>(a.closedDate||'').localeCompare(b.closedDate||''));
+    ascByDate.forEach((d,i)=>{ d._orderLabel = `${t}${i+1}件`; });
+  });
   const dealRows = DATA.deals.map(d=>{
     const collected = (d.collections||[]).reduce((s,c)=>s+(Number(c.personalAmount)||0),0);
     const expected = dealPersonalAmountFromGross(Number(d.buyerFee||0) + Number(d.sellerFee||0));
     return {
-      '序號': dealOrderMap[d.id],
+      '序號': d._orderLabel || '',
+      '租售': d.dealType || '售',
       '客戶姓名': d.clientName || '',
       '案件名稱': d.caseName || '',
       '物件地址': d.propertyAddress || '',
@@ -1867,6 +1869,7 @@ function maybeOfferCreateDeal(clientName, caseName, propertyAddress){
   if(!confirm('這筆物件已標記「已成交」,要建立一筆業績成交紀錄嗎?(只會帶入客戶姓名、案名、物件地址,其他要自己補)')) return;
   DATA.deals.push({
     id: uid(),
+    dealType: '售',
     caseName: caseName || '',
     clientName: clientName || '',
     propertyAddress: propertyAddress || '',
@@ -3391,20 +3394,35 @@ function renderDeals(){
       <div>
         <div class="page-title"><span class="eyebrow">DEALS</span>業績成交</div>
       </div>
-      <button class="btn btn-primary" id="addDealBtn">＋ 新增成交案</button>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <select id="dealTypeFilter">
+          <option value="">全部</option>
+          <option value="售">售</option>
+          <option value="租">租</option>
+        </select>
+        <button class="btn btn-primary" id="addDealBtn">＋ 新增成交案</button>
+      </div>
     </div>
     <div class="section-block"><div class="section-block-body" id="dealTableWrap"></div></div>
   `;
   document.getElementById('addDealBtn').onclick = ()=>openDealModal();
+  document.getElementById('dealTypeFilter').onchange = drawDealTable;
   drawDealTable();
 }
 
 function drawDealTable(){
   const wrap = document.getElementById('dealTableWrap');
-  const ascByDate = [...DATA.deals].sort((a,b)=>(a.closedDate||'').localeCompare(b.closedDate||''));
-  const orderMap = {};
-  ascByDate.forEach((d,i)=>{ orderMap[d.id] = i+1; });
-  const list = [...DATA.deals].sort((a,b)=>orderMap[b.id]-orderMap[a.id]);
+  const typeFilter = (document.getElementById('dealTypeFilter')||{}).value || '';
+
+  ['售','租'].forEach(t=>{
+    const ascByDate = DATA.deals.filter(d=>(d.dealType||'售')===t).sort((a,b)=>(a.closedDate||'').localeCompare(b.closedDate||''));
+    ascByDate.forEach((d,i)=>{ d._orderLabel = `${t}${i+1}件`; });
+  });
+
+  let list = [...DATA.deals];
+  if(typeFilter) list = list.filter(d=>(d.dealType||'售')===typeFilter);
+  list.sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有成交紀錄</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
     <th>序號</th><th>案件</th><th>客戶</th><th>物件地址</th><th>成交金額(萬)</th><th>應收業績</th><th>已領</th><th>成交日</th><th></th>
@@ -3413,7 +3431,7 @@ function drawDealTable(){
       const collected = (d.collections||[]).reduce((s,c)=>s+(Number(c.personalAmount)||0),0);
       const expected = dealPersonalAmountFromGross(Number(d.buyerFee||0) + Number(d.sellerFee||0));
       return `<tr class="row-hover">
-      <td>第${orderMap[d.id]}件</td>
+      <td>${esc(d._orderLabel)}</td>
       <td>${esc(d.caseName)}</td>
       <td>${esc(d.clientName||'—')}</td>
       <td>${esc(d.propertyAddress||'—')}</td>
@@ -3438,7 +3456,7 @@ function dealPersonalAmountFromGross(gross){
 
 function openDealModal(id){
   const item = id ? DATA.deals.find(d=>d.id===id) : {
-    caseName:'', clientName:'', propertyAddress:'', closedDate:'', amount:'',
+    caseName:'', clientName:'', propertyAddress:'', closedDate:'', amount:'', dealType:'售',
     buyerFee:'', sellerFee:'',
     devStore:'', devAgent:'', devPercent:'', devAmount:'',
     saleStore:'', saleAgent:'', salePercent:'', saleAmount:'',
@@ -3448,6 +3466,12 @@ function openDealModal(id){
   editingCtx = {type:'deals', id: id||null, tempCollections: (item.collections||[]).map(c=>({...c}))};
   document.getElementById('modalTitle').textContent = id ? '編輯成交案' : '新增成交案';
   document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>租售</label>
+      <select id="f_dealType">
+        <option value="售" ${(item.dealType||'售')==='售'?'selected':''}>售</option>
+        <option value="租" ${item.dealType==='租'?'selected':''}>租</option>
+      </select>
+    </div>
     <div class="field"><label>客戶姓名</label><input id="f_clientName" value="${esc(item.clientName)}"></div>
     <div class="field"><label>案件名稱</label><input id="f_caseName" value="${esc(item.caseName)}"></div>
     <div class="field"><label>物件地址</label><input id="f_propertyAddress" value="${esc(item.propertyAddress)}"></div>
@@ -3565,6 +3589,7 @@ async function saveDeal(){
   const buyerFee = document.getElementById('f_buyerFee').value;
   const sellerFee = document.getElementById('f_sellerFee').value;
   const vals = {
+    dealType: document.getElementById('f_dealType').value,
     clientName: document.getElementById('f_clientName').value.trim(),
     caseName: document.getElementById('f_caseName').value.trim(),
     propertyAddress: document.getElementById('f_propertyAddress').value.trim(),
