@@ -4454,7 +4454,9 @@ function renderDutyRosterGrid(){
 }
 
 function getDutyRosterClient(){
-  return DATA.clients.find(c=>c.isDutyRosterClient);
+  const c = DATA.clients.find(c=>c.isDutyRosterClient);
+  if(c && c.name === '📋 個人行程'){ c.name = '📋 值班表'; saveType('clients'); }
+  return c;
 }
 
 function getOrCreatePersonalScheduleClient(){
@@ -5042,7 +5044,7 @@ function openDayAgenda(dateStr){
   const events = [];
   DATA.clients.forEach(c=>{
     (c.serviceLogs||[]).forEach(l=>{
-      if(l.date === dateStr) events.push({clientId:c.id, logId:l.id, clientName:c.name, time:l.time||'', note:l.note||'', type:l.type||''});
+      if(l.date === dateStr) events.push({clientId:c.id, logId:l.id, clientName:c.name, isDutyRosterClient:!!c.isDutyRosterClient, time:l.time||'', note:l.note||'', type:l.type||''});
     });
   });
   events.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
@@ -5054,10 +5056,11 @@ function openDayAgenda(dateStr){
     const lineStyle = isImportant ? 'color:var(--brick); font-size:15px;' : '';
     const trashMatch = e.note && e.note.match(/垃圾車\s*[\d:：]+/);
     const trashLabel = trashMatch ? ` ${esc(trashMatch[0])}` : '';
+    const nameLabel = e.isDutyRosterClient ? '' : esc(e.clientName);
     return `
     <div class="log-entry">
       <div class="log-entry-note" style="cursor:pointer;" onclick="closeDayAgenda(); viewClientModal('${e.clientId}')">
-        <b style="${lineStyle}">${e.time?esc(e.time)+' ':''}${e.type?`[${esc(e.type)}] `:''}${esc(e.clientName)}${trashLabel}</b>
+        <b style="${lineStyle}">${e.time?esc(e.time)+' ':''}${e.type?`[${esc(e.type)}] `:''}${nameLabel}${trashLabel}</b>
         ${e.note?`<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${esc(e.note)}</div>`:''}
       </div>
     </div>
