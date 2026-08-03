@@ -830,7 +830,7 @@ function exportExcel(){
     };
   });
 
-  ['售','租'].forEach(t=>{
+  ['售','租','解約'].forEach(t=>{
     const ascByDate = DATA.deals.filter(d=>(d.dealType||'售')===t).sort(dealDateAscComparator);
     ascByDate.forEach((d,i)=>{ d._orderLabel = `${t}${i+1}件`; });
   });
@@ -3514,6 +3514,7 @@ function renderDeals(){
           <option value="">全部</option>
           <option value="售">售</option>
           <option value="租">租</option>
+          <option value="解約">解約</option>
         </select>
         <button class="btn btn-primary" id="addDealBtn">＋ 新增成交案</button>
       </div>
@@ -3538,7 +3539,7 @@ function drawDealTable(){
   const typeFilter = (document.getElementById('dealTypeFilter')||{}).value || '';
   const q = ((document.getElementById('dealSearch')||{}).value || '').toLowerCase();
 
-  ['售','租'].forEach(t=>{
+  ['售','租','解約'].forEach(t=>{
     const ascByDate = DATA.deals.filter(d=>(d.dealType||'售')===t).sort(dealDateAscComparator);
     ascByDate.forEach((d,i)=>{ d._orderLabel = `${t}${i+1}件`; });
   });
@@ -3550,7 +3551,8 @@ function drawDealTable(){
   }else{
     const sale = DATA.deals.filter(d=>(d.dealType||'售')==='售').sort(dealDateDescComparator);
     const rent = DATA.deals.filter(d=>(d.dealType||'售')==='租').sort(dealDateDescComparator);
-    list = [...sale, ...rent];
+    const cancelled = DATA.deals.filter(d=>(d.dealType||'售')==='解約').sort(dealDateDescComparator);
+    list = [...sale, ...rent, ...cancelled];
   }
   if(q) list = list.filter(d=>dealSearchText(d).includes(q));
 
@@ -3593,6 +3595,7 @@ function openDealModal(id){
       <select id="f_dealType">
         <option value="售" ${(item.dealType||'售')==='售'?'selected':''}>售</option>
         <option value="租" ${item.dealType==='租'?'selected':''}>租</option>
+        <option value="解約" ${item.dealType==='解約'?'selected':''}>解約</option>
       </select>
     </div>
     <div class="field"><label>客戶姓名</label><input id="f_clientName" value="${esc(item.clientName)}"></div>
