@@ -3211,12 +3211,11 @@ async function viewDealModal(id){
     return `<div class="photo-chip" style="cursor:pointer;" onclick="window.open('${src}','_blank')"><div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; font-size:11px;">📄<br>檔案</div></div>`;
   }).join('')}</div>` : '<div class="empty-state" style="padding:12px;">尚無相關資料</div>';
 
-  const expectedCollection = Math.round(actualPerformance * 0.5 * 0.9);
+  const expectedCollection = dealExpectedCollection(actualPerformance, item.dealType||'售');
   const collectionsHtml = (item.collections||[]).length
     ? `<div class="log-list">${item.collections.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(c=>{
         const amt = Number(c.personalAmount||0);
-        const pct = expectedCollection>0 ? (amt/expectedCollection*100).toFixed(1) : '0';
-        return `<div class="log-entry"><div class="log-entry-date">${esc(c.date||'—')}</div><div class="log-entry-note">$${amt.toLocaleString()}（佔應領金額 ${pct}%）</div></div>`;
+        return `<div class="log-entry"><div class="log-entry-date">${esc(c.date||'—')}</div><div class="log-entry-note">$${amt.toLocaleString()}</div></div>`;
       }).join('')}</div>`
     : '<div class="empty-state" style="padding:12px;">尚無領款紀錄</div>';
 
@@ -3594,7 +3593,7 @@ function openDealModal(id){
   document.getElementById('modalTitle').textContent = id ? '編輯成交案' : '新增成交案';
   document.getElementById('modalBody').innerHTML = `
     <div class="field"><label>租售</label>
-      <select id="f_dealType">
+      <select id="f_dealType" onchange="renderDealCollectionsList()">
         <option value="售" ${(item.dealType||'售')==='售'?'selected':''}>售</option>
         <option value="租" ${item.dealType==='租'?'selected':''}>租</option>
         <option value="解約" ${item.dealType==='解約'?'selected':''}>解約</option>
@@ -3672,7 +3671,7 @@ function openDealModal(id){
 
     <div class="field field-divider">
       <div class="field-sub-title">領款紀錄</div>
-      <div class="pt-hint" style="margin:0 0 4px;">應領金額 = 實際業績 × 50%(公司抽成) × 90%(扣10%執行業務所得後) <b id="dealExpectedCollectionAmount">$0</b></div>
+      <div class="pt-hint" style="margin:0 0 4px;" id="dealExpectedFormulaHint"></div>
       <div class="pt-hint" id="dealCollectionsSummary" style="margin:0 0 8px;"></div>
       <div class="log-list" id="dealCollectionsList"></div>
       <div class="field-row" style="margin-top:8px;">
@@ -3772,6 +3771,11 @@ function dealDateDescComparator(a,b){
   return DATA.deals.indexOf(b) - DATA.deals.indexOf(a);
 }
 
+function dealExpectedCollection(actualPerformance, dealType){
+  if(dealType === '租') return Math.round(actualPerformance * 0.5);
+  return Math.round(actualPerformance * 0.5 * 0.9);
+}
+
 function dealActualPerformance(d){
   if(d.actualPerformance !== undefined && d.actualPerformance !== '' && d.actualPerformance !== null){
     return Number(d.actualPerformance) || 0;
@@ -3807,18 +3811,23 @@ function renderDealCollectionsList(){
   if(!wrap) return;
   const list = editingCtx.tempCollections || [];
   const total = getDealPersonalPerformanceTotal();
-  const expectedCollection = Math.round(total * 0.5 * 0.9);
+  const currentDealType = (document.getElementById('f_dealType')||{}).value || '售';
+  const expectedCollection = dealExpectedCollection(total, currentDealType);
 
-  const expectedEl = document.getElementById('dealExpectedCollectionAmount');
-  if(expectedEl) expectedEl.textContent = '$' + expectedCollection.toLocaleString();
+  const formulaEl = document.getElementById('dealExpectedFormulaHint');
+  if(formulaEl){
+    const formulaText = currentDealType === '租'
+      ? '應領金額 = 實際業績 × 50%(公司抽成)'
+      : '應領金額 = 實際業績 × 50%(公司抽成) × 90%(扣10%執行業務所得後)';
+    formulaEl.innerHTML = `${formulaText} <b>$${expectedCollection.toLocaleString()}</b>`;
+  }
 
   wrap.innerHTML = list.length ? list.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(c=>{
     const amt = Number(c.personalAmount||0);
-    const pct = expectedCollection>0 ? (amt/expectedCollection*100).toFixed(1) : '0';
     return `
     <div class="log-entry">
       <div class="log-entry-date">${esc(c.date||'—')}</div>
-      <div class="log-entry-note">$${amt.toLocaleString()}（佔應領金額 ${pct}%　算法：${amt.toLocaleString()} ÷ 應領金額 ${expectedCollection.toLocaleString()} × 100%）</div>
+      <div class="log-entry-note">$${amt.toLocaleString()}</div>
       <button class="rm" onclick="removeDealCollection('${c.id}')" title="刪除">✕</button>
     </div>
   `;
