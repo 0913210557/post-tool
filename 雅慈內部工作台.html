@@ -847,7 +847,8 @@ function exportExcel(){
       '成交金額(萬)': d.amount || '',
       '買方服務費': d.buyerFee || '',
       '賣方服務費': d.sellerFee || '',
-      '總佣金': (Number(d.buyerFee||0) + Number(d.sellerFee||0)) || '',
+      '介紹費': d.referralFee || '',
+      '總佣金': (Number(d.buyerFee||0) + Number(d.sellerFee||0) - Number(d.referralFee||0)) || '',
       '開發-店名': d.devStore || '',
       '開發-業務': d.devAgent || '',
       '開發-比例%': d.devPercent || '',
@@ -3227,7 +3228,8 @@ async function viewDealModal(id){
     ${viewInfoRow('成交金額', item.amount ? Number(item.amount).toLocaleString()+' 萬' : '')}
     ${viewInfoRow('買方服務費', item.buyerFee ? '$'+Number(item.buyerFee).toLocaleString() : '')}
     ${viewInfoRow('賣方服務費', item.sellerFee ? '$'+Number(item.sellerFee).toLocaleString() : '')}
-    ${viewInfoRow('總佣金', '$'+(Number(item.buyerFee||0)+Number(item.sellerFee||0)).toLocaleString())}
+    ${viewInfoRow('介紹費', item.referralFee ? '$'+Number(item.referralFee).toLocaleString() : '')}
+    ${viewInfoRow('總佣金', '$'+(Number(item.buyerFee||0)+Number(item.sellerFee||0)-Number(item.referralFee||0)).toLocaleString())}
     ${viewInfoRow('實際業績', '$'+actualPerformance.toLocaleString())}
     ${viewInfoRow('已領金額', '$'+collected.toLocaleString())}
     ${viewInfoRow('開發', [item.devStore, item.devAgent, item.devPercent?item.devPercent+'%':'', item.devAmount?'$'+Number(item.devAmount).toLocaleString():''].filter(Boolean).map(esc).join('　'))}
@@ -3619,7 +3621,8 @@ function openDealModal(id){
         <div class="field"><label>買方服務費</label><input type="number" id="f_buyerFee" value="${esc(item.buyerFee)}" oninput="updateDealExpectedDisplay()"></div>
         <div class="field"><label>賣方服務費</label><input type="number" id="f_sellerFee" value="${esc(item.sellerFee)}" oninput="updateDealExpectedDisplay()"></div>
       </div>
-      <div class="pt-hint" style="margin-top:4px;">總佣金(自動加總) <b id="dealActualPerformance">$0</b></div>
+      <div class="field" style="margin-top:8px;"><label>介紹費</label><input type="number" id="f_referralFee" value="${esc(item.referralFee)}" oninput="updateDealExpectedDisplay()"></div>
+      <div class="pt-hint" style="margin-top:4px;">總佣金(自動加總,已扣介紹費) <b id="dealActualPerformance">$0</b></div>
     </div>
 
     <div class="field field-divider">
@@ -3753,7 +3756,8 @@ function updateDealExpectedDisplay(){
   if(!el) return;
   const buyerFee = Number(document.getElementById('f_buyerFee').value || 0);
   const sellerFee = Number(document.getElementById('f_sellerFee').value || 0);
-  el.textContent = '$' + (buyerFee + sellerFee).toLocaleString();
+  const referralFee = Number(document.getElementById('f_referralFee').value || 0);
+  el.textContent = '$' + (buyerFee + sellerFee - referralFee).toLocaleString();
 }
 
 const DEAL_MY_NAME = '張雅慈';
@@ -3842,6 +3846,7 @@ function removeDealCollection(collectionId){
 async function saveDeal(){
   const buyerFee = document.getElementById('f_buyerFee').value;
   const sellerFee = document.getElementById('f_sellerFee').value;
+  const referralFee = document.getElementById('f_referralFee').value;
   const vals = {
     dealType: document.getElementById('f_dealType').value,
     clientName: document.getElementById('f_clientName').value.trim(),
@@ -3849,7 +3854,7 @@ async function saveDeal(){
     propertyAddress: document.getElementById('f_propertyAddress').value.trim(),
     closedDate: document.getElementById('f_closedDate').value,
     amount: document.getElementById('f_amount').value,
-    buyerFee, sellerFee,
+    buyerFee, sellerFee, referralFee,
     devStore: document.getElementById('f_devStore').value.trim(),
     devAgent: document.getElementById('f_devAgent').value.trim(),
     devPercent: document.getElementById('f_devPercent').value,
