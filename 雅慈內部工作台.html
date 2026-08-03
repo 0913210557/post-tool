@@ -655,6 +655,49 @@ async function deletePhoto(key){
   try{ await window.storage.delete(key, false); }catch(e){ /* ignore */ }
 }
 
+/* Chunked storage for larger files (PDFs, docs) that would exceed a single Firestore document's size limit */
+const FILE_CHUNK_SIZE = 700000;
+async function saveFileChunked(baseKey, dataUrl){
+  const chunks = [];
+  for(let i=0; i<dataUrl.length; i+=FILE_CHUNK_SIZE){
+    chunks.push(dataUrl.slice(i, i+FILE_CHUNK_SIZE));
+  }
+  for(let i=0; i<chunks.length; i++){
+    await window.storage.set(`${baseKey}-chunk-${i}`, chunks[i], false);
+  }
+  await window.storage.set(`${baseKey}-chunk-count`, String(chunks.length), false);
+}
+async function loadFileChunked(baseKey){
+  if(!baseKey) return null;
+  try{
+    const countRes = await window.storage.get(`${baseKey}-chunk-count`, false);
+    const count = countRes && countRes.value ? Number(countRes.value) || 0 : 0;
+    if(count === 0) return null;
+    let combined = '';
+    for(let i=0;i<count;i++){
+      const res = await window.storage.get(`${baseKey}-chunk-${i}`, false);
+      if(res && res.value) combined += res.value;
+    }
+    return combined;
+  }catch(e){ return null; }
+}
+async function deleteFileChunked(baseKey){
+  if(!baseKey) return;
+  try{
+    const countRes = await window.storage.get(`${baseKey}-chunk-count`, false);
+    const count = countRes && countRes.value ? Number(countRes.value) || 0 : 0;
+    for(let i=0;i<count;i++){
+      await window.storage.delete(`${baseKey}-chunk-${i}`, false);
+    }
+    await window.storage.delete(`${baseKey}-chunk-count`, false);
+  }catch(e){ /* ignore */ }
+}
+async function loadDealFile(key){
+  const chunked = await loadFileChunked(key);
+  if(chunked) return chunked;
+  return await loadPhoto(key);
+}
+
 function resizeImage(file, maxDim=900, quality=0.72){
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
@@ -3155,7 +3198,7 @@ async function viewDealModal(id){
   const actualPerformance = dealActualPerformance(item);
 
   const attachmentUrls = (item.attachmentKeys && item.attachmentKeys.length)
-    ? await Promise.all(item.attachmentKeys.map(k=>loadPhoto(k)))
+    ? await Promise.all(item.attachmentKeys.map(k=>loadDealFile(k)))
     : [];
   const attachmentsHtml = attachmentUrls.length ? `<div class="photo-grid">${attachmentUrls.map((src,i)=>{
     if(!src) return '';
@@ -3640,14 +3683,14 @@ function openDealModal(id){
   document.getElementById('dealAttachmentInput').onchange = async (e)=>{
     const files = Array.from(e.target.files||[]);
     for(const file of files){
+      if(file.size > 15*1024*1024){
+        showToast(`${file.name} 超過 15MB,請壓縮後再上傳`);
+        continue;
+      }
       if(file.type.startsWith('image/')){
         const dataUrl = await resizeImage(file, 1400, 0.78);
         editingCtx.dealAttachments.push({key:null, dataUrl, fileName:file.name});
       }else{
-        if(file.size > 700000){
-          showToast(`${file.name} 檔案太大(超過約700KB),無法上傳,請壓縮後再試`);
-          continue;
-        }
         const dataUrl = await readFileAsDataUrl(file);
         editingCtx.dealAttachments.push({key:null, dataUrl, fileName:file.name});
       }
@@ -3673,7 +3716,7 @@ async function renderDealAttachmentGrid(){
     const item = DATA.deals.find(d=>d.id===editingCtx.id);
     if(item && item.attachmentKeys && item.attachmentKeys.length){
       for(const k of item.attachmentKeys){
-        const dataUrl = await loadPhoto(k);
+        const dataUrl = await loadDealFile(k);
         if(dataUrl) editingCtx.dealAttachments.push({key:k, dataUrl});
       }
     }
@@ -3823,11 +3866,11 @@ async function saveDeal(){
   };
   if(!vals.caseName){ showToast('請輸入案件名稱'); return false; }
 
-  for(const k of editingCtx.removedDealAttachmentKeys) await deletePhoto(k);
+  for(const k of editingCtx.removedDealAttachmentKeys){ await deleteFileChunked(k); await deletePhoto(k); }
   for(const p of editingCtx.dealAttachments){
     if(!p.key){
-      const newKey = 'photo:deal-doc:' + uid();
-      await savePhoto(newKey, p.dataUrl);
+      const newKey = 'file:deal-doc:' + uid();
+      await saveFileChunked(newKey, p.dataUrl);
       p.key = newKey;
     }
   }
@@ -5359,7 +5402,7 @@ async function deleteItem(type, id){
     if(type==='clients' && item.attachmentKeys) for(const k of item.attachmentKeys) await deletePhoto(k);
     if(type==='clients' && item.propertyRecords) for(const r of item.propertyRecords) for(const k of (r.photoKeys||[])) await deletePhoto(k);
     if(type==='listings' && item.photoKeys) for(const k of item.photoKeys) await deletePhoto(k);
-    if(type==='deals' && item.attachmentKeys) for(const k of item.attachmentKeys) await deletePhoto(k);
+    if(type==='deals' && item.attachmentKeys) for(const k of item.attachmentKeys){ await deleteFileChunked(k); await deletePhoto(k); }
   }
   DATA[type] = DATA[type].filter(x=>x.id!==id);
   await saveType(type);
