@@ -1167,12 +1167,12 @@ function renderDashboard(){
 
 const CLIENT_TYPES = ['買方','賣方','租客','房東'];
 const CLIENT_STATUSES = ['追蹤中','委託中','已成交','已買到','已售出','已流失'];
-const NEEDS_PROPERTY_TYPES = ['無電梯公寓','華廈','大樓','透天','別墅','一般套房','商務套房','學生套房','農舍','樓中樓'];
+const NEEDS_PROPERTY_TYPES = ['公寓','華廈大樓','透天別墅','建地','農地'];
 const NEEDS_PARKING_OPTIONS = ['需要','不需要','不限'];
-const NEEDS_LAND_TYPES = ['住宅用','商業用','工業用','農業用','其他用'];
 const NEEDS_DIRECTIONS = ['北','南','西','東','東北','東南','西北','西南'];
-const NEEDS_PARKING_STYLES = ['坡道/平面','坡道/機械','昇降/平面','昇降/機械','庭院','平移/機械','獨立車庫','機械循環式車位'];
+const NEEDS_PARKING_STYLES = ['平面','機械'];
 const NEEDS_RENT_BUY_OPTIONS = ['租','買'];
+const NEEDS_SPECIAL_OPTIONS = ['雙衛浴'];
 const TAIWAN_DISTRICTS = {
   '台北市': ['中正區','大同區','中山區','松山區','大安區','萬華區','信義區','士林區','北投區','內湖區','南港區','文山區'],
   '新北市': ['板橋區','三重區','中和區','永和區','新莊區','新店區','樹林區','鶯歌區','三峽區','淡水區','汐止區','瑞芳區','土城區','蘆洲區','五股區','泰山區','林口區','深坑區','石碇區','坪林區','三芝區','石門區','八里區','平溪區','雙溪區','貢寮區','金山區','萬里區','烏來區'],
@@ -1794,34 +1794,28 @@ async function openClientModal(id){
       <div class="pt-hint" style="margin:10px 0 4px;">已選地區</div>
       <div id="needsRegionSelectedChips"></div>
 
-      <div class="pt-hint" style="margin:12px 0 4px;">建物型態(可複選)</div>
+      <div class="pt-hint" style="margin:12px 0 4px;">物件型態(可複選)</div>
       <div style="display:flex; gap:14px; flex-wrap:wrap;">
         ${NEEDS_PROPERTY_TYPES.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
           <input type="checkbox" class="f_needs_type_cb" value="${t}" ${(item.needsPropertyTypes||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
         </label>`).join('')}
       </div>
 
-      <div class="pt-hint" style="margin:12px 0 4px;">土地型態(可複選)</div>
-      <div style="display:flex; gap:14px; flex-wrap:wrap;">
-        ${NEEDS_LAND_TYPES.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
-          <input type="checkbox" class="f_needs_landtype_cb" value="${t}" ${(item.needsLandTypes||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
-        </label>`).join('')}
-      </div>
-
-      <div class="pt-hint" style="margin:12px 0 4px;">價格(萬)</div>
+      <div class="pt-hint" style="margin:12px 0 4px;">價格</div>
       <div class="field-row">
-        <input type="number" id="f_needsBudgetMin" placeholder="價格下限" value="${esc(item.needsBudgetMin)}">
-        <input type="number" id="f_needsBudgetMax" placeholder="價格上限" value="${esc(item.needsBudgetMax)}">
+        <input type="number" id="f_needsBudgetMax" placeholder="多少萬以內" value="${esc(item.needsBudgetMax)}">
       </div>
 
       <div class="pt-hint" style="margin:12px 0 4px;">房數</div>
       <div class="field-row">
         <select id="f_needsRoomsMin">
           <option value="">房數</option>
+          <option value="套房" ${item.needsRoomsMin==='套房'?'selected':''}>套房</option>
           ${[1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${String(item.needsRoomsMin)===String(n)?'selected':''}>${n}房</option>`).join('')}
         </select>
         <select id="f_needsRoomsMax">
           <option value="">房數</option>
+          <option value="套房" ${item.needsRoomsMax==='套房'?'selected':''}>套房</option>
           ${[1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${String(item.needsRoomsMax)===String(n)?'selected':''}>${n}房</option>`).join('')}
         </select>
       </div>
@@ -1857,19 +1851,11 @@ async function openClientModal(id){
         </label>`).join('')}
       </div>
 
-      <div class="field-row" style="margin-top:12px;">
-        <div>
-          <div class="pt-hint" style="margin:0 0 4px;">車位需求</div>
-          <select id="f_needsParking">
-            <option value="">未指定</option>
-            ${NEEDS_PARKING_OPTIONS.map(p=>`<option ${item.needsParking===p?'selected':''}>${p}</option>`).join('')}
-          </select>
-        </div>
-        <div>
-          <div class="pt-hint" style="margin:0 0 4px;">格局需求</div>
-          <input id="f_needsLayout" placeholder="例如:至少3房2廳" value="${esc(item.needsLayout)}">
-        </div>
-      </div>
+      <div class="pt-hint" style="margin:12px 0 4px;">車位需求</div>
+      <select id="f_needsParking">
+        <option value="">未指定</option>
+        ${NEEDS_PARKING_OPTIONS.map(p=>`<option ${item.needsParking===p?'selected':''}>${p}</option>`).join('')}
+      </select>
 
       <div class="pt-hint" style="margin:12px 0 4px;">停車方式(可複選)</div>
       <div style="display:flex; gap:14px; flex-wrap:wrap;">
@@ -1878,8 +1864,14 @@ async function openClientModal(id){
         </label>`).join('')}
       </div>
 
-      <div class="pt-hint" style="margin-top:16px; color:var(--brick); font-weight:700;">以下是原本的需求備註欄,改用上面的欄位填好之後可以自行刪除內容</div>
-      <textarea id="f_clientNeeds" placeholder="客戶想找什麼樣的物件、預算、條件等" style="min-height:70px; margin-top:6px;">${esc(item.clientNeeds)}</textarea>
+      <div class="pt-hint" style="margin:12px 0 4px;">特殊需求(可複選)</div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap;">
+        ${NEEDS_SPECIAL_OPTIONS.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
+          <input type="checkbox" class="f_needs_special_cb" value="${t}" ${(item.needsSpecial||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
+        </label>`).join('')}
+      </div>
+
+      <textarea id="f_clientNeeds" placeholder="備註" style="min-height:70px; margin-top:12px;">${esc(item.clientNeeds)}</textarea>
       </div>
     </div>
 
@@ -3077,11 +3069,9 @@ async function saveClient(){
     needsRentOrBuy: Array.from(document.querySelectorAll('.f_needs_rentbuy_cb:checked')).map(cb=>cb.value),
     needsRegions: editingCtx.tempNeedsRegions || [],
     needsPropertyTypes: Array.from(document.querySelectorAll('.f_needs_type_cb:checked')).map(cb=>cb.value),
-    needsLandTypes: Array.from(document.querySelectorAll('.f_needs_landtype_cb:checked')).map(cb=>cb.value),
     needsParking: document.getElementById('f_needsParking').value,
     needsParkingStyles: Array.from(document.querySelectorAll('.f_needs_parkingstyle_cb:checked')).map(cb=>cb.value),
-    needsLayout: document.getElementById('f_needsLayout').value.trim(),
-    needsBudgetMin: document.getElementById('f_needsBudgetMin').value.trim(),
+    needsSpecial: Array.from(document.querySelectorAll('.f_needs_special_cb:checked')).map(cb=>cb.value),
     needsBudgetMax: document.getElementById('f_needsBudgetMax').value.trim(),
     needsRoomsMin: document.getElementById('f_needsRoomsMin').value,
     needsRoomsMax: document.getElementById('f_needsRoomsMax').value,
@@ -3334,9 +3324,8 @@ async function viewClientModal(id){
     ${viewInfoRow('居住地址', esc(item.homeAddress))}
     ${(item.needsRentOrBuy&&item.needsRentOrBuy.length) ? viewInfoRow('租/買', item.needsRentOrBuy.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
     ${(item.needsRegions&&item.needsRegions.length) ? viewInfoRow('需求地區', item.needsRegions.map(a=>`<span class="tag">${esc(a)}</span>`).join(' ')) : ''}
-    ${(item.needsPropertyTypes&&item.needsPropertyTypes.length) ? viewInfoRow('建物型態', item.needsPropertyTypes.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
-    ${(item.needsLandTypes&&item.needsLandTypes.length) ? viewInfoRow('土地型態', item.needsLandTypes.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
-    ${(item.needsBudgetMin||item.needsBudgetMax) ? viewInfoRow('價格(萬)', `${esc(item.needsBudgetMin||'不限')} ~ ${esc(item.needsBudgetMax||'不限')}`) : ''}
+    ${(item.needsPropertyTypes&&item.needsPropertyTypes.length) ? viewInfoRow('物件型態', item.needsPropertyTypes.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
+    ${item.needsBudgetMax ? viewInfoRow('價格', `${esc(item.needsBudgetMax)} 萬以內`) : ''}
     ${(item.needsRoomsMin||item.needsRoomsMax) ? viewInfoRow('房數', `${esc(item.needsRoomsMin||'不限')} ~ ${esc(item.needsRoomsMax||'不限')}`) : ''}
     ${(item.needsSizeMin||item.needsSizeMax) ? viewInfoRow('建物總坪', `${esc(item.needsSizeMin||'不限')} ~ ${esc(item.needsSizeMax||'不限')}`) : ''}
     ${(item.needsLandSizeMin||item.needsLandSizeMax) ? viewInfoRow('土地坪數', `${esc(item.needsLandSizeMin||'不限')} ~ ${esc(item.needsLandSizeMax||'不限')}`) : ''}
@@ -3345,7 +3334,7 @@ async function viewClientModal(id){
     ${(item.needsDirections&&item.needsDirections.length) ? viewInfoRow('朝向', item.needsDirections.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
     ${item.needsParking ? viewInfoRow('車位需求', esc(item.needsParking)) : ''}
     ${(item.needsParkingStyles&&item.needsParkingStyles.length) ? viewInfoRow('停車方式', item.needsParkingStyles.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
-    ${item.needsLayout ? viewInfoRow('格局需求', esc(item.needsLayout)) : ''}
+    ${(item.needsSpecial&&item.needsSpecial.length) ? viewInfoRow('特殊需求', item.needsSpecial.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
     ${item.clientNeeds ? viewInfoRow('需求備註', esc(item.clientNeeds).replace(/\n/g,'<br>')) : ''}
     ${viewInfoRow('備註', item.notes ? esc(item.notes).replace(/\n/g,'<br>') : '')}
     ${cardsHtml ? viewInfoRow('賀卡紀錄', cardsHtml) : ''}
