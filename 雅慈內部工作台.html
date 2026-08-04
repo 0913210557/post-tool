@@ -705,10 +705,26 @@ async function deleteFileChunked(baseKey){
     await window.storage.delete(`${baseKey}-chunk-count`, false);
   }catch(e){ /* ignore */ }
 }
-async function loadDealFile(key){
+async function loadStoredFile(key){
   const chunked = await loadFileChunked(key);
   if(chunked) return chunked;
   return await loadPhoto(key);
+}
+async function loadDealFile(key){
+  return await loadStoredFile(key);
+}
+async function deleteStoredFile(key){
+  await deleteFileChunked(key);
+  await deletePhoto(key);
+}
+async function saveStoredFile(key, dataUrl, fileLabel){
+  try{
+    await saveFileChunked(key, dataUrl);
+    return true;
+  }catch(e){
+    showToast((fileLabel||'檔案') + ' 儲存失敗：' + (e && e.message ? e.message : '未知錯誤') + '，請稍後再試一次');
+    return false;
+  }
 }
 
 function resizeImage(file, maxDim=900, quality=0.72){
@@ -781,7 +797,7 @@ async function exportBackup(){
     getClientPropertyRecords(c).forEach(r=>{ if(r.photoKeys) keys.push(...r.photoKeys); });
   });
   for(const k of keys){
-    const v = await loadPhoto(k);
+    const v = await loadStoredFile(k);
     if(v) backup.photos[k] = v;
   }
   const blob = new Blob([JSON.stringify(backup)], {type:'application/json'});
@@ -2725,7 +2741,7 @@ async function loadPropertyRecordAlbum(recordId){
   if(!editingCtx.recordPhotosCache[recordId]){
     editingCtx.recordPhotosCache[recordId] = { photos: [], removedKeys: [] };
     for(const k of (record.photoKeys||[])){
-      const dataUrl = await loadPhoto(k);
+      const dataUrl = await loadStoredFile(k);
       if(dataUrl) editingCtx.recordPhotosCache[recordId].photos.push({key:k, dataUrl});
     }
   }
@@ -2799,7 +2815,7 @@ async function renderCardPhotoGrid(){
     if(keys.length && !editingCtx._cardPhotosLoaded){
       editingCtx.cardPhotos = [];
       for(const k of keys){
-        const dataUrl = await loadPhoto(k);
+        const dataUrl = await loadStoredFile(k);
         if(dataUrl) editingCtx.cardPhotos.push({key:k, dataUrl});
       }
       editingCtx._cardPhotosLoaded = true;
@@ -3037,7 +3053,7 @@ async function renderAttachmentGrid(){
     if(item && item.attachmentKeys && item.attachmentKeys.length && !editingCtx._attachmentsLoaded){
       editingCtx.attachments = [];
       for(const k of item.attachmentKeys){
-        const dataUrl = await loadPhoto(k);
+        const dataUrl = await loadStoredFile(k);
         if(dataUrl) editingCtx.attachments.push({key:k, dataUrl});
       }
       editingCtx._attachmentsLoaded = true;
@@ -3103,35 +3119,35 @@ async function saveClient(){
   };
   if(!vals.name){ showToast('請輸入姓名'); return false; }
 
-  for(const k of editingCtx.removedCardPhotoKeys) await deletePhoto(k);
+  for(const k of editingCtx.removedCardPhotoKeys) await deleteStoredFile(k);
   for(const p of editingCtx.cardPhotos){
     if(!p.key){
       const newKey = 'photo:client:' + uid();
-      await savePhoto(newKey, p.dataUrl);
+      if(!await saveStoredFile(newKey, p.dataUrl, '客戶名片照片')) return false;
       p.key = newKey;
     }
   }
   vals.cardPhotoKeys = editingCtx.cardPhotos.map(p=>p.key);
 
-  for(const k of editingCtx.removedAttachmentKeys) await deletePhoto(k);
+  for(const k of editingCtx.removedAttachmentKeys) await deleteStoredFile(k);
   for(const p of editingCtx.attachments){
     if(!p.key){
       const newKey = 'photo:client-doc:' + uid();
-      await savePhoto(newKey, p.dataUrl);
+      if(!await saveStoredFile(newKey, p.dataUrl, p.fileName||'附件')) return false;
       p.key = newKey;
     }
   }
   vals.attachmentKeys = editingCtx.attachments.map(p=>p.key);
 
-  for(const k of editingCtx.removedRecordPhotoKeys) await deletePhoto(k);
+  for(const k of editingCtx.removedRecordPhotoKeys) await deleteStoredFile(k);
   for(const record of vals.propertyRecords){
     const cache = editingCtx.recordPhotosCache[record.id];
     if(!cache) continue;
-    for(const k of cache.removedKeys) await deletePhoto(k);
+    for(const k of cache.removedKeys) await deleteStoredFile(k);
     for(const p of cache.photos){
       if(!p.key){
         const newKey = 'photo:property-record:' + uid();
-        await savePhoto(newKey, p.dataUrl);
+        if(!await saveStoredFile(newKey, p.dataUrl, p.fileName||'物件照片')) return false;
         p.key = newKey;
       }
     }
@@ -3238,14 +3254,14 @@ async function viewClientModal(id){
   const records = getClientPropertyRecords(item);
 
   const cardPhotoKeys = getClientCardPhotoKeys(item);
-  const cardPhotoUrls = cardPhotoKeys.length ? await Promise.all(cardPhotoKeys.map(k=>loadPhoto(k))) : [];
+  const cardPhotoUrls = cardPhotoKeys.length ? await Promise.all(cardPhotoKeys.map(k=>loadStoredFile(k))) : [];
   const attachmentUrls = (item.attachmentKeys && item.attachmentKeys.length)
-    ? await Promise.all(item.attachmentKeys.map(k=>loadPhoto(k)))
+    ? await Promise.all(item.attachmentKeys.map(k=>loadStoredFile(k)))
     : [];
   const recordPhotoMap = {};
   for(const r of records){
     if(r.photoKeys && r.photoKeys.length){
-      recordPhotoMap[r.id] = await Promise.all(r.photoKeys.map(k=>loadPhoto(k)));
+      recordPhotoMap[r.id] = await Promise.all(r.photoKeys.map(k=>loadStoredFile(k)));
     }
   }
 
@@ -3398,7 +3414,7 @@ async function viewPropertyRecordModal(clientId, recordId){
   document.getElementById('viewModalOverlay').classList.add('open');
   document.getElementById('viewModalAddLogBtn').style.display = 'none';
 
-  const photos = (r.photoKeys && r.photoKeys.length) ? await Promise.all(r.photoKeys.map(k=>loadPhoto(k))) : [];
+  const photos = (r.photoKeys && r.photoKeys.length) ? await Promise.all(r.photoKeys.map(k=>loadStoredFile(k))) : [];
   const recordIndices = [];
   const photosHtml = photos.length ? `<div class="photo-grid" style="margin-top:8px;">${photos.map((src,i)=>{
     if(!src) return '';
@@ -3586,7 +3602,7 @@ async function openListingModal(id){
 
   editingCtx.photos = [];
   for(const k of (item.photoKeys||[])){
-    const dataUrl = await loadPhoto(k);
+    const dataUrl = await loadStoredFile(k);
     if(dataUrl) editingCtx.photos.push({key:k, dataUrl});
   }
   renderPhotoGrid();
@@ -3634,11 +3650,11 @@ async function saveListing(){
   };
   if(!vals.name){ showToast('請輸入物件名稱'); return false; }
 
-  for(const k of editingCtx.removedKeys) await deletePhoto(k);
+  for(const k of editingCtx.removedKeys) await deleteStoredFile(k);
   for(const p of editingCtx.photos){
     if(!p.key){
       const newKey = 'photo:listing:' + uid();
-      await savePhoto(newKey, p.dataUrl);
+      if(!await saveStoredFile(newKey, p.dataUrl, '物件照片')) return false;
       p.key = newKey;
     }
   }
@@ -5693,11 +5709,11 @@ async function deleteItem(type, id){
   if(!confirm('確定要刪除這筆資料嗎?相關照片也會一併移除。')) return;
   const item = DATA[type].find(x=>x.id===id);
   if(item){
-    if(type==='clients') for(const k of getClientCardPhotoKeys(item)) await deletePhoto(k);
-    if(type==='clients' && item.attachmentKeys) for(const k of item.attachmentKeys) await deletePhoto(k);
-    if(type==='clients' && item.propertyRecords) for(const r of item.propertyRecords) for(const k of (r.photoKeys||[])) await deletePhoto(k);
-    if(type==='listings' && item.photoKeys) for(const k of item.photoKeys) await deletePhoto(k);
-    if(type==='deals' && item.attachmentKeys) for(const k of item.attachmentKeys){ await deleteFileChunked(k); await deletePhoto(k); }
+    if(type==='clients') for(const k of getClientCardPhotoKeys(item)) await deleteStoredFile(k);
+    if(type==='clients' && item.attachmentKeys) for(const k of item.attachmentKeys) await deleteStoredFile(k);
+    if(type==='clients' && item.propertyRecords) for(const r of item.propertyRecords) for(const k of (r.photoKeys||[])) await deleteStoredFile(k);
+    if(type==='listings' && item.photoKeys) for(const k of item.photoKeys) await deleteStoredFile(k);
+    if(type==='deals' && item.attachmentKeys) for(const k of item.attachmentKeys) await deleteStoredFile(k);
   }
   DATA[type] = DATA[type].filter(x=>x.id!==id);
   await saveType(type);
