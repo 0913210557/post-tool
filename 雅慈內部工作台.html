@@ -1488,7 +1488,10 @@ function renderClients(){
               <option value="套房">套房</option>
               ${[1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}">${n}房</option>`).join('')}
             </select>
-            <input type="number" id="clientNeedsFilterBudgetMax" placeholder="價格上限(萬)內" style="width:140px;">
+            <select id="clientNeedsFilterParking">
+              <option value="">車位不限</option>
+              ${NEEDS_PARKING_OPTIONS.map(p=>`<option value="${p}">${p}</option>`).join('')}
+            </select>
           </div>
           <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="clearClientNeedsFilter()">清除篩選</button>
         </div>
@@ -1499,10 +1502,9 @@ function renderClients(){
   document.getElementById('addClientBtn').onclick = ()=>openClientModal();
   document.getElementById('clientSearch').oninput = ()=>{ clientListPage = 1; drawClientTable(); };
   document.getElementById('clientStatusFilter').onchange = ()=>{ clientListPage = 1; drawClientTable(); };
-  ['clientNeedsFilterRentBuy','clientNeedsFilterCounty','clientNeedsFilterType','clientNeedsFilterRooms'].forEach(id=>{
+  ['clientNeedsFilterRentBuy','clientNeedsFilterCounty','clientNeedsFilterType','clientNeedsFilterRooms','clientNeedsFilterParking'].forEach(id=>{
     document.getElementById(id).onchange = ()=>{ clientListPage = 1; drawClientTable(); };
   });
-  document.getElementById('clientNeedsFilterBudgetMax').oninput = ()=>{ clientListPage = 1; drawClientTable(); };
   drawClientTable();
 }
 
@@ -1511,7 +1513,7 @@ function clearClientNeedsFilter(){
   document.getElementById('clientNeedsFilterCounty').value = '';
   document.getElementById('clientNeedsFilterType').value = '';
   document.getElementById('clientNeedsFilterRooms').value = '';
-  document.getElementById('clientNeedsFilterBudgetMax').value = '';
+  document.getElementById('clientNeedsFilterParking').value = '';
   clientListPage = 1;
   drawClientTable();
 }
@@ -1548,13 +1550,13 @@ function drawClientTable(){
   const needsCountyEl = document.getElementById('clientNeedsFilterCounty');
   const needsTypeEl = document.getElementById('clientNeedsFilterType');
   const needsRoomsEl = document.getElementById('clientNeedsFilterRooms');
-  const needsBudgetMaxEl = document.getElementById('clientNeedsFilterBudgetMax');
+  const needsParkingEl = document.getElementById('clientNeedsFilterParking');
   const needsRentBuy = needsRentBuyEl ? needsRentBuyEl.value : '';
   const needsCounty = needsCountyEl ? needsCountyEl.value : '';
   const needsType = needsTypeEl ? needsTypeEl.value : '';
   const needsRooms = needsRoomsEl ? needsRoomsEl.value : '';
-  const needsBudgetMax = needsBudgetMaxEl ? needsBudgetMaxEl.value.trim() : '';
-  const hasNeedsFilter = needsRentBuy || needsCounty || needsType || needsRooms || needsBudgetMax;
+  const needsParking = needsParkingEl ? needsParkingEl.value : '';
+  const hasNeedsFilter = needsRentBuy || needsCounty || needsType || needsRooms || needsParking;
 
   let list = DATA.clients.filter(c=>{
     if(c.isDutyRosterClient) return false;
@@ -1564,8 +1566,8 @@ function drawClientTable(){
     const matchCounty = !needsCounty || (c.needsRegions||[]).some(r=>r.startsWith(needsCounty));
     const matchType = !needsType || (c.needsPropertyTypes||[]).includes(needsType);
     const matchRooms = !needsRooms || c.needsRoomsMin===needsRooms || c.needsRoomsMax===needsRooms;
-    const matchBudget = !needsBudgetMax || (c.needsBudgetMax && Number(c.needsBudgetMax) <= Number(needsBudgetMax));
-    return matchQ && matchSt && matchRentBuy && matchCounty && matchType && matchRooms && matchBudget;
+    const matchParking = !needsParking || c.needsParking===needsParking;
+    return matchQ && matchSt && matchRentBuy && matchCounty && matchType && matchRooms && matchParking;
   });
   const countLabel = document.getElementById('clientCountLabel');
   const realClientCount = DATA.clients.filter(c=>!c.isDutyRosterClient).length;
