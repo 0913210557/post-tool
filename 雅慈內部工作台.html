@@ -1464,11 +1464,55 @@ function renderClients(){
         <option value="__uncategorized__">未分類</option>
       </select>
     </div>
+    <div class="section-block" style="margin-bottom:16px;">
+      <div class="section-block-body" style="padding:14px 16px;">
+        <div class="field-sub-title" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;" onclick="toggleFieldSection('clientNeedsFilterBody', this)">
+          <span>🔍 依客戶需求篩選</span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
+        </div>
+        <div id="clientNeedsFilterBody" style="display:none; margin-top:10px;">
+          <div class="field-row" style="flex-wrap:wrap; gap:8px;">
+            <select id="clientNeedsFilterRentBuy">
+              <option value="">租/買不限</option>
+              ${NEEDS_RENT_BUY_OPTIONS.map(t=>`<option value="${t}">${t}</option>`).join('')}
+            </select>
+            <select id="clientNeedsFilterCounty">
+              <option value="">需求縣市不限</option>
+              ${Object.keys(TAIWAN_DISTRICTS).map(c=>`<option value="${c}">${c}</option>`).join('')}
+            </select>
+            <select id="clientNeedsFilterType">
+              <option value="">物件型態不限</option>
+              ${NEEDS_PROPERTY_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('')}
+            </select>
+            <select id="clientNeedsFilterRooms">
+              <option value="">房數不限</option>
+              <option value="套房">套房</option>
+              ${[1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}">${n}房</option>`).join('')}
+            </select>
+            <input type="number" id="clientNeedsFilterBudgetMax" placeholder="價格上限(萬)內" style="width:140px;">
+          </div>
+          <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="clearClientNeedsFilter()">清除篩選</button>
+        </div>
+      </div>
+    </div>
     <div class="section-block"><div class="section-block-body" id="clientTableWrap"></div></div>
   `;
   document.getElementById('addClientBtn').onclick = ()=>openClientModal();
   document.getElementById('clientSearch').oninput = ()=>{ clientListPage = 1; drawClientTable(); };
   document.getElementById('clientStatusFilter').onchange = ()=>{ clientListPage = 1; drawClientTable(); };
+  ['clientNeedsFilterRentBuy','clientNeedsFilterCounty','clientNeedsFilterType','clientNeedsFilterRooms'].forEach(id=>{
+    document.getElementById(id).onchange = ()=>{ clientListPage = 1; drawClientTable(); };
+  });
+  document.getElementById('clientNeedsFilterBudgetMax').oninput = ()=>{ clientListPage = 1; drawClientTable(); };
+  drawClientTable();
+}
+
+function clearClientNeedsFilter(){
+  document.getElementById('clientNeedsFilterRentBuy').value = '';
+  document.getElementById('clientNeedsFilterCounty').value = '';
+  document.getElementById('clientNeedsFilterType').value = '';
+  document.getElementById('clientNeedsFilterRooms').value = '';
+  document.getElementById('clientNeedsFilterBudgetMax').value = '';
+  clientListPage = 1;
   drawClientTable();
 }
 
@@ -1500,16 +1544,33 @@ function getClientLastServiceTime(c){
 function drawClientTable(){
   const q = (document.getElementById('clientSearch').value||'').toLowerCase();
   const st = document.getElementById('clientStatusFilter').value;
+  const needsRentBuyEl = document.getElementById('clientNeedsFilterRentBuy');
+  const needsCountyEl = document.getElementById('clientNeedsFilterCounty');
+  const needsTypeEl = document.getElementById('clientNeedsFilterType');
+  const needsRoomsEl = document.getElementById('clientNeedsFilterRooms');
+  const needsBudgetMaxEl = document.getElementById('clientNeedsFilterBudgetMax');
+  const needsRentBuy = needsRentBuyEl ? needsRentBuyEl.value : '';
+  const needsCounty = needsCountyEl ? needsCountyEl.value : '';
+  const needsType = needsTypeEl ? needsTypeEl.value : '';
+  const needsRooms = needsRoomsEl ? needsRoomsEl.value : '';
+  const needsBudgetMax = needsBudgetMaxEl ? needsBudgetMaxEl.value.trim() : '';
+  const hasNeedsFilter = needsRentBuy || needsCounty || needsType || needsRooms || needsBudgetMax;
+
   let list = DATA.clients.filter(c=>{
     if(c.isDutyRosterClient) return false;
     const matchQ = !q || clientSearchText(c).includes(q);
     const matchSt = !st || (st==='__uncategorized__' ? getClientStatuses(c).length===0 : getClientStatuses(c).includes(st));
-    return matchQ && matchSt;
+    const matchRentBuy = !needsRentBuy || (c.needsRentOrBuy||[]).includes(needsRentBuy);
+    const matchCounty = !needsCounty || (c.needsRegions||[]).some(r=>r.startsWith(needsCounty));
+    const matchType = !needsType || (c.needsPropertyTypes||[]).includes(needsType);
+    const matchRooms = !needsRooms || c.needsRoomsMin===needsRooms || c.needsRoomsMax===needsRooms;
+    const matchBudget = !needsBudgetMax || (c.needsBudgetMax && Number(c.needsBudgetMax) <= Number(needsBudgetMax));
+    return matchQ && matchSt && matchRentBuy && matchCounty && matchType && matchRooms && matchBudget;
   });
   const countLabel = document.getElementById('clientCountLabel');
   const realClientCount = DATA.clients.filter(c=>!c.isDutyRosterClient).length;
   if(countLabel){
-    countLabel.textContent = (q || st)
+    countLabel.textContent = (q || st || hasNeedsFilter)
       ? `符合條件 ${list.length} 筆(共 ${realClientCount} 筆)`
       : `共 ${realClientCount} 筆`;
   }
