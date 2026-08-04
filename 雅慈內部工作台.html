@@ -1167,8 +1167,36 @@ function renderDashboard(){
 
 const CLIENT_TYPES = ['買方','賣方','租客','房東'];
 const CLIENT_STATUSES = ['追蹤中','委託中','已成交','已買到','已售出','已流失'];
-const NEEDS_PROPERTY_TYPES = ['電梯','公寓','透天別墅','套房','廠房','農地','建地'];
+const NEEDS_PROPERTY_TYPES = ['無電梯公寓','華廈','大樓','透天','別墅','一般套房','商務套房','學生套房','農舍','樓中樓'];
 const NEEDS_PARKING_OPTIONS = ['需要','不需要','不限'];
+const NEEDS_LAND_TYPES = ['住宅用','商業用','工業用','農業用','其他用'];
+const NEEDS_DIRECTIONS = ['北','南','西','東','東北','東南','西北','西南'];
+const NEEDS_PARKING_STYLES = ['坡道/平面','坡道/機械','昇降/平面','昇降/機械','庭院','平移/機械','獨立車庫','機械循環式車位'];
+const NEEDS_RENT_BUY_OPTIONS = ['租','買'];
+const TAIWAN_DISTRICTS = {
+  '台北市': ['中正區','大同區','中山區','松山區','大安區','萬華區','信義區','士林區','北投區','內湖區','南港區','文山區'],
+  '新北市': ['板橋區','三重區','中和區','永和區','新莊區','新店區','樹林區','鶯歌區','三峽區','淡水區','汐止區','瑞芳區','土城區','蘆洲區','五股區','泰山區','林口區','深坑區','石碇區','坪林區','三芝區','石門區','八里區','平溪區','雙溪區','貢寮區','金山區','萬里區','烏來區'],
+  '基隆市': ['仁愛區','信義區','中正區','中山區','安樂區','暖暖區','七堵區'],
+  '桃園市': ['桃園區','中壢區','平鎮區','八德區','楊梅區','蘆竹區','大溪區','龍潭區','龜山區','大園區','觀音區','新屋區','復興區'],
+  '新竹市': ['東區','北區','香山區'],
+  '新竹縣': ['竹北市','竹東鎮','新埔鎮','關西鎮','湖口鄉','新豐鄉','芎林鄉','橫山鄉','北埔鄉','寶山鄉','峨眉鄉','尖石鄉','五峰鄉'],
+  '苗栗縣': ['苗栗市','苑裡鎮','通霄鎮','竹南鎮','頭份市','後龍鎮','卓蘭鎮','大湖鄉','公館鄉','銅鑼鄉','南庄鄉','頭屋鄉','三義鄉','西湖鄉','造橋鄉','三灣鄉','獅潭鄉','泰安鄉'],
+  '台中市': ['中區','東區','南區','西區','北區','北屯區','西屯區','南屯區','太平區','大里區','霧峰區','烏日區','豐原區','后里區','石岡區','東勢區','和平區','新社區','潭子區','大雅區','神岡區','大肚區','沙鹿區','龍井區','梧棲區','清水區','大甲區','外埔區','大安區'],
+  '彰化縣': ['彰化市','鹿港鎮','和美鎮','線西鄉','伸港鄉','福興鄉','秀水鄉','花壇鄉','芬園鄉','員林市','溪湖鎮','田中鎮','大村鄉','埔鹽鄉','埔心鄉','永靖鄉','社頭鄉','二水鄉','北斗鎮','二林鎮','田尾鄉','埤頭鄉','芳苑鄉','大城鄉','竹塘鄉','溪州鄉'],
+  '南投縣': ['南投市','埔里鎮','草屯鎮','竹山鎮','集集鎮','名間鄉','鹿谷鄉','中寮鄉','魚池鄉','國姓鄉','水里鄉','信義鄉','仁愛鄉'],
+  '雲林縣': ['斗六市','斗南鎮','虎尾鎮','西螺鎮','土庫鎮','北港鎮','古坑鄉','大埤鄉','莿桐鄉','林內鄉','二崙鄉','崙背鄉','麥寮鄉','東勢鄉','褒忠鄉','台西鄉','元長鄉','四湖鄉','口湖鄉','水林鄉'],
+  '嘉義市': ['東區','西區'],
+  '嘉義縣': ['太保市','朴子市','布袋鎮','大林鎮','民雄鄉','溪口鄉','新港鄉','六腳鄉','東石鄉','義竹鄉','鹿草鄉','水上鄉','中埔鄉','竹崎鄉','梅山鄉','番路鄉','大埔鄉','阿里山鄉'],
+  '台南市': ['中西區','東區','南區','北區','安平區','安南區','永康區','歸仁區','新化區','左鎮區','玉井區','楠西區','南化區','仁德區','關廟區','龍崎區','官田區','麻豆區','佳里區','西港區','七股區','將軍區','學甲區','北門區','新營區','後壁區','白河區','東山區','六甲區','下營區','柳營區','鹽水區','善化區','大內區','山上區','新市區','安定區'],
+  '高雄市': ['新興區','前金區','苓雅區','鹽埕區','鼓山區','旗津區','前鎮區','三民區','左營區','楠梓區','小港區','鳳山區','林園區','大寮區','大樹區','大社區','仁武區','鳥松區','岡山區','橋頭區','燕巢區','田寮區','阿蓮區','路竹區','湖內區','茄萣區','永安區','彌陀區','梓官區','旗山區','美濃區','六龜區','甲仙區','杉林區','內門區','茂林區','桃源區','那瑪夏區'],
+  '屏東縣': ['屏東市','潮州鎮','東港鎮','恆春鎮','萬丹鄉','長治鄉','麟洛鄉','九如鄉','里港鄉','鹽埔鄉','高樹鄉','萬巒鄉','內埔鄉','竹田鄉','新埤鄉','枋寮鄉','新園鄉','崁頂鄉','林邊鄉','南州鄉','佳冬鄉','琉球鄉','車城鄉','滿州鄉','枋山鄉','三地門鄉','霧台鄉','瑪家鄉','泰武鄉','來義鄉','春日鄉','獅子鄉','牡丹鄉'],
+  '宜蘭縣': ['宜蘭市','羅東鎮','蘇澳鎮','頭城鎮','礁溪鄉','壯圍鄉','員山鄉','冬山鄉','五結鄉','三星鄉','大同鄉','南澳鄉'],
+  '花蓮縣': ['花蓮市','鳳林鎮','玉里鎮','新城鄉','吉安鄉','壽豐鄉','光復鄉','豐濱鄉','瑞穗鄉','富里鄉','秀林鄉','萬榮鄉','卓溪鄉'],
+  '台東縣': ['台東市','成功鎮','關山鎮','卑南鄉','大武鄉','太麻里鄉','東河鄉','長濱鄉','鹿野鄉','池上鄉','綠島鄉','延平鄉','海端鄉','達仁鄉','金峰鄉','蘭嶼鄉'],
+  '澎湖縣': ['馬公市','湖西鄉','白沙鄉','西嶼鄉','望安鄉','七美鄉'],
+  '金門縣': ['金城鎮','金湖鎮','金沙鎮','金寧鄉','烈嶼鄉','烏坵鄉'],
+  '連江縣': ['南竿鄉','北竿鄉','莒光鄉','東引鄉'],
+};
 const SERVICE_LOG_TYPES = ['帶看','收斡','退斡','買方聯絡','賣方聯絡','復看','簽委託','驗屋','面談','拍照/實境','續約','拜訪','契變','結案','值班','月會','土地公拜拜'];
 const SERVICE_LOG_EXTRA_FIELDS = {
   '帶看': { repeating: true, fields: [
@@ -1654,7 +1682,7 @@ async function openClientModal(id){
     tempLogs: JSON.parse(JSON.stringify(item.serviceLogs||[])),
     tempPhones: JSON.parse(JSON.stringify(getClientPhones(item))),
     tempLineNames: getClientLineNames(item).map(v=>({id:uid(), value:v})),
-    tempNeedsAreas: (item.needsAreas||[]).map(v=>({id:uid(), value:v})),
+    tempNeedsRegions: [...(item.needsRegions||[])],
     tempPropertyRecords: JSON.parse(JSON.stringify(getClientPropertyRecords(item))),
     recordPhotosCache: {},   // recordId -> {photos:[{key,dataUrl}], removedKeys:[]}
     removedRecordPhotoKeys: [],
@@ -1750,17 +1778,82 @@ async function openClientModal(id){
       </div>
       <div id="clientNeedsBody" style="display:none;">
 
-      <div class="pt-hint" style="margin:0 0 4px;">需求區域(可新增多個,不限縣市)</div>
-      <div class="log-list" id="needsAreaList"></div>
-      <div class="log-add-row">
-        <input type="text" id="needsAreaInput" placeholder="例如:中壢區、板橋區…" style="flex:1;">
-        <button class="btn btn-ghost btn-sm" id="needsAreaAddBtn">新增</button>
+      <div class="pt-hint" style="margin:0 0 4px;">租 / 買(可複選)</div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap;">
+        ${NEEDS_RENT_BUY_OPTIONS.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
+          <input type="checkbox" class="f_needs_rentbuy_cb" value="${t}" ${(item.needsRentOrBuy||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
+        </label>`).join('')}
       </div>
 
-      <div class="pt-hint" style="margin:12px 0 4px;">房屋類型(可複選)</div>
+      <div class="pt-hint" style="margin:12px 0 4px;">需求地區(可複選,先選縣市,再勾選區)</div>
+      <select id="needsRegionCounty" onchange="renderNeedsRegionDistrictCheckboxes()">
+        <option value="">請選擇縣市</option>
+        ${Object.keys(TAIWAN_DISTRICTS).map(c=>`<option value="${c}">${c}</option>`).join('')}
+      </select>
+      <div id="needsRegionDistrictCheckboxes" style="margin-top:8px; display:flex; gap:10px; flex-wrap:wrap;"></div>
+      <div class="pt-hint" style="margin:10px 0 4px;">已選地區</div>
+      <div id="needsRegionSelectedChips"></div>
+
+      <div class="pt-hint" style="margin:12px 0 4px;">建物型態(可複選)</div>
       <div style="display:flex; gap:14px; flex-wrap:wrap;">
         ${NEEDS_PROPERTY_TYPES.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
           <input type="checkbox" class="f_needs_type_cb" value="${t}" ${(item.needsPropertyTypes||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
+        </label>`).join('')}
+      </div>
+
+      <div class="pt-hint" style="margin:12px 0 4px;">土地型態(可複選)</div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap;">
+        ${NEEDS_LAND_TYPES.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
+          <input type="checkbox" class="f_needs_landtype_cb" value="${t}" ${(item.needsLandTypes||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
+        </label>`).join('')}
+      </div>
+
+      <div class="pt-hint" style="margin:12px 0 4px;">價格(萬)</div>
+      <div class="field-row">
+        <input type="number" id="f_needsBudgetMin" placeholder="價格下限" value="${esc(item.needsBudgetMin)}">
+        <input type="number" id="f_needsBudgetMax" placeholder="價格上限" value="${esc(item.needsBudgetMax)}">
+      </div>
+
+      <div class="pt-hint" style="margin:12px 0 4px;">房數</div>
+      <div class="field-row">
+        <select id="f_needsRoomsMin">
+          <option value="">房數</option>
+          ${[1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${String(item.needsRoomsMin)===String(n)?'selected':''}>${n}房</option>`).join('')}
+        </select>
+        <select id="f_needsRoomsMax">
+          <option value="">房數</option>
+          ${[1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${String(item.needsRoomsMax)===String(n)?'selected':''}>${n}房</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="pt-hint" style="margin:12px 0 4px;">建物總坪</div>
+      <div class="field-row">
+        <input type="number" id="f_needsSizeMin" placeholder="坪數下限" value="${esc(item.needsSizeMin)}">
+        <input type="number" id="f_needsSizeMax" placeholder="坪數上限" value="${esc(item.needsSizeMax)}">
+      </div>
+
+      <div class="pt-hint" style="margin:12px 0 4px;">土地坪數</div>
+      <div class="field-row">
+        <input type="number" id="f_needsLandSizeMin" placeholder="坪數下限" value="${esc(item.needsLandSizeMin)}">
+        <input type="number" id="f_needsLandSizeMax" placeholder="坪數上限" value="${esc(item.needsLandSizeMax)}">
+      </div>
+
+      <div class="pt-hint" style="margin:12px 0 4px;">屋齡(年)</div>
+      <div class="field-row">
+        <input type="number" id="f_needsAgeMin" placeholder="年下限" value="${esc(item.needsAgeMin)}">
+        <input type="number" id="f_needsAgeMax" placeholder="年上限" value="${esc(item.needsAgeMax)}">
+      </div>
+
+      <div class="pt-hint" style="margin:12px 0 4px;">樓層</div>
+      <div class="field-row">
+        <input type="number" id="f_needsFloorMin" placeholder="樓層下限" value="${esc(item.needsFloorMin)}">
+        <input type="number" id="f_needsFloorMax" placeholder="樓層上限" value="${esc(item.needsFloorMax)}">
+      </div>
+
+      <div class="pt-hint" style="margin:12px 0 4px;">朝向(可複選)</div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap;">
+        ${NEEDS_DIRECTIONS.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
+          <input type="checkbox" class="f_needs_direction_cb" value="${t}" ${(item.needsDirections||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
         </label>`).join('')}
       </div>
 
@@ -1778,16 +1871,11 @@ async function openClientModal(id){
         </div>
       </div>
 
-      <div class="pt-hint" style="margin:12px 0 4px;">預算(萬)</div>
-      <div class="field-row">
-        <input type="number" id="f_needsBudgetMin" placeholder="預算下限" value="${esc(item.needsBudgetMin)}">
-        <input type="number" id="f_needsBudgetMax" placeholder="預算上限" value="${esc(item.needsBudgetMax)}">
-      </div>
-
-      <div class="pt-hint" style="margin:12px 0 4px;">坪數需求</div>
-      <div class="field-row">
-        <input type="number" id="f_needsSizeMin" placeholder="坪數下限" value="${esc(item.needsSizeMin)}">
-        <input type="number" id="f_needsSizeMax" placeholder="坪數上限" value="${esc(item.needsSizeMax)}">
+      <div class="pt-hint" style="margin:12px 0 4px;">停車方式(可複選)</div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap;">
+        ${NEEDS_PARKING_STYLES.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
+          <input type="checkbox" class="f_needs_parkingstyle_cb" value="${t}" ${(item.needsParkingStyles||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
+        </label>`).join('')}
       </div>
 
       <div class="pt-hint" style="margin-top:16px; color:var(--brick); font-weight:700;">以下是原本的需求備註欄,改用上面的欄位填好之後可以自行刪除內容</div>
@@ -1850,7 +1938,7 @@ async function openClientModal(id){
   openModal();
   renderPhoneList();
   renderLineNameList();
-  renderNeedsAreaList();
+  renderNeedsRegionChips();
   renderPropertyRecordList();
   renderLogList();
   renderLogExtraFields();
@@ -1863,10 +1951,6 @@ async function openClientModal(id){
 
   document.getElementById('lineNameAddBtn').onclick = ()=>{
     if(!addLineNameEntry()) showToast('請輸入 LINE 名');
-  };
-
-  document.getElementById('needsAreaAddBtn').onclick = ()=>{
-    if(!addNeedsAreaEntry()) showToast('請輸入區域名稱');
   };
 
   document.getElementById('propertyRecordAddBtn').onclick = ()=>{
@@ -1939,31 +2023,41 @@ function addLineNameEntry(){
   return true;
 }
 
-function addNeedsAreaEntry(){
-  const el = document.getElementById('needsAreaInput');
-  if(!el) return false;
-  const v = el.value.trim();
-  if(!v) return false;
-  editingCtx.tempNeedsAreas.push({id:uid(), value:v});
-  el.value='';
-  renderNeedsAreaList();
-  return true;
-}
-function renderNeedsAreaList(){
-  const wrap = document.getElementById('needsAreaList');
+function renderNeedsRegionDistrictCheckboxes(){
+  const county = document.getElementById('needsRegionCounty').value;
+  const wrap = document.getElementById('needsRegionDistrictCheckboxes');
   if(!wrap) return;
-  const areas = editingCtx.tempNeedsAreas || [];
-  if(areas.length===0){ wrap.innerHTML = '<div class="empty-state" style="padding:16px;">尚未新增需求區域</div>'; return; }
-  wrap.innerHTML = areas.map(a=>`
-    <div class="log-entry">
-      <div class="log-entry-note">${esc(a.value)}</div>
-      <button class="rm" onclick="removeNeedsAreaEntry('${a.id}')" title="刪除">✕</button>
-    </div>
-  `).join('');
+  if(!county){ wrap.innerHTML = ''; return; }
+  const districts = TAIWAN_DISTRICTS[county] || [];
+  wrap.innerHTML = districts.map(d=>{
+    const key = county + d;
+    const checked = (editingCtx.tempNeedsRegions||[]).includes(key);
+    return `<label style="display:flex; align-items:center; gap:4px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
+      <input type="checkbox" style="width:auto;" ${checked?'checked':''} onchange="toggleNeedsRegion('${key}', this.checked)"> ${d}
+    </label>`;
+  }).join('');
 }
-function removeNeedsAreaEntry(areaId){
-  editingCtx.tempNeedsAreas = editingCtx.tempNeedsAreas.filter(a=>a.id!==areaId);
-  renderNeedsAreaList();
+function toggleNeedsRegion(key, checked){
+  if(!editingCtx.tempNeedsRegions) editingCtx.tempNeedsRegions = [];
+  if(checked){
+    if(!editingCtx.tempNeedsRegions.includes(key)) editingCtx.tempNeedsRegions.push(key);
+  }else{
+    editingCtx.tempNeedsRegions = editingCtx.tempNeedsRegions.filter(k=>k!==key);
+  }
+  renderNeedsRegionChips();
+}
+function renderNeedsRegionChips(){
+  const wrap = document.getElementById('needsRegionSelectedChips');
+  if(!wrap) return;
+  const regions = editingCtx.tempNeedsRegions || [];
+  wrap.innerHTML = regions.length
+    ? regions.map(k=>`<span class="tag-soft" style="margin:2px 4px 2px 0; display:inline-block;">${esc(k)} <span style="cursor:pointer;" onclick="removeNeedsRegionChip('${k}')">✕</span></span>`).join('')
+    : '<span class="tag-soft" style="color:var(--ink-soft);">尚未選擇地區</span>';
+}
+function removeNeedsRegionChip(key){
+  editingCtx.tempNeedsRegions = (editingCtx.tempNeedsRegions||[]).filter(k=>k!==key);
+  renderNeedsRegionChips();
+  renderNeedsRegionDistrictCheckboxes();
 }
 
 function maybeOfferCreateDeal(clientName, caseName, propertyAddress){
@@ -2389,7 +2483,6 @@ function flushPendingViewingItem(){
 async function flushPendingClientInputs(){
   addPhoneEntry();
   addLineNameEntry();
-  addNeedsAreaEntry();
   if(editingCtx.editingRecordId){
     savePropertyRecordEdit(editingCtx.editingRecordId);
   }
@@ -2981,14 +3074,26 @@ async function saveClient(){
     idNumber: document.getElementById('f_idNumber').value.trim(),
     homeAddress: document.getElementById('f_homeAddress').value.trim(),
     clientNeeds: document.getElementById('f_clientNeeds').value.trim(),
-    needsAreas: (editingCtx.tempNeedsAreas || []).map(a=>a.value),
+    needsRentOrBuy: Array.from(document.querySelectorAll('.f_needs_rentbuy_cb:checked')).map(cb=>cb.value),
+    needsRegions: editingCtx.tempNeedsRegions || [],
     needsPropertyTypes: Array.from(document.querySelectorAll('.f_needs_type_cb:checked')).map(cb=>cb.value),
+    needsLandTypes: Array.from(document.querySelectorAll('.f_needs_landtype_cb:checked')).map(cb=>cb.value),
     needsParking: document.getElementById('f_needsParking').value,
+    needsParkingStyles: Array.from(document.querySelectorAll('.f_needs_parkingstyle_cb:checked')).map(cb=>cb.value),
     needsLayout: document.getElementById('f_needsLayout').value.trim(),
     needsBudgetMin: document.getElementById('f_needsBudgetMin').value.trim(),
     needsBudgetMax: document.getElementById('f_needsBudgetMax').value.trim(),
+    needsRoomsMin: document.getElementById('f_needsRoomsMin').value,
+    needsRoomsMax: document.getElementById('f_needsRoomsMax').value,
     needsSizeMin: document.getElementById('f_needsSizeMin').value.trim(),
     needsSizeMax: document.getElementById('f_needsSizeMax').value.trim(),
+    needsLandSizeMin: document.getElementById('f_needsLandSizeMin').value.trim(),
+    needsLandSizeMax: document.getElementById('f_needsLandSizeMax').value.trim(),
+    needsAgeMin: document.getElementById('f_needsAgeMin').value.trim(),
+    needsAgeMax: document.getElementById('f_needsAgeMax').value.trim(),
+    needsFloorMin: document.getElementById('f_needsFloorMin').value.trim(),
+    needsFloorMax: document.getElementById('f_needsFloorMax').value.trim(),
+    needsDirections: Array.from(document.querySelectorAll('.f_needs_direction_cb:checked')).map(cb=>cb.value),
     propertyRecords: editingCtx.tempPropertyRecords || [],
     notes: document.getElementById('f_notes').value.trim(),
     serviceLogs: editingCtx.tempLogs || [],
@@ -3227,12 +3332,20 @@ async function viewClientModal(id){
     ${viewInfoRow('公司名稱', esc(item.company))}
     ${viewInfoRow('身份證字號', esc(item.idNumber))}
     ${viewInfoRow('居住地址', esc(item.homeAddress))}
-    ${(item.needsAreas&&item.needsAreas.length) ? viewInfoRow('需求區域', item.needsAreas.map(a=>`<span class="tag">${esc(a)}</span>`).join(' ')) : ''}
-    ${(item.needsPropertyTypes&&item.needsPropertyTypes.length) ? viewInfoRow('房屋類型', item.needsPropertyTypes.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
+    ${(item.needsRentOrBuy&&item.needsRentOrBuy.length) ? viewInfoRow('租/買', item.needsRentOrBuy.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
+    ${(item.needsRegions&&item.needsRegions.length) ? viewInfoRow('需求地區', item.needsRegions.map(a=>`<span class="tag">${esc(a)}</span>`).join(' ')) : ''}
+    ${(item.needsPropertyTypes&&item.needsPropertyTypes.length) ? viewInfoRow('建物型態', item.needsPropertyTypes.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
+    ${(item.needsLandTypes&&item.needsLandTypes.length) ? viewInfoRow('土地型態', item.needsLandTypes.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
+    ${(item.needsBudgetMin||item.needsBudgetMax) ? viewInfoRow('價格(萬)', `${esc(item.needsBudgetMin||'不限')} ~ ${esc(item.needsBudgetMax||'不限')}`) : ''}
+    ${(item.needsRoomsMin||item.needsRoomsMax) ? viewInfoRow('房數', `${esc(item.needsRoomsMin||'不限')} ~ ${esc(item.needsRoomsMax||'不限')}`) : ''}
+    ${(item.needsSizeMin||item.needsSizeMax) ? viewInfoRow('建物總坪', `${esc(item.needsSizeMin||'不限')} ~ ${esc(item.needsSizeMax||'不限')}`) : ''}
+    ${(item.needsLandSizeMin||item.needsLandSizeMax) ? viewInfoRow('土地坪數', `${esc(item.needsLandSizeMin||'不限')} ~ ${esc(item.needsLandSizeMax||'不限')}`) : ''}
+    ${(item.needsAgeMin||item.needsAgeMax) ? viewInfoRow('屋齡', `${esc(item.needsAgeMin||'不限')} ~ ${esc(item.needsAgeMax||'不限')}`) : ''}
+    ${(item.needsFloorMin||item.needsFloorMax) ? viewInfoRow('樓層', `${esc(item.needsFloorMin||'不限')} ~ ${esc(item.needsFloorMax||'不限')}`) : ''}
+    ${(item.needsDirections&&item.needsDirections.length) ? viewInfoRow('朝向', item.needsDirections.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
     ${item.needsParking ? viewInfoRow('車位需求', esc(item.needsParking)) : ''}
+    ${(item.needsParkingStyles&&item.needsParkingStyles.length) ? viewInfoRow('停車方式', item.needsParkingStyles.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
     ${item.needsLayout ? viewInfoRow('格局需求', esc(item.needsLayout)) : ''}
-    ${(item.needsBudgetMin||item.needsBudgetMax) ? viewInfoRow('預算(萬)', `${esc(item.needsBudgetMin||'不限')} ~ ${esc(item.needsBudgetMax||'不限')}`) : ''}
-    ${(item.needsSizeMin||item.needsSizeMax) ? viewInfoRow('坪數需求', `${esc(item.needsSizeMin||'不限')} ~ ${esc(item.needsSizeMax||'不限')}`) : ''}
     ${item.clientNeeds ? viewInfoRow('需求備註', esc(item.clientNeeds).replace(/\n/g,'<br>')) : ''}
     ${viewInfoRow('備註', item.notes ? esc(item.notes).replace(/\n/g,'<br>') : '')}
     ${cardsHtml ? viewInfoRow('賀卡紀錄', cardsHtml) : ''}
