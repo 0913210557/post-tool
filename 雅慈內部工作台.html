@@ -1336,6 +1336,38 @@ function esc(s){
   return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
+/* Custom 24-hour time picker — replaces the native <input type="time">, whose 12hr/24hr display depends on OS locale settings we can't control. This version always shows 24-hour format. */
+function timePickerHTML(id, value){
+  const parts = (value||'').split(':');
+  const h = parts[0] || '';
+  const m = parts[1] || '';
+  let hourOpts = '<option value="">--</option>';
+  for(let i=0;i<24;i++){
+    const hh = String(i).padStart(2,'0');
+    hourOpts += `<option value="${hh}" ${hh===h?'selected':''}>${hh}</option>`;
+  }
+  let minOpts = '<option value="">--</option>';
+  for(let i=0;i<60;i++){
+    const mm = String(i).padStart(2,'0');
+    minOpts += `<option value="${mm}" ${mm===m?'selected':''}>${mm}</option>`;
+  }
+  return `<span class="time-picker-wrap" style="display:inline-flex; align-items:center; gap:3px;">
+    <select class="tp-hour" onchange="syncTimePicker('${id}')" style="width:62px;">${hourOpts}</select>
+    <span>:</span>
+    <select class="tp-min" onchange="syncTimePicker('${id}')" style="width:62px;">${minOpts}</select>
+    <input type="hidden" id="${id}" value="${esc(value||'')}">
+  </span>`;
+}
+function syncTimePicker(id){
+  const hiddenEl = document.getElementById(id);
+  if(!hiddenEl) return;
+  const wrap = hiddenEl.closest('.time-picker-wrap');
+  if(!wrap) return;
+  const h = wrap.querySelector('.tp-hour').value;
+  const m = wrap.querySelector('.tp-min').value;
+  hiddenEl.value = (h && m) ? `${h}:${m}` : '';
+}
+
 function statusStamp(status){
   const map = {
     '追蹤中':'stamp-active','在售':'stamp-active','製作中':'stamp-active','草稿':'stamp-pending',
@@ -1783,7 +1815,7 @@ async function openClientModal(id){
       <div class="field-sub-title">服務紀錄</div>
       <div class="log-add-row" style="flex-wrap:wrap;">
         <input type="date" id="logDate" value="${new Date().toISOString().slice(0,10)}">
-        <input type="time" id="logTime" value="${new Date().toTimeString().slice(0,5)}">
+        ${timePickerHTML('logTime', new Date().toTimeString().slice(0,5))}
       </div>
       <select id="logType" style="margin-top:8px;">
         ${SERVICE_LOG_TYPES.map(t=>`<option>${t}</option>`).join('')}
@@ -2082,7 +2114,7 @@ function renderLogExtraFields(){
       <input type="text" id="logExtra_parking" placeholder="停車場" value="${esc(config.fields[1].default)}" style="margin-bottom:6px;">
       <div class="field-row" style="margin-bottom:6px;">
         <input type="date" id="logExtra_meetingDate" value="${esc(defaultDate)}">
-        <input type="time" id="logExtra_meetingTime">
+        ${timePickerHTML('logExtra_meetingTime', '')}
       </div>
       <select id="logExtra_party" style="margin-bottom:6px;">
         <option value="">請選擇買方或賣方</option>
@@ -2656,7 +2688,7 @@ function renderLogList(){
       <div class="log-entry" style="flex-direction:column; align-items:stretch; gap:8px;">
         <div class="field-row">
           <input type="date" id="editLogDate-${l.id}" value="${esc(l.date||'')}">
-          <input type="time" id="editLogTime-${l.id}" value="${esc(l.time||'')}">
+          ${timePickerHTML('editLogTime-'+l.id, l.time||'')}
         </div>
         <select id="editLogType-${l.id}" onchange="renderEditLogExtraFields('${l.id}')">
           ${SERVICE_LOG_TYPES.map(t=>`<option ${t===l.type?'selected':''}>${t}</option>`).join('')}
@@ -2737,7 +2769,7 @@ function renderEditLogExtraFields(logId){
       <input type="text" id="editLogExtra-${logId}-parking" placeholder="停車場" value="${esc(extra.parking||config.fields[1].default)}" style="margin-bottom:6px;">
       <div class="field-row" style="margin-bottom:6px;">
         <input type="date" id="editLogExtra-${logId}-meetingDate" value="${esc(extra.meetingDate||'')}">
-        <input type="time" id="editLogExtra-${logId}-meetingTime" value="${esc(extra.meetingTime||'')}">
+        ${timePickerHTML('editLogExtra-'+logId+'-meetingTime', extra.meetingTime||'')}
       </div>
       <select id="editLogExtra-${logId}-party" style="margin-bottom:6px;" onchange="updateEditMeetingChecklist('${logId}')">
         <option value="">請選擇買方或賣方</option>
