@@ -792,8 +792,9 @@ function exportExcel(){
   const clientRows = DATA.clients.filter(c=>!c.isDutyRosterClient).map(c=>{
     const records = getClientPropertyRecords(c);
     const byCat = cat => records.filter(r=>r.category===cat).map(r=>{
+      const label = [r.caseName, r.address, r.content].filter(Boolean).join(' ') || '(未填)';
       const price = [r.askingPrice?`開價${r.askingPrice}萬`:'', r.bottomPrice?`底價${r.bottomPrice}萬`:''].filter(Boolean).join('/');
-      return price ? `${r.content}(${price})` : r.content;
+      return price ? `${label}(${price})` : label;
     }).join('、');
     const serviceLogText = (c.serviceLogs||[]).slice()
       .sort((a,b)=>((a.date||'')+(a.time||'')).localeCompare((b.date||'')+(b.time||'')))
@@ -1220,7 +1221,7 @@ const MEETING_CHECKLISTS = {
   '賣方': ['身份證','印章','權狀','代書潤筆費1000元'],
   '買方': ['身份證','印章','10萬現金','代書潤筆費1000元'],
 };
-const PROPERTY_RECORD_CATEGORIES = ['待追蹤','已成交','委託中','曾經委託'];
+const PROPERTY_RECORD_CATEGORIES = ['待追蹤','已成交','委託中','曾經委託','已失效'];
 
 function getClientPhones(c){
   if(c.phones && c.phones.length) return c.phones;
@@ -1336,6 +1337,15 @@ function esc(s){
   return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
+function formatEntrustDateRange(r){
+  const start = r.entrustDateStart || r.entrustDate || '';
+  const end = r.entrustDateEnd || '';
+  if(start && end) return `${start} ~ ${end}`;
+  if(start) return start;
+  if(end) return `~ ${end}`;
+  return '';
+}
+
 /* Custom 24-hour time picker — replaces the native <input type="time">, whose 12hr/24hr display depends on OS locale settings we can't control. This version always shows 24-hour format. */
 function timePickerHTML(id, value){
   const parts = (value||'').split(':');
@@ -1413,7 +1423,7 @@ function clientSearchText(c){
     getClientStatuses(c).join(' '),
     c.source, c.propertyAddress, c.clientNeeds,
     getClientLineNames(c).join(' '), c.lineId, c.fb, c.company, c.idNumber, c.homeAddress,
-    getClientPropertyRecords(c).map(r=>`${r.category} ${r.content}`).join(' '),
+    getClientPropertyRecords(c).map(r=>`${r.category} ${r.caseName||''} ${r.address||''} ${r.content||''}`).join(' '),
     (c.serviceLogs||[]).map(l=>`${l.type||''} ${l.note||''}`).join(' '),
     getClientGreetingCards(c).map(g=>g.note||'').join(' '),
     c.notes
@@ -1521,7 +1531,7 @@ function drawSoldClientTable(){
     <th>姓名</th><th>電話</th><th>狀態</th><th>已成交物件</th><th>賀卡紀錄</th><th></th>
   </tr></thead><tbody>
     ${list.map(c=>{
-      const soldItems = getClientPropertyRecords(c).filter(r=>r.category==='已成交').map(r=>r.content).join('、');
+      const soldItems = getClientPropertyRecords(c).filter(r=>r.category==='已成交').map(r=>r.caseName||r.content).join('、');
       const statuses = getClientStatuses(c).filter(s=>SOLD_STATUS_SET.includes(s)).join('、');
       const cards = getClientGreetingCards(c).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
       const cardsHtml = cards.map(g=>`<span class="tag-soft" style="margin-right:4px; white-space:nowrap;" title="${esc(g.note||'')}">🧧 ${esc((g.date||'').slice(0,4))}<span style="cursor:pointer; margin-left:3px;" onclick="event.stopPropagation(); removeGreetingCard('${c.id}','${g.id}')">✕</span></span>`).join('');
@@ -1614,13 +1624,13 @@ function drawEntrustedTable(){
   });
 
   wrap.innerHTML = `<table><thead><tr>
-    <th>姓名</th><th>電話</th><th>物件內容</th><th>委託時間</th><th>開價</th><th>底價</th><th></th>
+    <th>姓名</th><th>電話</th><th>案名</th><th>委託時間</th><th>開價</th><th>底價</th><th></th>
   </tr></thead><tbody>
-    ${rows.map(({client:c, record:r})=>`<tr class="row-hover" style="cursor:pointer;" onclick="viewClientModal('${c.id}')">
-      <td>${esc(c.name)}</td>
+    ${rows.map(({client:c, record:r})=>`<tr class="row-hover" style="cursor:pointer;" onclick="${r?`viewPropertyRecordModal('${c.id}','${r.id}')`:`viewClientModal('${c.id}')`}">
+      <td onclick="event.stopPropagation(); viewClientModal('${c.id}')" style="text-decoration:underline; cursor:pointer;">${esc(c.name)}</td>
       <td>${clientPhoneSummary(c)}</td>
-      <td>${esc((r&&r.content)||'—')}</td>
-      <td>${esc((r&&r.entrustDate)||'—')}</td>
+      <td>${esc((r&&r.caseName)||'—')}</td>
+      <td>${esc(r ? formatEntrustDateRange(r) : '') || '—'}</td>
       <td>${(r&&r.askingPrice)?esc(r.askingPrice)+'萬':'—'}</td>
       <td>${(r&&r.bottomPrice)?esc(r.bottomPrice)+'萬':'—'}</td>
       <td onclick="event.stopPropagation()"><div class="row-actions">
@@ -1790,17 +1800,25 @@ async function openClientModal(id){
         <span>物件內容${records0Count?`(${records0Count}筆)`:''}</span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
       </div>
       <div id="propertyContentBody" style="display:none;">
-      <div class="pt-hint" style="margin:0 0 8px;">待追蹤 / 已成交 / 委託中 / 曾經委託</div>
+      <div class="pt-hint" style="margin:0 0 8px;">待追蹤 / 已成交 / 委託中 / 曾經委託 / 已失效</div>
       <div class="log-list" id="propertyRecordList"></div>
       <div class="log-add-row" style="flex-wrap:wrap;">
         <select id="propertyRecordCategory" style="flex-shrink:0; width:110px;">
           ${PROPERTY_RECORD_CATEGORIES.map(c=>`<option>${c}</option>`).join('')}
         </select>
-        <textarea id="propertyRecordContent" placeholder="物件內容(地址、備註等)" style="flex:1; min-width:160px; min-height:60px;"></textarea>
+        <input type="text" id="propertyRecordCaseName" placeholder="案名" style="flex:1; min-width:120px;">
       </div>
-      <div class="pt-hint" style="margin:6px 0 0;">委託時間 / 開價(萬) / 底價(萬)</div>
+      <div class="log-add-row" style="margin-top:6px; flex-wrap:wrap;">
+        <input type="text" id="propertyRecordAddress" placeholder="地址" style="flex:1; min-width:160px;">
+      </div>
+      <div class="log-add-row" style="margin-top:6px; flex-wrap:wrap;">
+        <textarea id="propertyRecordContent" placeholder="內容(備註等)" style="flex:1; min-width:160px; min-height:60px;"></textarea>
+      </div>
+      <div class="pt-hint" style="margin:6px 0 0;">委託時間(開始~結束) / 開價(萬) / 底價(萬)</div>
       <div class="log-add-row" style="margin-top:2px; flex-wrap:wrap;">
-        <input type="date" id="propertyRecordEntrustDate" title="委託時間">
+        <input type="date" id="propertyRecordEntrustDateStart" title="委託開始日期">
+        <span>~</span>
+        <input type="date" id="propertyRecordEntrustDateEnd" title="委託結束日期">
         <input type="number" id="propertyRecordAskingPrice" placeholder="開價(萬)">
         <input type="number" id="propertyRecordBottomPrice" placeholder="底價(萬)">
         <button class="btn btn-ghost btn-sm" id="propertyRecordAddBtn">新增</button>
@@ -1970,23 +1988,29 @@ function addPropertyRecordEntry(){
   const contentEl = document.getElementById('propertyRecordContent');
   if(!contentEl) return false;
   const category = document.getElementById('propertyRecordCategory').value;
+  const caseName = document.getElementById('propertyRecordCaseName').value.trim();
+  const address = document.getElementById('propertyRecordAddress').value.trim();
   const content = contentEl.value.trim();
-  const entrustDate = document.getElementById('propertyRecordEntrustDate').value;
+  const entrustDateStart = document.getElementById('propertyRecordEntrustDateStart').value;
+  const entrustDateEnd = document.getElementById('propertyRecordEntrustDateEnd').value;
   const askingPrice = document.getElementById('propertyRecordAskingPrice').value.trim();
   const bottomPrice = document.getElementById('propertyRecordBottomPrice').value.trim();
-  if(!content) return false;
+  if(!caseName && !address && !content) return false;
   const priceHistory = (askingPrice || bottomPrice)
-    ? [{id:uid(), date:entrustDate || new Date().toISOString().slice(0,10), askingPrice, bottomPrice, note:'新增'}]
+    ? [{id:uid(), date:entrustDateStart || new Date().toISOString().slice(0,10), askingPrice, bottomPrice, note:'新增'}]
     : [];
-  editingCtx.tempPropertyRecords.push({id:uid(), category, content, entrustDate, askingPrice, bottomPrice, owners:[], priceHistory, photoKeys:[]});
+  editingCtx.tempPropertyRecords.push({id:uid(), category, caseName, address, content, entrustDateStart, entrustDateEnd, askingPrice, bottomPrice, owners:[], priceHistory, photoKeys:[]});
+  document.getElementById('propertyRecordCaseName').value='';
+  document.getElementById('propertyRecordAddress').value='';
   contentEl.value='';
-  document.getElementById('propertyRecordEntrustDate').value='';
+  document.getElementById('propertyRecordEntrustDateStart').value='';
+  document.getElementById('propertyRecordEntrustDateEnd').value='';
   document.getElementById('propertyRecordAskingPrice').value='';
   document.getElementById('propertyRecordBottomPrice').value='';
   renderPropertyRecordList();
   if(category === '已成交'){
     const nameEl = document.getElementById('f_name');
-    maybeOfferCreateDeal(nameEl ? nameEl.value.trim() : '', content, content);
+    maybeOfferCreateDeal(nameEl ? nameEl.value.trim() : '', caseName, address);
   }
   return true;
 }
@@ -1995,7 +2019,8 @@ function getClientKnownAddressesAndUrls(){
   const addresses = new Set();
   const urls = new Set();
   (editingCtx.tempPropertyRecords||[]).forEach(r=>{
-    if(r.content) addresses.add(r.content.split('\n')[0].trim());
+    if(r.address) addresses.add(r.address.split('\n')[0].trim());
+    else if(r.content) addresses.add(r.content.split('\n')[0].trim());
   });
   (editingCtx.tempLogs||[]).forEach(l=>{
     const config = SERVICE_LOG_EXTRA_FIELDS[l.type];
@@ -2365,7 +2390,19 @@ async function flushPendingClientInputs(){
   addPhoneEntry();
   addLineNameEntry();
   addNeedsAreaEntry();
+  if(editingCtx.editingRecordId){
+    savePropertyRecordEdit(editingCtx.editingRecordId);
+  }
   addPropertyRecordEntry();
+  if(editingCtx.expandedOwnerRecordId){
+    const rid = editingCtx.expandedOwnerRecordId;
+    const nameEl = document.getElementById('ownerName-'+rid);
+    const idEl = document.getElementById('ownerIdNumber-'+rid);
+    const phoneEl = document.getElementById('ownerPhone-'+rid);
+    if(nameEl && ((nameEl.value||'').trim() || (idEl.value||'').trim() || (phoneEl.value||'').trim())){
+      addRecordOwner(rid);
+    }
+  }
   if(editingCtx.editingLogId){
     await saveLogEdit(editingCtx.editingLogId);
   }
@@ -2427,9 +2464,11 @@ function renderPropertyRecordList(){
       return `
       <div class="log-entry" style="flex-direction:column; align-items:stretch; gap:8px;">
         <select id="editRecordCategory-${r.id}">${PROPERTY_RECORD_CATEGORIES.map(c=>`<option ${c===r.category?'selected':''}>${c}</option>`).join('')}</select>
-        <textarea id="editRecordContent-${r.id}" style="min-height:60px;">${esc(r.content)}</textarea>
+        <input type="text" id="editRecordCaseName-${r.id}" placeholder="案名" value="${esc(r.caseName||'')}">
+        <input type="text" id="editRecordAddress-${r.id}" placeholder="地址" value="${esc(r.address||'')}">
+        <textarea id="editRecordContent-${r.id}" placeholder="內容(備註等)" style="min-height:60px;">${esc(r.content)}</textarea>
         <div class="field-row">
-          <div><div class="pt-hint" style="margin:0 0 4px;">委託時間</div><input type="date" id="editRecordEntrustDate-${r.id}" value="${esc(r.entrustDate||'')}"></div>
+          <div><div class="pt-hint" style="margin:0 0 4px;">委託時間(開始~結束)</div><div style="display:flex; align-items:center; gap:6px;"><input type="date" id="editRecordEntrustDateStart-${r.id}" value="${esc(r.entrustDateStart||r.entrustDate||'')}"><span>~</span><input type="date" id="editRecordEntrustDateEnd-${r.id}" value="${esc(r.entrustDateEnd||'')}"></div></div>
         </div>
         <div class="field-row">
           <input type="number" id="editRecordAsking-${r.id}" placeholder="開價(萬)" value="${esc(r.askingPrice||'')}">
@@ -2443,7 +2482,7 @@ function renderPropertyRecordList(){
     }
 
     const priceLine = (r.askingPrice || r.bottomPrice) ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${r.askingPrice?`開價 ${esc(r.askingPrice)}萬`:''}${r.askingPrice&&r.bottomPrice?'　':''}${r.bottomPrice?`底價 ${esc(r.bottomPrice)}萬`:''}</div>` : '';
-    const entrustLine = r.entrustDate ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">委託時間 ${esc(r.entrustDate)}</div>` : '';
+    const entrustLine = formatEntrustDateRange(r) ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">委託時間 ${esc(formatEntrustDateRange(r))}</div>` : '';
     const ownerLine = owners.length ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">屋主 ${owners.map(o=>[o.name,o.idNumber,o.phone].filter(Boolean).map(esc).join('/')).join('、')}</div>` : '';
 
     return `
@@ -2451,7 +2490,9 @@ function renderPropertyRecordList(){
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
         <div style="flex:1;">
           <div class="log-entry-date">${esc(r.category)}</div>
-          <div class="log-entry-note">${esc(r.content).replace(/\n/g,'<br>')}</div>
+          ${r.caseName?`<div style="font-weight:700; margin-top:2px;">${esc(r.caseName)}</div>`:''}
+          ${r.address?`<div style="font-size:13px; color:var(--ink); margin-top:2px;">${esc(r.address)}</div>`:''}
+          ${r.content?`<div class="log-entry-note" style="margin-top:2px;">${esc(r.content).replace(/\n/g,'<br>')}</div>`:''}
           ${entrustLine}
           ${priceLine}
           ${ownerLine}
@@ -2548,11 +2589,14 @@ function cancelPropertyRecordEdit(){
 }
 function savePropertyRecordEdit(recordId){
   const category = document.getElementById('editRecordCategory-'+recordId).value;
+  const caseName = document.getElementById('editRecordCaseName-'+recordId).value.trim();
+  const address = document.getElementById('editRecordAddress-'+recordId).value.trim();
   const content = document.getElementById('editRecordContent-'+recordId).value.trim();
-  const entrustDate = document.getElementById('editRecordEntrustDate-'+recordId).value;
+  const entrustDateStart = document.getElementById('editRecordEntrustDateStart-'+recordId).value;
+  const entrustDateEnd = document.getElementById('editRecordEntrustDateEnd-'+recordId).value;
   const askingPrice = document.getElementById('editRecordAsking-'+recordId).value.trim();
   const bottomPrice = document.getElementById('editRecordBottom-'+recordId).value.trim();
-  if(!content){ showToast('請輸入物件內容'); return; }
+  if(!caseName && !address && !content){ showToast('請至少輸入案名、地址或內容其中一項'); return; }
   const rec = (editingCtx.tempPropertyRecords||[]).find(r=>r.id===recordId);
   if(!rec) return;
   const wasSold = rec.category === '已成交';
@@ -2561,15 +2605,19 @@ function savePropertyRecordEdit(recordId){
     rec.priceHistory.push({id:uid(), date:new Date().toISOString().slice(0,10), askingPrice, bottomPrice, note:'變更'});
   }
   rec.category = category;
+  rec.caseName = caseName;
+  rec.address = address;
   rec.content = content;
-  rec.entrustDate = entrustDate;
+  rec.entrustDateStart = entrustDateStart;
+  rec.entrustDateEnd = entrustDateEnd;
+  delete rec.entrustDate;
   rec.askingPrice = askingPrice;
   rec.bottomPrice = bottomPrice;
   editingCtx.editingRecordId = null;
   renderPropertyRecordList();
   if(category === '已成交' && !wasSold){
     const nameEl = document.getElementById('f_name');
-    maybeOfferCreateDeal(nameEl ? nameEl.value.trim() : '', content, content);
+    maybeOfferCreateDeal(nameEl ? nameEl.value.trim() : '', caseName, address);
   }
 }
 
@@ -2995,6 +3043,7 @@ async function saveClient(){
 /* ===================== Client View Modal (read-only) ===================== */
 let currentViewClientId = null;
 let currentViewDealId = null;
+let currentViewRecordId = null;
 let __lightboxPhotos = [];
 
 function pushLightboxPhoto(src, filename){
@@ -3066,6 +3115,7 @@ async function viewClientModal(id){
   if(!item) return;
   currentViewClientId = id;
   currentViewDealId = null;
+  currentViewRecordId = null;
   __lightboxPhotos = [];
 
   document.getElementById('viewModalTitle').textContent = item.name || '客戶資料';
@@ -3111,7 +3161,7 @@ async function viewClientModal(id){
       return `<div class="photo-chip" style="cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:22px; background:var(--stone); gap:2px;" onclick="openOrDownloadFile(${idx})" title="點擊開啟/下載"><span>📄</span><span style="font-size:9px; color:var(--ink-soft);">${ext||'檔案'}</span></div>`;
     }).join('')}</div>${recordIndices.length>1 ? `<button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="downloadAllPhotos([${recordIndices.join(',')}])">⬇ 全部下載(${recordIndices.length}個)</button>` : ''}` : '';
     const priceLine = (r.askingPrice || r.bottomPrice) ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${r.askingPrice?`開價 ${esc(r.askingPrice)}萬`:''}${r.askingPrice&&r.bottomPrice?'　':''}${r.bottomPrice?`底價 ${esc(r.bottomPrice)}萬`:''}</div>` : '';
-    const entrustLine = r.entrustDate ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">委託時間 ${esc(r.entrustDate)}</div>` : '';
+    const entrustLine = formatEntrustDateRange(r) ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">委託時間 ${esc(formatEntrustDateRange(r))}</div>` : '';
     const owners = getPropertyRecordOwners(r);
     const ownerLine = owners.length ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">屋主 ${owners.map(o=>[o.name,o.idNumber,o.phone].filter(Boolean).map(esc).join('/')).join('、')}</div>` : '';
     const history = r.priceHistory || [];
@@ -3120,7 +3170,9 @@ async function viewClientModal(id){
     `).join('')}</div></div>` : '';
     return `<div style="border:1px solid var(--line); border-radius:2px; padding:10px 12px; margin-bottom:8px;">
       <span class="stamp stamp-pending">${esc(r.category)}</span>
-      <div style="font-size:13px; margin-top:6px; color:var(--ink);">${esc(r.content).replace(/\n/g,'<br>')}</div>
+      ${r.caseName?`<div style="font-weight:700; margin-top:6px; color:var(--ink);">${esc(r.caseName)}</div>`:''}
+      ${r.address?`<div style="font-size:13px; margin-top:2px; color:var(--ink);">${esc(r.address)}</div>`:''}
+      ${r.content?`<div style="font-size:13px; margin-top:2px; color:var(--ink);">${esc(r.content).replace(/\n/g,'<br>')}</div>`:''}
       ${entrustLine}
       ${priceLine}
       ${ownerLine}
@@ -3216,11 +3268,61 @@ document.getElementById('viewModalAddLogBtn').onclick = async ()=>{
   if(noteEl) noteEl.focus();
 };
 
+async function viewPropertyRecordModal(clientId, recordId){
+  const client = DATA.clients.find(c=>c.id===clientId);
+  if(!client) return;
+  const r = getClientPropertyRecords(client).find(rec=>rec.id===recordId);
+  if(!r) return;
+
+  currentViewClientId = clientId;
+  currentViewDealId = null;
+  currentViewRecordId = recordId;
+  __lightboxPhotos = [];
+
+  document.getElementById('viewModalTitle').textContent = r.caseName || r.address || '物件資料';
+  document.getElementById('viewModalOverlay').classList.add('open');
+  document.getElementById('viewModalAddLogBtn').style.display = 'none';
+
+  const photos = (r.photoKeys && r.photoKeys.length) ? await Promise.all(r.photoKeys.map(k=>loadPhoto(k))) : [];
+  const recordIndices = [];
+  const photosHtml = photos.length ? `<div class="photo-grid" style="margin-top:8px;">${photos.map((src,i)=>{
+    if(!src) return '';
+    const ext = mimeExtFromDataUrl(src) || '.jpg';
+    const idx = pushLightboxPhoto(src, `${client.name}-${r.category}-${i+1}${ext}`);
+    recordIndices.push(idx);
+    if(isImageDataUrl(src)){
+      return `<div class="photo-chip" style="cursor:pointer;" onclick="openOrDownloadFile(${idx})"><img src="${src}"></div>`;
+    }
+    return `<div class="photo-chip" style="cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:22px; background:var(--stone); gap:2px;" onclick="openOrDownloadFile(${idx})" title="點擊開啟/下載"><span>📄</span><span style="font-size:9px; color:var(--ink-soft);">${ext||'檔案'}</span></div>`;
+  }).join('')}</div>${recordIndices.length>1 ? `<button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="downloadAllPhotos([${recordIndices.join(',')}])">⬇ 全部下載(${recordIndices.length}個)</button>` : ''}` : '';
+
+  const owners = getPropertyRecordOwners(r);
+  const history = r.priceHistory || [];
+  const historyHtml = history.length ? `<div style="margin-top:8px;"><div style="font-size:11px; font-weight:700; color:var(--ink-soft);">變更紀錄</div><div class="log-list" style="margin-top:4px;">${history.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(h=>`
+    <div class="log-entry"><div class="log-entry-date">${esc(h.date||'—')}</div><div class="log-entry-note">${h.askingPrice?`開價 ${esc(h.askingPrice)}萬 `:''}${h.bottomPrice?`底價 ${esc(h.bottomPrice)}萬`:''}${h.note?`(${esc(h.note)})`:''}</div></div>
+  `).join('')}</div></div>` : '';
+
+  document.getElementById('viewModalBody').innerHTML = `
+    ${viewInfoRow('分類', esc(r.category))}
+    <div class="pt-hint" style="margin:8px 0 4px; cursor:pointer; text-decoration:underline;" onclick="document.getElementById('viewModalOverlay').classList.remove('open'); viewClientModal('${clientId}')">👤 客戶:${esc(client.name)}(點這裡看完整客戶資料)</div>
+    ${viewInfoRow('案名', esc(r.caseName))}
+    ${viewInfoRow('地址', esc(r.address))}
+    ${viewInfoRow('內容', r.content ? esc(r.content).replace(/\n/g,'<br>') : '')}
+    ${viewInfoRow('委託時間', esc(formatEntrustDateRange(r)))}
+    ${viewInfoRow('開價', r.askingPrice ? r.askingPrice+' 萬' : '')}
+    ${viewInfoRow('底價', r.bottomPrice ? r.bottomPrice+' 萬' : '')}
+    ${owners.length ? viewInfoRow('屋主', owners.map(o=>[o.name,o.idNumber,o.phone].filter(Boolean).map(esc).join('/')).join('、')) : ''}
+    ${photosHtml}
+    ${historyHtml}
+  `;
+}
+
 async function viewDealModal(id){
   const item = DATA.deals.find(d=>d.id===id);
   if(!item) return;
   currentViewDealId = id;
   currentViewClientId = null;
+  currentViewRecordId = null;
   __lightboxPhotos = [];
 
   document.getElementById('viewModalTitle').textContent = item.caseName || '成交案';
@@ -4706,7 +4808,7 @@ function renderCalendar(){
     <div class="section-block" style="margin-bottom:16px;">
       <div class="section-block-body" style="padding:14px 16px;">
         <div class="field-sub-title" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;" onclick="toggleFieldSection('gcalPanelBody', this)">
-          <span>🔗 Google 日曆自動同步(選用,可與 Jorte 連動)</span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
+          <span>🔗 Google 日曆自動同步(選用)</span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
         </div>
         <div id="gcalPanelBody" style="display:none; margin-top:10px;">
           <div class="pt-hint" style="margin:0 0 6px;">Google OAuth Client ID(只需貼一次,存在這台裝置上)</div>
@@ -5066,7 +5168,7 @@ function drawCalendar(){
     (c.serviceLogs||[]).forEach(l=>{
       if(!l.date) return;
       if(!events[l.date]) events[l.date] = [];
-      events[l.date].push({clientId:c.id, logId:l.id, clientName:c.name, time:l.time||'', note:l.note||'', type:l.type||''});
+      events[l.date].push({clientId:c.id, logId:l.id, clientName:c.name, time:l.time||'', note:l.note||'', type:l.type||'', completed:!!l.completed});
     });
   });
 
@@ -5081,10 +5183,11 @@ function drawCalendar(){
     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const dayEvents = (events[dateStr]||[]).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));
     const isToday = dateStr === todayStr;
-    const hasImportant = dayEvents.some(e=>!CALENDAR_ROUTINE_TYPES.includes(e.type));
+    const doneCount = dayEvents.filter(e=>e.completed).length;
+    const hasImportant = dayEvents.some(e=>!CALENDAR_ROUTINE_TYPES.includes(e.type) && !e.completed);
     cells += `<div class="cal-cell ${isToday?'cal-today':''}" ${dayEvents.length?`onclick="openDayAgenda('${dateStr}')" style="cursor:pointer;"`:''}>
       <div class="cal-daynum">${d}</div>
-      ${dayEvents.length ? `<div class="cal-event-count${hasImportant?' cal-event-count-important':''}">${dayEvents.length} 個行程</div>` : ''}
+      ${dayEvents.length ? `<div class="cal-event-count${hasImportant?' cal-event-count-important':''}">${dayEvents.length} 個行程${doneCount?` · ${doneCount}已完成`:''}</div>` : ''}
     </div>`;
   }
 
@@ -5146,7 +5249,7 @@ function exportAllUpcomingToICS(){
   });
   if(vevents.length===0){ showToast('目前沒有任何有日期的服務紀錄可以匯出'); return; }
   downloadICSFile(`雅慈工作台行事曆_${new Date().toISOString().slice(0,10)}.ics`, buildICSFile(vevents));
-  showToast('已下載完整行事曆檔,開啟後選擇要加入的行事曆 App(例如 Jorte)');
+  showToast('已下載完整行事曆檔,開啟後選擇要加入的行事曆 App');
 }
 
 /* ===================== Google Calendar sync (OAuth, no public URL) ===================== */
@@ -5229,10 +5332,16 @@ function gcalBuildEventBody(client, l){
   const summary = client.isDutyRosterClient
     ? `${l.type||'行程'}${trashMatch ? ' ' + trashMatch[0] : ''}`
     : `${l.type||'行程'} - ${client.name}${trashMatch ? ' ' + trashMatch[0] : ''}`;
-  const reminderMinutes = gcalGetReminderMinutes();
-  const reminders = reminderMinutes === 'default'
-    ? { useDefault: true }
-    : { useDefault: false, overrides: [{ method: 'popup', minutes: parseInt(reminderMinutes, 10) }] };
+  const NO_REMINDER_TYPES = ['買方聯絡','賣方聯絡'];
+  let reminders;
+  if(NO_REMINDER_TYPES.includes(l.type)){
+    reminders = { useDefault: false, overrides: [] };
+  }else{
+    const reminderMinutes = gcalGetReminderMinutes();
+    reminders = reminderMinutes === 'default'
+      ? { useDefault: true }
+      : { useDefault: false, overrides: [{ method: 'popup', minutes: parseInt(reminderMinutes, 10) }] };
+  }
   const colorId = GCAL_TYPE_COLOR_ID[l.type] || '11';
   if(l.time){
     const start = new Date(l.date + 'T' + l.time + ':00');
@@ -5391,7 +5500,7 @@ function openDayAgenda(dateStr){
   const events = [];
   DATA.clients.forEach(c=>{
     (c.serviceLogs||[]).forEach(l=>{
-      if(l.date === dateStr) events.push({clientId:c.id, logId:l.id, clientName:c.name, isDutyRosterClient:!!c.isDutyRosterClient, time:l.time||'', note:l.note||'', type:l.type||''});
+      if(l.date === dateStr) events.push({clientId:c.id, logId:l.id, clientName:c.name, isDutyRosterClient:!!c.isDutyRosterClient, time:l.time||'', note:l.note||'', type:l.type||'', completed:!!l.completed});
     });
   });
   events.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
@@ -5400,13 +5509,16 @@ function openDayAgenda(dateStr){
   document.getElementById('dayAgendaBody').innerHTML = events.length ? `
     <div class="log-list">${events.map(e=>{
     const isImportant = !CALENDAR_ROUTINE_TYPES.includes(e.type);
-    const lineStyle = isImportant ? 'color:var(--brick); font-size:15px;' : '';
+    const lineStyle = isImportant && !e.completed ? 'color:var(--brick); font-size:15px;' : '';
     const trashMatch = e.note && e.note.match(/垃圾車\s*[\d:：]+/);
     const trashLabel = trashMatch ? ` ${esc(trashMatch[0])}` : '';
     const nameLabel = e.isDutyRosterClient ? '' : esc(e.clientName);
+    const doneStyle = e.completed ? 'opacity:0.45;' : '';
+    const textDeco = e.completed ? 'text-decoration:line-through;' : '';
     return `
-    <div class="log-entry">
-      <div class="log-entry-note" style="cursor:pointer;" onclick="closeDayAgenda(); viewClientModal('${e.clientId}')">
+    <div class="log-entry" style="${doneStyle}">
+      <input type="checkbox" ${e.completed?'checked':''} style="margin-top:2px;" onclick="event.stopPropagation(); toggleLogCompleted('${e.clientId}','${e.logId}','${dateStr}')">
+      <div class="log-entry-note" style="cursor:pointer; ${textDeco}" onclick="closeDayAgenda(); viewClientModal('${e.clientId}')">
         <b style="${lineStyle}">${e.time?esc(e.time)+' ':''}${e.type?`[${esc(e.type)}] `:''}${nameLabel}${trashLabel}</b>
         ${e.note?`<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${esc(e.note)}</div>`:''}
       </div>
@@ -5414,6 +5526,16 @@ function openDayAgenda(dateStr){
   `;
   }).join('')}</div>` : '<div class="empty-state">這天沒有行程</div>';
   document.getElementById('dayAgendaOverlay').classList.add('open');
+}
+async function toggleLogCompleted(clientId, logId, dateStr){
+  const client = DATA.clients.find(c=>c.id===clientId);
+  if(!client) return;
+  const log = (client.serviceLogs||[]).find(l=>l.id===logId);
+  if(!log) return;
+  log.completed = !log.completed;
+  await saveType('clients');
+  openDayAgenda(dateStr);
+  drawCalendar();
 }
 function closeDayAgenda(){
   document.getElementById('dayAgendaOverlay').classList.remove('open');
