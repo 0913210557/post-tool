@@ -663,7 +663,20 @@ async function saveFileChunked(baseKey, dataUrl){
     chunks.push(dataUrl.slice(i, i+FILE_CHUNK_SIZE));
   }
   for(let i=0; i<chunks.length; i++){
-    await window.storage.set(`${baseKey}-chunk-${i}`, chunks[i], false);
+    let lastErr = null;
+    let ok = false;
+    for(let attempt=1; attempt<=3 && !ok; attempt++){
+      try{
+        await window.storage.set(`${baseKey}-chunk-${i}`, chunks[i], false);
+        ok = true;
+      }catch(e){
+        lastErr = e;
+        if(attempt<3) await new Promise(r=>setTimeout(r, 800*attempt));
+      }
+    }
+    if(!ok){
+      throw new Error(`檔案第 ${i+1}/${chunks.length} 份儲存失敗(已重試3次)：${lastErr && lastErr.message ? lastErr.message : '未知錯誤'}`);
+    }
   }
   await window.storage.set(`${baseKey}-chunk-count`, String(chunks.length), false);
 }
@@ -4123,8 +4136,13 @@ async function saveDeal(){
   for(const p of editingCtx.dealAttachments){
     if(!p.key){
       const newKey = 'file:deal-doc:' + uid();
-      await saveFileChunked(newKey, p.dataUrl);
-      p.key = newKey;
+      try{
+        await saveFileChunked(newKey, p.dataUrl);
+        p.key = newKey;
+      }catch(e){
+        showToast((p.fileName||'檔案') + ' 儲存失敗：' + (e && e.message ? e.message : '未知錯誤') + '，請稍後再試一次');
+        return false;
+      }
     }
   }
   vals.attachmentKeys = editingCtx.dealAttachments.map(p=>p.key);
