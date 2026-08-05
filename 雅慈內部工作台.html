@@ -4321,7 +4321,7 @@ function drawCommunityTable(){
   const wrap = document.getElementById('communityTableWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有社區資料</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
-    <th>社區名稱</th><th>區域</th><th>戶數</th><th>最新寄送日期</th><th>建議寄送日期</th><th></th>
+    <th>社區名稱</th><th>區域</th><th>戶數</th><th>最新寄送日期</th><th>下次寄送日期</th><th></th>
   </tr></thead><tbody>
     ${list.map(c=>`<tr class="row-hover" style="cursor:pointer;" onclick="openCommunityModal('${c.id}')">
       <td>${esc(c.name)}</td>
@@ -4350,7 +4350,7 @@ function openCommunityModal(id){
       </select>
     </div>
     <div class="field"><label>戶數</label><input type="number" id="f_communityUnits" value="${esc(item.totalUnits)}"></div>
-    <div class="pt-hint" style="margin:8px 0 0;">建議寄送日期(自動抓最近一次寄送 +6個月) <b>${esc(communitySuggestedDate(item))||'尚無寄送紀錄'}</b></div>
+    <div class="pt-hint" style="margin:8px 0 0;">下次寄送日期(自動抓最近一次寄送 +6個月) <b>${esc(communitySuggestedDate(item))||'尚無寄送紀錄'}</b></div>
     <div class="field"><label>備註</label><textarea id="f_communityNotes" style="min-height:70px;">${esc(item.notes)}</textarea></div>
 
     <div class="field field-divider">
