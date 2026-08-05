@@ -408,7 +408,7 @@
       <div class="nav-item" data-page="clients"><span class="nav-icon">☰</span>客戶名單</div>
       <div class="nav-item" data-page="soldclients"><span class="nav-icon">✓</span>已成交客戶</div>
       <div class="nav-item" data-page="entrusted"><span class="nav-icon">⌂</span>物件委託</div>
-      <div class="nav-item" data-page="deals"><span class="nav-icon">印</span>業績成交</div>
+      <div class="nav-item" data-page="deals"><span class="nav-icon">🏆</span>業績成交</div>
       <div class="nav-item" data-page="posttool"><span class="nav-icon">✍</span>貼文小工具</div>
       <div class="nav-item" data-page="calendar"><span class="nav-icon">▦</span>行事曆</div>
     </div>
@@ -788,28 +788,36 @@ function showToast(msg){
 /* ===================== Export backup ===================== */
 document.getElementById('exportBtn').onclick = exportBackup;
 async function exportBackup(){
-  showToast('準備備份檔中…');
-  const backup = { exportedAt: new Date().toISOString(), data: DATA, photos: {} };
-  const keys = [];
-  DATA.clients.forEach(c=>{
-    getClientCardPhotoKeys(c).forEach(k=>keys.push(k));
-    if(c.attachmentKeys) keys.push(...c.attachmentKeys);
-    getClientPropertyRecords(c).forEach(r=>{ if(r.photoKeys) keys.push(...r.photoKeys); });
-  });
-  for(const k of keys){
-    const v = await loadStoredFile(k);
-    if(v) backup.photos[k] = v;
+  try{
+    showToast('準備備份檔中…');
+    const backup = { exportedAt: new Date().toISOString(), data: DATA, photos: {} };
+    const keys = [];
+    DATA.clients.forEach(c=>{
+      getClientCardPhotoKeys(c).forEach(k=>keys.push(k));
+      if(c.attachmentKeys) keys.push(...c.attachmentKeys);
+      getClientPropertyRecords(c).forEach(r=>{ if(r.photoKeys) keys.push(...r.photoKeys); });
+    });
+    (DATA.deals||[]).forEach(d=>{ if(d.attachmentKeys) keys.push(...d.attachmentKeys); });
+    const uniqueKeys = [...new Set(keys)];
+    const results = await Promise.all(uniqueKeys.map(async k=>{
+      const v = await loadStoredFile(k);
+      return [k, v];
+    }));
+    results.forEach(([k,v])=>{ if(v) backup.photos[k] = v; });
+    const blob = new Blob([JSON.stringify(backup)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `雅慈工作台備份_${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('已下載備份檔');
+  }catch(e){
+    console.error(e);
+    showToast('匯出備份失敗：' + (e && e.message ? e.message : '未知錯誤') + '，請截圖告訴我這個訊息');
   }
-  const blob = new Blob([JSON.stringify(backup)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `雅慈工作台備份_${new Date().toISOString().slice(0,10)}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showToast('已下載備份檔');
 }
 
 document.getElementById('exportExcelBtn').onclick = exportExcel;
