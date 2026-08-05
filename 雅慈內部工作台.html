@@ -1178,7 +1178,7 @@ function renderDashboard(){
   const entrustedCount = DATA.clients.reduce((sum,c)=>sum + getClientPropertyRecords(c).filter(r=>r.category==='委託中').length, 0);
   const monthDeals = DATA.deals.filter(d=>d.closedDate && d.closedDate.startsWith(thisMonth));
   const monthCommission = monthDeals.reduce((s,d)=>s+(Number(d.commission)||0),0);
-  const monthCommunities = DATA.communities.filter(c=>(c.sendLogs||[]).some(l=>l.yearMonth===thisMonth));
+  const monthCommunities = DATA.communities.filter(c=>communitySuggestedDate(c)===thisMonth);
 
   main.innerHTML = `
     <div class="page-head">
@@ -4277,6 +4277,13 @@ function communitySuggestedDate(community){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
 }
 
+function communityLatestSentDate(community){
+  const logs = community.sendLogs || [];
+  if(logs.length===0) return '';
+  const latest = logs.slice().sort((a,b)=>(b.yearMonth||'').localeCompare(a.yearMonth||''))[0];
+  return latest ? latest.yearMonth : '';
+}
+
 function renderCommunities(){
   const main = document.getElementById('main');
   main.innerHTML = `
@@ -4314,12 +4321,13 @@ function drawCommunityTable(){
   const wrap = document.getElementById('communityTableWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有社區資料</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
-    <th>社區名稱</th><th>區域</th><th>戶數</th><th>建議寄送日期</th><th></th>
+    <th>社區名稱</th><th>區域</th><th>戶數</th><th>最新寄送日期</th><th>建議寄送日期</th><th></th>
   </tr></thead><tbody>
     ${list.map(c=>`<tr class="row-hover" style="cursor:pointer;" onclick="openCommunityModal('${c.id}')">
       <td>${esc(c.name)}</td>
       <td>${esc(c.region||'—')}</td>
       <td>${esc(c.totalUnits||'—')}</td>
+      <td>${esc(communityLatestSentDate(c)||'—')}</td>
       <td>${esc(communitySuggestedDate(c)||'—')}</td>
       <td onclick="event.stopPropagation()"><div class="row-actions">
         <button class="icon-btn" onclick="openCommunityModal('${c.id}')" title="編輯">✎</button>
@@ -4341,8 +4349,6 @@ function openCommunityModal(id){
         ${COMMUNITY_REGIONS.map(r=>`<option ${item.region===r?'selected':''}>${r}</option>`).join('')}
       </select>
     </div>
-    <div class="field"><label>戶籍地地址</label><input id="f_communityRegisteredAddress" value="${esc(item.registeredAddress)}"></div>
-    <div class="field"><label>物件地地址</label><input id="f_communityPropertyAddress" value="${esc(item.propertyAddress)}"></div>
     <div class="field"><label>戶數</label><input type="number" id="f_communityUnits" value="${esc(item.totalUnits)}"></div>
     <div class="pt-hint" style="margin:8px 0 0;">建議寄送日期(自動抓最近一次寄送 +6個月) <b>${esc(communitySuggestedDate(item))||'尚無寄送紀錄'}</b></div>
     <div class="field"><label>備註</label><textarea id="f_communityNotes" style="min-height:70px;">${esc(item.notes)}</textarea></div>
@@ -4449,8 +4455,6 @@ async function saveCommunity(){
   const vals = {
     name: document.getElementById('f_communityName').value.trim(),
     region: document.getElementById('f_communityRegion').value,
-    registeredAddress: document.getElementById('f_communityRegisteredAddress').value.trim(),
-    propertyAddress: document.getElementById('f_communityPropertyAddress').value.trim(),
     totalUnits: document.getElementById('f_communityUnits').value,
     notes: document.getElementById('f_communityNotes').value.trim(),
   };
