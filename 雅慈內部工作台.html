@@ -1173,12 +1173,12 @@ function render(){
 /* ===================== Dashboard ===================== */
 function renderDashboard(){
   const main = document.getElementById('main');
-  const activeClients = DATA.clients.filter(c=>getClientStatuses(c).includes('追蹤中')).length;
-  const entrustedCount = DATA.clients.reduce((sum,c)=>sum + getClientPropertyRecords(c).filter(r=>r.category==='委託中').length, 0);
-  const soldClientsCount = DATA.clients.filter(c=>getClientPropertyRecords(c).some(r=>r.category==='已成交')).length;
   const thisMonth = new Date().toISOString().slice(0,7);
+  const monthEntrustedCount = DATA.clients.reduce((sum,c)=>sum + getClientPropertyRecords(c).filter(r=>r.category==='委託中' && (r.entrustDateStart||r.entrustDate||'').startsWith(thisMonth)).length, 0);
+  const entrustedCount = DATA.clients.reduce((sum,c)=>sum + getClientPropertyRecords(c).filter(r=>r.category==='委託中').length, 0);
   const monthDeals = DATA.deals.filter(d=>d.closedDate && d.closedDate.startsWith(thisMonth));
   const monthCommission = monthDeals.reduce((s,d)=>s+(Number(d.commission)||0),0);
+  const monthCommunities = DATA.communities.filter(c=>(c.sendLogs||[]).some(l=>l.yearMonth===thisMonth));
 
   main.innerHTML = `
     <div class="page-head">
@@ -1189,10 +1189,13 @@ function renderDashboard(){
     </div>
 
     <div class="stat-row">
-      <div class="stat-card"><div class="stat-num">${activeClients}</div><div class="stat-label">追蹤中客戶</div></div>
-      <div class="stat-card"><div class="stat-num">${entrustedCount}</div><div class="stat-label">委託中物件</div></div>
-      <div class="stat-card"><div class="stat-num">${soldClientsCount}</div><div class="stat-label">已成交客戶</div></div>
-      <div class="stat-card"><div class="stat-num">$${monthCommission.toLocaleString()}</div><div class="stat-label">本月抽成(元)</div></div>
+      <div class="stat-card"><div class="stat-num">${monthEntrustedCount}</div><div class="stat-label">本月委託件數</div></div>
+      <div class="stat-card"><div class="stat-num">${entrustedCount}</div><div class="stat-label">反開發</div></div>
+      <div class="stat-card"><div class="stat-num">$${monthCommission.toLocaleString()}</div><div class="stat-label">錄影</div></div>
+      <div class="stat-card">
+        <div class="stat-num" style="font-size:14px; line-height:1.5;">${monthCommunities.length ? monthCommunities.map(c=>esc(c.name)).join('、') : '—'}</div>
+        <div class="stat-label">本月社區開發信</div>
+      </div>
     </div>
 
     <div class="section-block">
@@ -1770,6 +1773,19 @@ function drawEntrustedTable(){
   </tbody></table>`;
 }
 
+function switchClientTab(tab){
+  document.querySelectorAll('.client-tab-basic').forEach(el=>{ el.style.display = tab==='basic' ? '' : 'none'; });
+  document.querySelectorAll('.client-tab-needs').forEach(el=>{ el.style.display = tab==='needs' ? '' : 'none'; });
+  document.querySelectorAll('.client-tab-property').forEach(el=>{ el.style.display = tab==='property' ? '' : 'none'; });
+  document.querySelectorAll('.client-tab-btn').forEach(btn=>{
+    const isActive = btn.dataset.tab === tab;
+    btn.style.borderBottomColor = isActive ? 'var(--brick)' : 'transparent';
+    btn.style.color = isActive ? 'var(--ink)' : 'var(--ink-soft)';
+  });
+  const modalBodyEl = document.getElementById('modalBody');
+  if(modalBodyEl) modalBodyEl.scrollTop = 0;
+}
+
 async function openClientModal(id){
   const item = id ? DATA.clients.find(c=>c.id===id) : {
     name:'', phones:[], types:[], statuses:['追蹤中'], source:'', notes:'',
@@ -1806,6 +1822,12 @@ async function openClientModal(id){
   const records0Count = getClientPropertyRecords(item).length;
   document.getElementById('modalTitle').textContent = id ? '編輯客戶' : '新增客戶';
   document.getElementById('modalBody').innerHTML = `
+    <div style="display:flex; gap:4px; margin-bottom:14px; border-bottom:1px solid var(--line);">
+      <button type="button" class="client-tab-btn" data-tab="basic" onclick="switchClientTab('basic')" style="padding:8px 14px; border:none; background:none; border-bottom:2px solid var(--brick); font-size:14px; font-weight:600; color:var(--ink); cursor:pointer;">基本資料</button>
+      <button type="button" class="client-tab-btn" data-tab="needs" onclick="switchClientTab('needs')" style="padding:8px 14px; border:none; background:none; border-bottom:2px solid transparent; font-size:14px; font-weight:600; color:var(--ink-soft); cursor:pointer;">客戶需求</button>
+      <button type="button" class="client-tab-btn" data-tab="property" onclick="switchClientTab('property')" style="padding:8px 14px; border:none; background:none; border-bottom:2px solid transparent; font-size:14px; font-weight:600; color:var(--ink-soft); cursor:pointer;">物件內容${records0Count?`(${records0Count}筆)`:''}</button>
+    </div>
+    <div class="client-tab-basic">
     <div class="field"><label>建檔日期</label><input type="date" id="f_fileDate" value="${esc(item.fileDate)}"></div>
 
     <div class="field"><label>姓名</label><input id="f_name" value="${esc(item.name)}"></div>
@@ -1874,11 +1896,8 @@ async function openClientModal(id){
       <input type="file" accept="image/*" multiple id="clientAttachmentInput" style="display:none;">
     </div>
 
-    <div class="field field-divider">
-      <div class="field-sub-title" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;" onclick="toggleFieldSection('clientNeedsBody', this)">
-        <span>客戶需求</span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
-      </div>
-      <div id="clientNeedsBody" style="display:none;">
+    </div>
+    <div class="client-tab-needs" style="display:none;">
 
       <div class="pt-hint" style="margin:0 0 4px;">租 / 買(可複選)</div>
       <div style="display:flex; gap:14px; flex-wrap:wrap;">
@@ -1974,14 +1993,9 @@ async function openClientModal(id){
       </div>
 
       <textarea id="f_clientNeeds" placeholder="備註" style="min-height:70px; margin-top:12px;">${esc(item.clientNeeds)}</textarea>
-      </div>
     </div>
 
-    <div class="field field-divider">
-      <div class="field-sub-title" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;" onclick="toggleFieldSection('propertyContentBody', this)">
-        <span>物件內容${records0Count?`(${records0Count}筆)`:''}</span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
-      </div>
-      <div id="propertyContentBody" style="display:none;">
+    <div class="client-tab-property" style="display:none;">
       <div class="pt-hint" style="margin:0 0 8px;">待追蹤 / 已成交 / 委託中 / 曾經委託 / 已失效</div>
       <div class="log-list" id="propertyRecordList"></div>
       <div class="log-add-row" style="flex-wrap:wrap;">
@@ -2006,9 +2020,9 @@ async function openClientModal(id){
         <button class="btn btn-ghost btn-sm" id="propertyRecordAddBtn">新增</button>
       </div>
       <div class="pt-hint" style="margin:4px 0 0;">新增後,點該筆物件旁的「👤 屋主」可以新增屋主資料(可多位)</div>
-      </div>
     </div>
 
+    <div class="client-tab-basic">
     <div class="field"><label>備註</label><textarea id="f_notes">${esc(item.notes)}</textarea></div>
 
     <div class="field field-divider" id="serviceLogSection">
@@ -2028,8 +2042,10 @@ async function openClientModal(id){
       <div class="pt-hint" style="margin-top:14px;">之前的服務紀錄</div>
       <div class="log-list" id="logList" style="margin-top:6px;"></div>
     </div>
+    </div>
   `;
   openModal();
+  switchClientTab('basic');
   renderPhoneList();
   renderLineNameList();
   renderNeedsRegionChips();
@@ -4247,6 +4263,20 @@ async function saveDeal(){
 }
 
 /* ===================== 社區開發信 Page ===================== */
+const COMMUNITY_REGIONS = ['中壢區','平鎮區','龍潭區','楊梅區','八德區'];
+const COMMUNITY_ADDRESS_TYPES = ['戶籍地','物件地'];
+
+function communitySuggestedDate(community){
+  const logs = community.sendLogs || [];
+  if(logs.length===0) return '';
+  const latest = logs.slice().sort((a,b)=>(b.yearMonth||'').localeCompare(a.yearMonth||''))[0];
+  if(!latest || !latest.yearMonth) return '';
+  const [y,m] = latest.yearMonth.split('-').map(Number);
+  const d = new Date(y, m-1, 1);
+  d.setMonth(d.getMonth()+6);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
 function renderCommunities(){
   const main = document.getElementById('main');
   main.innerHTML = `
@@ -4257,33 +4287,40 @@ function renderCommunities(){
       <button class="btn btn-primary" id="addCommunityBtn">＋ 新增社區</button>
     </div>
     <div class="toolbar">
-      <input class="search-input" id="communitySearch" placeholder="搜尋社區名稱 / 地址 / 備註…">
+      <input class="search-input" id="communitySearch" placeholder="搜尋社區名稱 / 備註…">
+      <select class="filter-select" id="communityRegionFilter">
+        <option value="">全部區域</option>
+        ${COMMUNITY_REGIONS.map(r=>`<option>${r}</option>`).join('')}
+      </select>
     </div>
     <div class="section-block"><div class="section-block-body" id="communityTableWrap"></div></div>
   `;
   document.getElementById('addCommunityBtn').onclick = ()=>openCommunityModal();
   document.getElementById('communitySearch').oninput = drawCommunityTable;
+  document.getElementById('communityRegionFilter').onchange = drawCommunityTable;
   drawCommunityTable();
 }
 
 function drawCommunityTable(){
   const q = (document.getElementById('communitySearch').value||'').toLowerCase();
+  const regionFilter = document.getElementById('communityRegionFilter').value;
   let list = DATA.communities.filter(c=>{
-    const text = [c.name, c.address, c.notes].filter(Boolean).join(' ').toLowerCase();
-    return !q || text.includes(q);
+    const text = [c.name, c.notes].filter(Boolean).join(' ').toLowerCase();
+    const matchQ = !q || text.includes(q);
+    const matchRegion = !regionFilter || c.region===regionFilter;
+    return matchQ && matchRegion;
   });
   list.sort((a,b)=>(a.name||'').localeCompare(b.name||'', 'zh-Hant'));
   const wrap = document.getElementById('communityTableWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有社區資料</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
-    <th>社區名稱</th><th>地址</th><th>戶數</th><th>最近寄送日期</th><th>已寄送次數</th><th></th>
+    <th>社區名稱</th><th>區域</th><th>戶數</th><th>建議寄送日期</th><th></th>
   </tr></thead><tbody>
     ${list.map(c=>`<tr class="row-hover" style="cursor:pointer;" onclick="openCommunityModal('${c.id}')">
       <td>${esc(c.name)}</td>
-      <td>${esc(c.address||'—')}</td>
+      <td>${esc(c.region||'—')}</td>
       <td>${esc(c.totalUnits||'—')}</td>
-      <td>${esc(c.lastSentDate||'—')}</td>
-      <td>${esc(c.sendCount||0)}</td>
+      <td>${esc(communitySuggestedDate(c)||'—')}</td>
       <td onclick="event.stopPropagation()"><div class="row-actions">
         <button class="icon-btn" onclick="openCommunityModal('${c.id}')" title="編輯">✎</button>
         <button class="icon-btn" onclick="deleteItem('communities','${c.id}')" title="刪除">🗑</button>
@@ -4293,32 +4330,145 @@ function drawCommunityTable(){
 }
 
 function openCommunityModal(id){
-  const item = id ? DATA.communities.find(c=>c.id===id) : {name:'', address:'', totalUnits:'', lastSentDate:'', sendCount:0, notes:''};
-  editingCtx = {type:'communities', id: id||null};
+  const item = id ? DATA.communities.find(c=>c.id===id) : {name:'', region:'', registeredAddress:'', propertyAddress:'', totalUnits:'', notes:'', sendLogs:[]};
+  editingCtx = {type:'communities', id: id||null, tempSendLogs: (item.sendLogs||[]).map(l=>({...l, tempPhotos:[], removedPhotoKeys:[], _photosLoaded:false}))};
   document.getElementById('modalTitle').textContent = id ? '編輯社區' : '新增社區';
   document.getElementById('modalBody').innerHTML = `
     <div class="field"><label>社區名稱</label><input id="f_communityName" value="${esc(item.name)}"></div>
-    <div class="field"><label>地址</label><input id="f_communityAddress" value="${esc(item.address)}"></div>
-    <div class="field-row">
-      <div class="field"><label>戶數</label><input type="number" id="f_communityUnits" value="${esc(item.totalUnits)}"></div>
-      <div class="field"><label>已寄送次數</label><input type="number" id="f_communitySendCount" value="${esc(item.sendCount||0)}"></div>
+    <div class="field"><label>選擇區域</label>
+      <select id="f_communityRegion">
+        <option value="">請選擇</option>
+        ${COMMUNITY_REGIONS.map(r=>`<option ${item.region===r?'selected':''}>${r}</option>`).join('')}
+      </select>
     </div>
-    <div class="field"><label>最近寄送日期</label><input type="date" id="f_communityLastSent" value="${esc(item.lastSentDate)}"></div>
-    <div class="field"><label>備註</label><textarea id="f_communityNotes" style="min-height:80px;">${esc(item.notes)}</textarea></div>
+    <div class="field"><label>戶籍地地址</label><input id="f_communityRegisteredAddress" value="${esc(item.registeredAddress)}"></div>
+    <div class="field"><label>物件地地址</label><input id="f_communityPropertyAddress" value="${esc(item.propertyAddress)}"></div>
+    <div class="field"><label>戶數</label><input type="number" id="f_communityUnits" value="${esc(item.totalUnits)}"></div>
+    <div class="pt-hint" style="margin:8px 0 0;">建議寄送日期(自動抓最近一次寄送 +6個月) <b>${esc(communitySuggestedDate(item))||'尚無寄送紀錄'}</b></div>
+    <div class="field"><label>備註</label><textarea id="f_communityNotes" style="min-height:70px;">${esc(item.notes)}</textarea></div>
+
+    <div class="field field-divider">
+      <div class="field-sub-title">寄送紀錄</div>
+      <div class="log-list" id="communitySendLogList"></div>
+      <div class="field-row" style="margin-top:8px; flex-wrap:wrap;">
+        <input type="month" id="communitySendYearMonth">
+        <select id="communitySendAddressType">
+          ${COMMUNITY_ADDRESS_TYPES.map(t=>`<option>${t}</option>`).join('')}
+        </select>
+      </div>
+      <div class="photo-grid" id="communitySendPhotoGrid" style="margin-top:8px;"></div>
+      <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple id="communitySendPhotoInput" style="display:none;">
+      <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="addCommunitySendLog()">＋ 新增寄送紀錄</button>
+    </div>
   `;
   openModal();
+  editingCtx.newSendLogPhotos = [];
+  renderCommunitySendPhotoGrid();
+  renderCommunitySendLogList();
+  document.getElementById('communitySendPhotoInput').onchange = async (e)=>{
+    const files = Array.from(e.target.files||[]);
+    for(const file of files){
+      if(file.size > 15*1024*1024){ showToast(`${file.name} 超過 15MB`); continue; }
+      const dataUrl = file.type.startsWith('image/') ? await resizeImage(file, 1400, 0.78) : await readFileAsDataUrl(file);
+      editingCtx.newSendLogPhotos.push({key:null, dataUrl, fileName:file.name});
+    }
+    e.target.value = '';
+    renderCommunitySendPhotoGrid();
+  };
+}
+
+function renderCommunitySendPhotoGrid(){
+  const grid = document.getElementById('communitySendPhotoGrid');
+  if(!grid) return;
+  const addTile = `<div class="upload-btn" id="addCommunitySendPhotoTile">＋<br>新增照片/檔案</div>`;
+  grid.innerHTML = editingCtx.newSendLogPhotos.map((p,idx)=>{
+    const isImage = p.dataUrl && p.dataUrl.startsWith('data:image/');
+    const inner = isImage
+      ? `<img src="${p.dataUrl}" style="cursor:pointer;" onclick="window.open('${p.dataUrl}','_blank')">`
+      : `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; cursor:pointer; font-size:11px; text-align:center; padding:4px; word-break:break-all;" onclick="window.open('${p.dataUrl}','_blank')">📄<br>${esc(p.fileName||'檔案')}</div>`;
+    return `<div class="photo-chip">${inner}<button class="rm" onclick="removeCommunitySendPhoto(${idx})">✕</button></div>`;
+  }).join('') + addTile;
+  const tile = document.getElementById('addCommunitySendPhotoTile');
+  if(tile) tile.onclick = ()=>document.getElementById('communitySendPhotoInput').click();
+}
+function removeCommunitySendPhoto(idx){
+  editingCtx.newSendLogPhotos.splice(idx,1);
+  renderCommunitySendPhotoGrid();
+}
+
+function addCommunitySendLog(){
+  const yearMonth = document.getElementById('communitySendYearMonth').value;
+  const addressType = document.getElementById('communitySendAddressType').value;
+  if(!yearMonth){ showToast('請選擇寄送年月'); return; }
+  editingCtx.tempSendLogs.push({
+    id: uid(), yearMonth, addressType,
+    tempPhotos: editingCtx.newSendLogPhotos, removedPhotoKeys: [], photoKeys: [], _photosLoaded: true,
+  });
+  editingCtx.newSendLogPhotos = [];
+  document.getElementById('communitySendYearMonth').value = '';
+  renderCommunitySendPhotoGrid();
+  renderCommunitySendLogList();
+}
+function removeCommunitySendLog(logId){
+  const log = editingCtx.tempSendLogs.find(l=>l.id===logId);
+  if(log) log.tempPhotos.forEach(p=>{ if(p.key) log.removedPhotoKeys.push(p.key); });
+  editingCtx.tempSendLogs = editingCtx.tempSendLogs.filter(l=>l.id!==logId);
+  renderCommunitySendLogList();
+}
+
+async function renderCommunitySendLogList(){
+  const wrap = document.getElementById('communitySendLogList');
+  if(!wrap) return;
+  const logs = editingCtx.tempSendLogs || [];
+  for(const log of logs){
+    if(!log._photosLoaded){
+      log.tempPhotos = [];
+      for(const k of (log.photoKeys||[])){
+        const dataUrl = await loadStoredFile(k);
+        if(dataUrl) log.tempPhotos.push({key:k, dataUrl});
+      }
+      log._photosLoaded = true;
+    }
+  }
+  wrap.innerHTML = logs.length ? logs.slice().sort((a,b)=>(b.yearMonth||'').localeCompare(a.yearMonth||'')).map(l=>{
+    const thumbs = (l.tempPhotos||[]).map(p=>{
+      const isImage = p.dataUrl && p.dataUrl.startsWith('data:image/');
+      return isImage ? `<img src="${p.dataUrl}" style="width:36px; height:36px; object-fit:cover; border-radius:2px; margin-right:4px; cursor:pointer;" onclick="window.open('${p.dataUrl}','_blank')">` : `<span style="margin-right:4px;">📄</span>`;
+    }).join('');
+    return `<div class="log-entry">
+      <div class="log-entry-note">
+        <b>${esc(l.yearMonth)}</b>　${esc(l.addressType||'')}
+        ${thumbs?`<div style="margin-top:4px;">${thumbs}</div>`:''}
+      </div>
+      <button class="rm" onclick="removeCommunitySendLog('${l.id}')" title="刪除">✕</button>
+    </div>`;
+  }).join('') : '<div class="empty-state" style="padding:12px;">尚無寄送紀錄</div>';
 }
 
 async function saveCommunity(){
   const vals = {
     name: document.getElementById('f_communityName').value.trim(),
-    address: document.getElementById('f_communityAddress').value.trim(),
+    region: document.getElementById('f_communityRegion').value,
+    registeredAddress: document.getElementById('f_communityRegisteredAddress').value.trim(),
+    propertyAddress: document.getElementById('f_communityPropertyAddress').value.trim(),
     totalUnits: document.getElementById('f_communityUnits').value,
-    sendCount: document.getElementById('f_communitySendCount').value,
-    lastSentDate: document.getElementById('f_communityLastSent').value,
     notes: document.getElementById('f_communityNotes').value.trim(),
   };
   if(!vals.name){ showToast('請輸入社區名稱'); return false; }
+
+  for(const log of editingCtx.tempSendLogs){
+    for(const k of log.removedPhotoKeys) await deleteStoredFile(k);
+    for(const p of log.tempPhotos){
+      if(!p.key){
+        const newKey = 'file:community-send:' + uid();
+        if(!await saveStoredFile(newKey, p.dataUrl, p.fileName||'寄送紀錄檔案')) return false;
+        p.key = newKey;
+      }
+    }
+    log.photoKeys = log.tempPhotos.map(p=>p.key);
+  }
+  vals.sendLogs = editingCtx.tempSendLogs.map(l=>({id:l.id, yearMonth:l.yearMonth, addressType:l.addressType, photoKeys:l.photoKeys}));
+
   if(editingCtx.id){
     const idx = DATA.communities.findIndex(c=>c.id===editingCtx.id);
     DATA.communities[idx] = {...DATA.communities[idx], ...vals};
@@ -5476,8 +5626,9 @@ function drawCalendar(){
     const dayEvents = (events[dateStr]||[]).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));
     const isToday = dateStr === todayStr;
     const doneCount = dayEvents.filter(e=>e.completed).length;
+    const allDone = dayEvents.length>0 && doneCount===dayEvents.length;
     const hasImportant = dayEvents.some(e=>!CALENDAR_ROUTINE_TYPES.includes(e.type) && !e.completed);
-    cells += `<div class="cal-cell ${isToday?'cal-today':''}" ${dayEvents.length?`onclick="openDayAgenda('${dateStr}')" style="cursor:pointer;"`:''}>
+    cells += `<div class="cal-cell ${isToday?'cal-today':''}" style="${allDone?'opacity:0.45;':''}${dayEvents.length?'cursor:pointer;':''}" ${dayEvents.length?`onclick="openDayAgenda('${dateStr}')"`:''}>
       <div class="cal-daynum">${d}</div>
       ${dayEvents.length ? `<div class="cal-event-count${hasImportant?' cal-event-count-important':''}">${dayEvents.length} 個行程${doneCount?` · ${doneCount}已完成`:''}</div>` : ''}
     </div>`;
@@ -5871,6 +6022,7 @@ async function deleteItem(type, id){
     if(type==='clients' && item.propertyRecords) for(const r of item.propertyRecords) for(const k of (r.photoKeys||[])) await deleteStoredFile(k);
     if(type==='listings' && item.photoKeys) for(const k of item.photoKeys) await deleteStoredFile(k);
     if(type==='deals' && item.attachmentKeys) for(const k of item.attachmentKeys) await deleteStoredFile(k);
+    if(type==='communities' && item.sendLogs) for(const l of item.sendLogs) for(const k of (l.photoKeys||[])) await deleteStoredFile(k);
   }
   DATA[type] = DATA[type].filter(x=>x.id!==id);
   await saveType(type);
