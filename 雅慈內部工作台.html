@@ -904,10 +904,8 @@ function exportExcel(){
       '銷售-金額': d.saleAmount || '',
       '買方姓名': d.buyerName || '',
       '買方電話': d.buyerPhone || '',
-      '買方居住地址': d.buyerAddress || '',
       '賣方姓名': d.sellerName || '',
       '賣方電話': d.sellerPhone || '',
-      '賣方居住地址': d.sellerAddress || '',
       '實際業績': actualPerformance,
       '已領金額': collected,
       '備註': d.notes || '',
@@ -1338,7 +1336,7 @@ const TAIWAN_DISTRICTS = {
   '金門縣': ['金城鎮','金湖鎮','金沙鎮','金寧鄉','烈嶼鄉','烏坵鄉'],
   '連江縣': ['南竿鄉','北竿鄉','莒光鄉','東引鄉'],
 };
-const SERVICE_LOG_TYPES = ['帶看','收斡','退斡','買方聯絡','賣方聯絡','復看','簽委託','驗屋','面談','拍照/實境','續約','拜訪','契變','結案','值班','月會','土地公拜拜','廣告到期'];
+const SERVICE_LOG_TYPES = ['帶看','收斡','退斡','買方聯絡','賣方聯絡','復看','簽委託','驗屋','面談','拍照/實境','續約','拜訪','契變','結案','值班','月會','土地公拜拜','廣告到期','寄賀卡'];
 const SERVICE_LOG_EXTRA_FIELDS = {
   '帶看': { repeating: true, fields: [
     {key:'viewOrder', label:'帶看順序'},
@@ -3686,8 +3684,8 @@ async function viewDealModal(id){
     ${viewInfoRow('已領金額', '$'+collected.toLocaleString())}
     ${viewInfoRow('開發', [item.devStore, item.devAgent, item.devPercent?item.devPercent+'%':'', item.devAmount?'$'+Number(item.devAmount).toLocaleString():''].filter(Boolean).map(esc).join('　'))}
     ${viewInfoRow('銷售', [item.saleStore, item.saleAgent, item.salePercent?item.salePercent+'%':'', item.saleAmount?'$'+Number(item.saleAmount).toLocaleString():''].filter(Boolean).map(esc).join('　'))}
-    ${viewInfoRow('買方', [item.buyerName, item.buyerPhone, item.buyerAddress].filter(Boolean).map(esc).join('　'))}
-    ${viewInfoRow('賣方', [item.sellerName, item.sellerPhone, item.sellerAddress].filter(Boolean).map(esc).join('　'))}
+    ${viewInfoRow('買方', [item.buyerName, item.buyerPhone].filter(Boolean).map(esc).join('　'))}
+    ${viewInfoRow('賣方', [item.sellerName, item.sellerPhone].filter(Boolean).map(esc).join('　'))}
     ${viewInfoRow('備註', item.notes ? esc(item.notes).replace(/\n/g,'<br>') : '')}
 
     <div class="field-sub-title" style="margin-top:16px;">相關資料</div>
@@ -4114,12 +4112,10 @@ function openDealModal(id){
         <input type="text" id="f_buyerName" placeholder="買方姓名" value="${esc(item.buyerName)}">
         <input type="text" id="f_buyerPhone" placeholder="買方電話" value="${esc(item.buyerPhone)}">
       </div>
-      <input type="text" id="f_buyerAddress" placeholder="買方居住地址" value="${esc(item.buyerAddress)}" style="margin-top:6px;">
       <div class="field-row" style="margin-top:6px;">
         <input type="text" id="f_sellerName" placeholder="賣方姓名" value="${esc(item.sellerName)}">
         <input type="text" id="f_sellerPhone" placeholder="賣方電話" value="${esc(item.sellerPhone)}">
       </div>
-      <input type="text" id="f_sellerAddress" placeholder="賣方居住地址" value="${esc(item.sellerAddress)}" style="margin-top:6px;">
     </div>
 
     <div class="field"><label>備註</label><textarea id="f_notes">${esc(item.notes)}</textarea></div>
@@ -4329,10 +4325,8 @@ async function saveDeal(){
     saleAmount: document.getElementById('f_saleAmount').value,
     buyerName: document.getElementById('f_buyerName').value.trim(),
     buyerPhone: document.getElementById('f_buyerPhone').value.trim(),
-    buyerAddress: document.getElementById('f_buyerAddress').value.trim(),
     sellerName: document.getElementById('f_sellerName').value.trim(),
     sellerPhone: document.getElementById('f_sellerPhone').value.trim(),
-    sellerAddress: document.getElementById('f_sellerAddress').value.trim(),
     notes: document.getElementById('f_notes').value.trim(),
     actualPerformance: document.getElementById('f_actualPerformance').value,
     commission: getDealPersonalPerformanceTotal(),
@@ -5387,11 +5381,13 @@ function renderCalendar(){
     <div class="section-block" style="margin-bottom:16px;">
       <div class="section-block-body" style="padding:14px 16px;">
         <div class="field-sub-title" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;" onclick="toggleFieldSection('dutyRosterBody', this)">
-          <span>📋 值班表<span id="landGodWarningBadge"></span></span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
+          <span>📋 值班表<span id="landGodWarningBadge"></span><span id="cardWarningBadge"></span></span><span style="font-size:11px; color:var(--ink-soft); font-weight:400;">▾ 點一下展開/收合</span>
         </div>
         <div id="dutyRosterBody" style="display:none; margin-top:10px;">
           <button class="btn btn-ghost btn-sm" onclick="generateLandGodEvents()">🏮 產生未來24個月的拜拜行程</button>
           <div id="landGodStatus" class="pt-hint" style="margin:6px 0 12px;"></div>
+          <button class="btn btn-ghost btn-sm" onclick="generateNewYearCardEvents()">🧧 產生未來5年的1/2寄賀卡行程</button>
+          <div id="cardStatus" class="pt-hint" style="margin:6px 0 12px;"></div>
           <div id="dutyRosterDayGrid" style="max-height:340px; overflow-y:auto; border:1px solid var(--line); border-radius:2px; padding:2px 8px; margin-bottom:10px;"></div>
           <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="dutyRosterSubmit()">儲存這個月的值班表</button>
         </div>
@@ -5406,6 +5402,7 @@ function renderCalendar(){
   drawCalendar();
   renderDutyRosterGrid();
   updateLandGodWarning();
+  updateCardWarning();
 }
 
 function findDutyLogForDate(dutyClient, dateStr){
@@ -5484,6 +5481,7 @@ async function generateLandGodEvents(){
   if(added) gcalAutoSyncClient(client.id);
   drawCalendar();
   updateLandGodWarning();
+  updateCardWarning();
 }
 
 function updateLandGodWarning(){
@@ -5503,6 +5501,54 @@ function updateLandGodWarning(){
   }else if(furthest < thresholdStr){
     badgeEl.innerHTML = ' <span style="color:var(--brick);">⚠ 快用完了</span>';
     if(statusEl) statusEl.textContent = `目前資料只到 ${furthest},剩不到3個月,建議按一次「產生」補上。`;
+  }else{
+    badgeEl.innerHTML = '';
+    if(statusEl) statusEl.textContent = `目前已經產生到 ${furthest}。`;
+  }
+}
+
+async function generateNewYearCardEvents(){
+  const todayStr = new Date().toISOString().slice(0,10);
+  const thisYear = new Date().getFullYear();
+  const dates = [];
+  for(let i=0;i<5;i++){
+    const y = thisYear + i;
+    const dateStr = `${y}-01-02`;
+    if(dateStr >= todayStr) dates.push(dateStr);
+  }
+  const client = getOrCreatePersonalScheduleClient();
+  const existingDates = new Set((client.serviceLogs||[]).filter(l=>l.type==='寄賀卡').map(l=>l.date));
+  let added = 0;
+  dates.forEach(dateStr=>{
+    if(existingDates.has(dateStr)) return;
+    client.serviceLogs.push({ id: uid(), date: dateStr, time:'', type:'寄賀卡', note:'寄賀年卡' });
+    existingDates.add(dateStr);
+    added++;
+  });
+  await saveType('clients');
+  showToast(added ? `已新增 ${added} 筆寄賀卡行程` : '未來5年的1/2寄賀卡行程都已經加過了');
+  if(added) gcalAutoSyncClient(client.id);
+  drawCalendar();
+  updateCardWarning();
+}
+
+function updateCardWarning(){
+  const badgeEl = document.getElementById('cardWarningBadge');
+  const statusEl = document.getElementById('cardStatus');
+  if(!badgeEl) return;
+  const client = getDutyRosterClient();
+  const dates = (client && client.serviceLogs || []).filter(l=>l.type==='寄賀卡').map(l=>l.date).sort();
+  const furthest = dates.length ? dates[dates.length-1] : null;
+  const todayStr = new Date().toISOString().slice(0,10);
+  const oneYearOut = new Date();
+  oneYearOut.setFullYear(oneYearOut.getFullYear()+1);
+  const thresholdStr = oneYearOut.toISOString().slice(0,10);
+  if(!furthest){
+    badgeEl.innerHTML = ' <span style="color:var(--brick);">⚠ 尚未產生</span>';
+    if(statusEl) statusEl.textContent = '目前還沒有任何寄賀卡行程,按下面按鈕產生。';
+  }else if(furthest < thresholdStr){
+    badgeEl.innerHTML = ' <span style="color:var(--brick);">⚠ 快用完了</span>';
+    if(statusEl) statusEl.textContent = `目前資料只到 ${furthest},剩不到1年,建議按一次「產生」補上。`;
   }else{
     badgeEl.innerHTML = '';
     if(statusEl) statusEl.textContent = `目前已經產生到 ${furthest}。`;
@@ -5705,6 +5751,7 @@ async function dutyRosterSubmit(){
   drawCalendar();
   renderDutyRosterGrid();
   updateLandGodWarning();
+  updateCardWarning();
 }
 
 function drawCalendar(){
