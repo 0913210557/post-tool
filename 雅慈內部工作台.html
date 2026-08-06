@@ -1206,7 +1206,7 @@ function renderAdQuotaCard(){
     </div>`;
   }).join('');
   return `<div class="stat-card" style="text-align:left;">
-    <div class="stat-label" style="margin-bottom:6px;">廣告額度(點項目可編輯)</div>
+    <div class="stat-label" style="margin-bottom:6px;">廣告額度</div>
     ${rows}
   </div>`;
 }
@@ -1262,7 +1262,6 @@ function renderDashboard(){
     <div class="stat-row">
       <div class="stat-card"><div class="stat-num">${monthEntrustedCount}</div><div class="stat-label">本月委託件數</div></div>
       <div class="stat-card"><div class="stat-num">${entrustedCount}</div><div class="stat-label">反開發</div></div>
-      <div class="stat-card"><div class="stat-num">$${monthCommission.toLocaleString()}</div><div class="stat-label">錄影</div></div>
       <div class="stat-card">
         <div class="stat-num" style="font-size:14px; line-height:1.5;">${monthCommunities.length ? monthCommunities.map(c=>esc(c.name)).join('、') : '—'}</div>
         <div class="stat-label">本月社區開發信</div>
