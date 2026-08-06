@@ -1199,7 +1199,7 @@ function renderAdQuotaCard(){
       detail = '<span style="color:var(--ink-soft);">尚未設定</span>';
     }else{
       const dayLabel = st.daysLeft<0 ? '已過期' : `剩${st.daysLeft}天`;
-      detail = `${esc(q.expireDate)}(${dayLabel})　剩餘 ${st.remaining}`;
+      detail = `${dayLabel}　剩餘 ${st.remaining}`;
     }
     return `<div style="display:flex; justify-content:space-between; align-items:center; padding:4px 0; cursor:pointer; ${st.urgent?'color:var(--brick); font-weight:700;':''}" onclick="openAdQuotaModal('${p}')">
       <span>${st.urgent?'⚠ ':''}${esc(p)}</span><span style="font-size:12px;">${detail}</span>
@@ -1239,7 +1239,30 @@ async function saveAdQuota(){
     DATA.adQuotas.push({id: uid(), ...vals});
   }
   await saveType('adQuotas');
+  await syncAdQuotaCalendarEntry(editingCtx.platform, vals.expireDate);
   return true;
+}
+
+async function syncAdQuotaCalendarEntry(platform, expireDate){
+  const client = getOrCreatePersonalScheduleClient();
+  const marker = `${platform} 廣告到期`;
+  const existingIdx = client.serviceLogs.findIndex(l=>l.type==='廣告到期' && l.note===marker);
+  if(!expireDate){
+    if(existingIdx !== -1){
+      const removed = client.serviceLogs[existingIdx];
+      client.serviceLogs.splice(existingIdx,1);
+      await saveType('clients');
+      if(removed.gcalEventId) await gcalAutoDeleteEvent(removed.gcalEventId);
+    }
+    return;
+  }
+  if(existingIdx !== -1){
+    client.serviceLogs[existingIdx].date = expireDate;
+  }else{
+    client.serviceLogs.push({id: uid(), date: expireDate, time:'', type:'廣告到期', note: marker});
+  }
+  await saveType('clients');
+  gcalAutoSyncClient(client.id);
 }
 
 function renderDashboard(){
@@ -1310,7 +1333,7 @@ const TAIWAN_DISTRICTS = {
   '金門縣': ['金城鎮','金湖鎮','金沙鎮','金寧鄉','烈嶼鄉','烏坵鄉'],
   '連江縣': ['南竿鄉','北竿鄉','莒光鄉','東引鄉'],
 };
-const SERVICE_LOG_TYPES = ['帶看','收斡','退斡','買方聯絡','賣方聯絡','復看','簽委託','驗屋','面談','拍照/實境','續約','拜訪','契變','結案','值班','月會','土地公拜拜'];
+const SERVICE_LOG_TYPES = ['帶看','收斡','退斡','買方聯絡','賣方聯絡','復看','簽委託','驗屋','面談','拍照/實境','續約','拜訪','契變','結案','值班','月會','土地公拜拜','廣告到期'];
 const SERVICE_LOG_EXTRA_FIELDS = {
   '帶看': { repeating: true, fields: [
     {key:'viewOrder', label:'帶看順序'},
