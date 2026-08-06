@@ -1177,7 +1177,7 @@ function render(){
 }
 
 /* ===================== Dashboard ===================== */
-const AD_PLATFORMS = ['591','樂屋網','5168'];
+const AD_PLATFORMS = ['591','樂屋','5168'];
 function getAdQuota(platform){
   return DATA.adQuotas.find(q=>q.platform===platform);
 }
@@ -1190,6 +1190,8 @@ function adQuotaStatus(q){
   return {daysLeft, remaining, urgent};
 }
 
+const AD_PLATFORM_URLS = { '591':'https://www.591.com.tw/', '樂屋':'https://www.rakuya.com.tw/', '5168':'https://www.houseprice.tw/' };
+
 function renderAdQuotaCard(){
   const rows = AD_PLATFORMS.map(p=>{
     const q = getAdQuota(p);
@@ -1201,8 +1203,9 @@ function renderAdQuotaCard(){
       const dayLabel = st.daysLeft<0 ? '已過期' : `剩${st.daysLeft}天`;
       detail = `${dayLabel}　剩餘 ${st.remaining}`;
     }
-    return `<div style="display:flex; justify-content:space-between; align-items:center; padding:4px 0; cursor:pointer; ${st.urgent?'color:var(--brick); font-weight:700;':''}" onclick="openAdQuotaModal('${p}')">
-      <span>${st.urgent?'⚠ ':''}${esc(p)}</span><span style="font-size:12px;">${detail}</span>
+    return `<div style="display:flex; justify-content:space-between; align-items:center; padding:4px 0; ${st.urgent?'color:var(--brick); font-weight:700;':''}">
+      <span>${st.urgent?'⚠ ':''}<a href="${AD_PLATFORM_URLS[p]}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:inherit; text-decoration:underline;">${esc(p)}</a></span>
+      <span style="font-size:12px; cursor:pointer;" onclick="openAdQuotaModal('${p}')">${detail}</span>
     </div>`;
   }).join('');
   return `<div class="stat-card" style="text-align:left;">
