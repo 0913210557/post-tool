@@ -568,7 +568,7 @@
 
 <script>
 /* ===================== State ===================== */
-let DATA = { clients: [], listings: [], content: [], deals: [], communities: [] };
+let DATA = { clients: [], listings: [], content: [], deals: [], communities: [], adQuotas: [] };
 let currentPage = 'dashboard';
 let clientListPage = 1;
 const CLIENT_PAGE_SIZE = 10;
@@ -576,7 +576,7 @@ let editingCtx = null; // {type, id, ...extra}
 let calendarMonth = new Date();
 let loaded = false;
 
-const KEYS = { clients:'clients', listings:'listings', content:'content', deals:'deals', communities:'communities' };
+const KEYS = { clients:'clients', listings:'listings', content:'content', deals:'deals', communities:'communities', adQuotas:'adQuotas' };
 
 /* ===================== Storage: records (chunked to stay under Firestore's ~1MB per-document limit) ===================== */
 function utf8ByteLength(str){
@@ -1177,6 +1177,71 @@ function render(){
 }
 
 /* ===================== Dashboard ===================== */
+const AD_PLATFORMS = ['591','樂屋網','5168'];
+function getAdQuota(platform){
+  return DATA.adQuotas.find(q=>q.platform===platform);
+}
+function adQuotaStatus(q){
+  if(!q || !q.expireDate) return {daysLeft:null, remaining:null, urgent:false};
+  const todayStr = new Date().toISOString().slice(0,10);
+  const daysLeft = Math.round((new Date(q.expireDate+'T00:00:00') - new Date(todayStr+'T00:00:00')) / 86400000);
+  const remaining = Math.max(0, Number(q.totalQuota||0) - Number(q.usedQuota||0));
+  const urgent = daysLeft<=7 && daysLeft>=0 && remaining>0;
+  return {daysLeft, remaining, urgent};
+}
+
+function renderAdQuotaCard(){
+  const rows = AD_PLATFORMS.map(p=>{
+    const q = getAdQuota(p);
+    const st = adQuotaStatus(q);
+    let detail;
+    if(!q || !q.expireDate){
+      detail = '<span style="color:var(--ink-soft);">尚未設定</span>';
+    }else{
+      const dayLabel = st.daysLeft<0 ? '已過期' : `剩${st.daysLeft}天`;
+      detail = `${esc(q.expireDate)}(${dayLabel})　剩餘 ${st.remaining}`;
+    }
+    return `<div style="display:flex; justify-content:space-between; align-items:center; padding:4px 0; cursor:pointer; ${st.urgent?'color:var(--brick); font-weight:700;':''}" onclick="openAdQuotaModal('${p}')">
+      <span>${st.urgent?'⚠ ':''}${esc(p)}</span><span style="font-size:12px;">${detail}</span>
+    </div>`;
+  }).join('');
+  return `<div class="stat-card" style="text-align:left;">
+    <div class="stat-label" style="margin-bottom:6px;">廣告額度(點項目可編輯)</div>
+    ${rows}
+  </div>`;
+}
+
+function openAdQuotaModal(platform){
+  const item = getAdQuota(platform) || {platform, expireDate:'', totalQuota:'', usedQuota:''};
+  editingCtx = {type:'adQuotas', id: item.id||null, platform};
+  document.getElementById('modalTitle').textContent = platform + ' 廣告額度';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>到期日期</label><input type="date" id="f_adExpireDate" value="${esc(item.expireDate)}"></div>
+    <div class="field-row">
+      <div class="field"><label>總額度</label><input type="number" id="f_adTotalQuota" value="${esc(item.totalQuota)}"></div>
+      <div class="field"><label>已用額度</label><input type="number" id="f_adUsedQuota" value="${esc(item.usedQuota)}"></div>
+    </div>
+  `;
+  openModal();
+}
+
+async function saveAdQuota(){
+  const vals = {
+    platform: editingCtx.platform,
+    expireDate: document.getElementById('f_adExpireDate').value,
+    totalQuota: document.getElementById('f_adTotalQuota').value,
+    usedQuota: document.getElementById('f_adUsedQuota').value,
+  };
+  const existing = getAdQuota(editingCtx.platform);
+  if(existing){
+    Object.assign(existing, vals);
+  }else{
+    DATA.adQuotas.push({id: uid(), ...vals});
+  }
+  await saveType('adQuotas');
+  return true;
+}
+
 function renderDashboard(){
   const main = document.getElementById('main');
   const thisMonth = new Date().toISOString().slice(0,7);
@@ -1202,6 +1267,7 @@ function renderDashboard(){
         <div class="stat-num" style="font-size:14px; line-height:1.5;">${monthCommunities.length ? monthCommunities.map(c=>esc(c.name)).join('、') : '—'}</div>
         <div class="stat-label">本月社區開發信</div>
       </div>
+      ${renderAdQuotaCard()}
     </div>
 
     <div class="section-block">
@@ -6015,6 +6081,7 @@ document.getElementById('modalSave').onclick = async ()=>{
   if(editingCtx.type==='content') ok = await saveContent();
   if(editingCtx.type==='deals') ok = await saveDeal();
   if(editingCtx.type==='communities') ok = await saveCommunity();
+  if(editingCtx.type==='adQuotas') ok = await saveAdQuota();
   saveBtn.disabled = false;
   if(ok){
     showToast('已儲存');
