@@ -4618,6 +4618,11 @@ async function renderCommunitySendLogList(){
 }
 
 async function saveCommunity(){
+  const pendingYearMonth = document.getElementById('communitySendYearMonth');
+  if(pendingYearMonth && pendingYearMonth.value){
+    addCommunitySendLog();
+  }
+
   const vals = {
     name: document.getElementById('f_communityName').value.trim(),
     region: document.getElementById('f_communityRegion').value,
