@@ -725,6 +725,26 @@ async function deleteStoredFile(key){
   await deleteFileChunked(key);
   await deletePhoto(key);
 }
+function openDataUrlInNewTab(dataUrl){
+  try{
+    const commaIdx = dataUrl.indexOf(',');
+    const header = dataUrl.slice(0, commaIdx);
+    const base64 = dataUrl.slice(commaIdx+1);
+    const mimeMatch = header.match(/data:(.*?);base64/);
+    const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+    const byteString = atob(base64);
+    const bytes = new Uint8Array(byteString.length);
+    for(let i=0;i<byteString.length;i++){ bytes[i] = byteString.charCodeAt(i); }
+    const blob = new Blob([bytes], {type: mime});
+    const blobUrl = URL.createObjectURL(blob);
+    const win = window.open(blobUrl, '_blank');
+    if(!win) showToast('瀏覽器擋掉了彈出視窗,請允許彈出視窗後再試一次');
+    setTimeout(()=>URL.revokeObjectURL(blobUrl), 60000);
+  }catch(e){
+    window.open(dataUrl, '_blank');
+  }
+}
+
 async function saveStoredFile(key, dataUrl, fileLabel){
   try{
     await saveFileChunked(key, dataUrl);
@@ -1277,7 +1297,7 @@ function renderDashboard(){
   const entrustedCount = DATA.clients.reduce((sum,c)=>sum + getClientPropertyRecords(c).filter(r=>r.category==='委託中').length, 0);
   const monthDeals = DATA.deals.filter(d=>d.closedDate && d.closedDate.startsWith(thisMonth));
   const monthCommission = monthDeals.reduce((s,d)=>s+(Number(d.commission)||0),0);
-  const monthCommunities = DATA.communities.filter(c=>communitySuggestedDate(c)===thisMonth);
+  const monthCommunities = DATA.communities.filter(c=>communityNextSendDate(c)===thisMonth);
 
   main.innerHTML = `
     <div class="page-head">
@@ -3661,7 +3681,7 @@ async function viewDealModal(id){
       const idx = pushLightboxPhoto(src, `${item.caseName}-相關資料-${i+1}.jpg`);
       return `<div class="photo-chip" style="cursor:pointer;" onclick="openLightboxByIndex(${idx})"><img src="${src}"></div>`;
     }
-    return `<div class="photo-chip" style="cursor:pointer;" onclick="window.open('${src}','_blank')"><div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; font-size:11px;">📄<br>檔案</div></div>`;
+    return `<div class="photo-chip" style="cursor:pointer;" onclick="openDataUrlInNewTab('${src}')"><div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; font-size:11px;">📄<br>檔案</div></div>`;
   }).join('')}</div>` : '<div class="empty-state" style="padding:12px;">尚無相關資料</div>';
 
   const expectedCollection = dealExpectedCollection(actualPerformance, item.dealType||'售');
@@ -4184,8 +4204,8 @@ async function renderDealAttachmentGrid(){
   grid.innerHTML = editingCtx.dealAttachments.map((p,idx)=>{
     const isImage = p.dataUrl && p.dataUrl.startsWith('data:image/');
     const inner = isImage
-      ? `<img src="${p.dataUrl}" style="cursor:pointer;" onclick="window.open('${p.dataUrl}','_blank')">`
-      : `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; cursor:pointer; font-size:11px; text-align:center; padding:4px; word-break:break-all;" onclick="window.open('${p.dataUrl}','_blank')">📄<br>${esc(p.fileName||'檔案')}</div>`;
+      ? `<img src="${p.dataUrl}" style="cursor:pointer;" onclick="openDataUrlInNewTab('${p.dataUrl}')">`
+      : `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; cursor:pointer; font-size:11px; text-align:center; padding:4px; word-break:break-all;" onclick="openDataUrlInNewTab('${p.dataUrl}')">📄<br>${esc(p.fileName||'檔案')}</div>`;
     return `
     <div class="photo-chip">
       ${inner}
@@ -4374,6 +4394,10 @@ function communitySuggestedDate(community){
   const d = new Date(y, m-1, 1);
   d.setMonth(d.getMonth()+6);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function communityNextSendDate(community){
+  return community.nextSendDateOverride || communitySuggestedDate(community);
 }
 
 function communityLatestSentDate(community){
@@ -4622,7 +4646,7 @@ function drawCommunityTable(){
       <td>${esc(c.region||'—')}</td>
       <td>${esc(c.totalUnits||'—')}</td>
       <td>${esc(communityLatestSentDate(c)||'—')}</td>
-      <td>${esc(communitySuggestedDate(c)||'—')}</td>
+      <td>${esc(communityNextSendDate(c)||'—')}</td>
       <td onclick="event.stopPropagation()"><div class="row-actions">
         <button class="icon-btn" onclick="openCommunityModal('${c.id}')" title="編輯">✎</button>
         <button class="icon-btn" onclick="deleteItem('communities','${c.id}')" title="刪除">🗑</button>
@@ -4644,7 +4668,14 @@ function openCommunityModal(id){
       </select>
     </div>
     <div class="field"><label>戶數</label><input type="number" id="f_communityUnits" value="${esc(item.totalUnits)}"></div>
-    <div class="pt-hint" style="margin:8px 0 0;">下次寄送日期(自動抓最近一次寄送 +6個月) <b>${esc(communitySuggestedDate(item))||'尚無寄送紀錄'}</b></div>
+    <div class="field">
+      <label>下次寄送日期</label>
+      <div class="log-add-row">
+        <input type="month" id="f_communityNextSendDate" value="${esc(communityNextSendDate(item))}">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="resetCommunityNextSendDate()">重設為自動偵測</button>
+      </div>
+      <div class="pt-hint" style="margin-top:4px;">自動偵測值(最近一次寄送 +6個月):${esc(communitySuggestedDate(item))||'尚無寄送紀錄'}</div>
+    </div>
     <div class="field"><label>備註</label><textarea id="f_communityNotes" style="min-height:70px;">${esc(item.notes)}</textarea></div>
 
     <div class="field field-divider">
@@ -4684,8 +4715,8 @@ function renderCommunitySendPhotoGrid(){
   grid.innerHTML = editingCtx.newSendLogPhotos.map((p,idx)=>{
     const isImage = p.dataUrl && p.dataUrl.startsWith('data:image/');
     const inner = isImage
-      ? `<img src="${p.dataUrl}" style="cursor:pointer;" onclick="window.open('${p.dataUrl}','_blank')">`
-      : `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; cursor:pointer; font-size:11px; text-align:center; padding:4px; word-break:break-all;" onclick="window.open('${p.dataUrl}','_blank')">📄<br>${esc(p.fileName||'檔案')}</div>`;
+      ? `<img src="${p.dataUrl}" style="cursor:pointer;" onclick="openDataUrlInNewTab('${p.dataUrl}')">`
+      : `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; cursor:pointer; font-size:11px; text-align:center; padding:4px; word-break:break-all;" onclick="openDataUrlInNewTab('${p.dataUrl}')">📄<br>${esc(p.fileName||'檔案')}</div>`;
     return `<div class="photo-chip">${inner}<button class="rm" onclick="removeCommunitySendPhoto(${idx})">✕</button></div>`;
   }).join('') + addTile;
   const tile = document.getElementById('addCommunitySendPhotoTile');
@@ -4733,7 +4764,7 @@ async function renderCommunitySendLogList(){
   wrap.innerHTML = logs.length ? logs.slice().sort((a,b)=>(b.yearMonth||'').localeCompare(a.yearMonth||'')).map(l=>{
     const thumbs = (l.tempPhotos||[]).map(p=>{
       const isImage = p.dataUrl && p.dataUrl.startsWith('data:image/');
-      return isImage ? `<img src="${p.dataUrl}" style="width:36px; height:36px; object-fit:cover; border-radius:2px; margin-right:4px; cursor:pointer;" onclick="window.open('${p.dataUrl}','_blank')">` : `<span style="margin-right:4px; cursor:pointer;" onclick="window.open('${p.dataUrl}','_blank')" title="點擊開啟檔案">📄</span>`;
+      return isImage ? `<img src="${p.dataUrl}" style="width:36px; height:36px; object-fit:cover; border-radius:2px; margin-right:4px; cursor:pointer;" onclick="openDataUrlInNewTab('${p.dataUrl}')">` : `<span style="margin-right:4px; cursor:pointer;" onclick="openDataUrlInNewTab('${p.dataUrl}')" title="點擊開啟檔案">📄</span>`;
     }).join('');
     return `<div class="log-entry">
       <div class="log-entry-note">
@@ -4743,6 +4774,19 @@ async function renderCommunitySendLogList(){
       <button class="rm" onclick="removeCommunitySendLog('${l.id}')" title="刪除">✕</button>
     </div>`;
   }).join('') : '<div class="empty-state" style="padding:12px;">尚無寄送紀錄</div>';
+}
+
+function resetCommunityNextSendDate(){
+  const el = document.getElementById('f_communityNextSendDate');
+  if(!el) return;
+  const logs = editingCtx.tempSendLogs || [];
+  if(logs.length===0){ el.value=''; return; }
+  const latest = logs.slice().sort((a,b)=>(b.yearMonth||'').localeCompare(a.yearMonth||''))[0];
+  if(!latest || !latest.yearMonth){ el.value=''; return; }
+  const [y,m] = latest.yearMonth.split('-').map(Number);
+  const d = new Date(y, m-1, 1);
+  d.setMonth(d.getMonth()+6);
+  el.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
 }
 
 async function saveCommunity(){
@@ -4755,6 +4799,7 @@ async function saveCommunity(){
     name: document.getElementById('f_communityName').value.trim(),
     region: document.getElementById('f_communityRegion').value,
     totalUnits: document.getElementById('f_communityUnits').value,
+    nextSendDateOverride: document.getElementById('f_communityNextSendDate').value,
     notes: document.getElementById('f_communityNotes').value.trim(),
   };
   if(!vals.name){ showToast('請輸入社區名稱'); return false; }
@@ -5319,7 +5364,7 @@ function ptRenderPhotoGrid(photos){
     </div>
   ` ).join('') + `
     <div class="pt-photo-thumb" title="固定附加的名片">
-      <img src="${PT_FIXED_POSTER_DATAURL}" onclick="window.open('${PT_FIXED_POSTER_DATAURL}','_blank')">
+      <img src="${PT_FIXED_POSTER_DATAURL}" onclick="openDataUrlInNewTab('${PT_FIXED_POSTER_DATAURL}')">
     </div>
   `;
   const dlWrap = document.getElementById('ptPhotoDownloadWrap');
