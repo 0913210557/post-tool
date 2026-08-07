@@ -4442,12 +4442,19 @@ function drawNewListingList(){
 
 function openNewListingModal(id){
   const item = id ? DATA.newListings.find(l=>l.id===id) : {
-    address:'', askingPrice:'', agencyCompany:'', listingType:'', registeredAddress:'',
+    url:'', address:'', askingPrice:'', agencyCompany:'', listingType:'', registeredAddress:'',
     ownerName:'', email:'', mailName:'', phone:'', companyName:'', clientSource:'', statusLogs:[],
   };
   editingCtx = {type:'newListings', id: id||null, tempStatusLogs: (item.statusLogs||[]).map(s=>({...s}))};
   document.getElementById('modalTitle').textContent = id ? '編輯反開發紀錄' : '新增反開發紀錄';
   document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>網址</label>
+      <div class="log-add-row">
+        <input type="text" id="f_nlUrl" placeholder="貼物件網址" value="${esc(item.url)}" style="flex:1;">
+        <button class="btn btn-ghost btn-sm" id="nlAutoFillBtn">自動抓取</button>
+      </div>
+      <div class="pt-hint" id="nlAutoFillStatus" style="margin-top:4px;"></div>
+    </div>
     <div class="field"><label>物件地址</label><input id="f_nlAddress" value="${esc(item.address)}"></div>
     <div class="field-row">
       <div class="field"><label>售價(萬)</label><input type="number" id="f_nlAskingPrice" value="${esc(item.askingPrice)}"></div>
@@ -4482,6 +4489,7 @@ function openNewListingModal(id){
     </div>
   `;
   openModal();
+  document.getElementById('nlAutoFillBtn').onclick = nlAutoFillFromUrl;
   renderNewListingStatusLogList();
   document.getElementById('nlStatusLogAddBtn').onclick = ()=>{
     if(!addNewListingStatusLog()) showToast('請輸入狀況內容');
@@ -4513,11 +4521,39 @@ function renderNewListingStatusLogList(){
   `).join('') : '<div class="empty-state" style="padding:12px;">尚無狀況紀錄</div>';
 }
 
+function nlExtractAgencyCompany(rawText){
+  const knownChains = ['信義房屋','永慶房屋','住商不動產','21世紀不動產','21世紀不動產','台灣房屋','東森房屋','中信房屋','有巢氏房屋','大家房屋','太平洋房屋','ERA不動產','591','厚生不動產'];
+  for(const chain of knownChains){
+    if(rawText.includes(chain)) return chain;
+  }
+  const m = rawText.match(/([\u4e00-\u9fa5]{2,10}(?:房屋|不動產|仲介))/);
+  return m ? m[1] : '';
+}
+
+async function nlAutoFillFromUrl(){
+  const url = document.getElementById('f_nlUrl').value.trim();
+  const statusEl = document.getElementById('nlAutoFillStatus');
+  if(!url){ showToast('請先貼網址'); return; }
+  statusEl.textContent = '讀取中…';
+  try{
+    const rawText = await ptFetchReadablePageText(url);
+    const fields = ptExtractFieldsWithRegex(rawText);
+    const agency = nlExtractAgencyCompany(rawText);
+    if(fields.address) document.getElementById('f_nlAddress').value = fields.address;
+    if(fields.price) document.getElementById('f_nlAskingPrice').value = fields.price.replace(/[^\d.]/g,'');
+    if(agency) document.getElementById('f_nlAgencyCompany').value = agency;
+    statusEl.textContent = (fields.address||fields.price||agency) ? '已自動帶入,請自行確認正確' : '沒有抓到欄位,請手動輸入';
+  }catch(e){
+    statusEl.textContent = '讀取失敗：' + (e && e.message ? e.message : '未知錯誤') + '，請手動輸入';
+  }
+}
+
 async function saveNewListing(){
   const pendingNote = document.getElementById('nlStatusLogNote');
   if(pendingNote && pendingNote.value.trim()) addNewListingStatusLog();
 
   const vals = {
+    url: document.getElementById('f_nlUrl').value.trim(),
     address: document.getElementById('f_nlAddress').value.trim(),
     askingPrice: document.getElementById('f_nlAskingPrice').value.trim(),
     agencyCompany: document.getElementById('f_nlAgencyCompany').value.trim(),
