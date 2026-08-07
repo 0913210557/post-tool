@@ -4674,7 +4674,7 @@ function openCommunityModal(id){
         <input type="month" id="f_communityNextSendDate" value="${esc(communityNextSendDate(item))}">
         <button type="button" class="btn btn-ghost btn-sm" onclick="resetCommunityNextSendDate()">重設為自動偵測</button>
       </div>
-      <div class="pt-hint" style="margin-top:4px;">自動偵測值(最近一次寄送 +6個月):${esc(communitySuggestedDate(item))||'尚無寄送紀錄'}</div>
+      <div class="pt-hint" id="communityNextSendAutoHint" style="margin-top:4px;">自動偵測值(最近一次寄送 +6個月):${esc(communitySuggestedDate(item))||'尚無寄送紀錄'}</div>
     </div>
     <div class="field"><label>備註</label><textarea id="f_communityNotes" style="min-height:70px;">${esc(item.notes)}</textarea></div>
 
@@ -4739,6 +4739,7 @@ function addCommunitySendLog(){
   document.getElementById('communitySendYearMonth').value = '';
   renderCommunitySendPhotoGrid();
   renderCommunitySendLogList();
+  resetCommunityNextSendDate();
 }
 function removeCommunitySendLog(logId){
   const log = editingCtx.tempSendLogs.find(l=>l.id===logId);
@@ -4779,14 +4780,25 @@ async function renderCommunitySendLogList(){
 function resetCommunityNextSendDate(){
   const el = document.getElementById('f_communityNextSendDate');
   if(!el) return;
+  const hintEl = document.getElementById('communityNextSendAutoHint');
   const logs = editingCtx.tempSendLogs || [];
-  if(logs.length===0){ el.value=''; return; }
+  if(logs.length===0){
+    el.value='';
+    if(hintEl) hintEl.textContent = '自動偵測值(最近一次寄送 +6個月):尚無寄送紀錄';
+    return;
+  }
   const latest = logs.slice().sort((a,b)=>(b.yearMonth||'').localeCompare(a.yearMonth||''))[0];
-  if(!latest || !latest.yearMonth){ el.value=''; return; }
+  if(!latest || !latest.yearMonth){
+    el.value='';
+    if(hintEl) hintEl.textContent = '自動偵測值(最近一次寄送 +6個月):尚無寄送紀錄';
+    return;
+  }
   const [y,m] = latest.yearMonth.split('-').map(Number);
   const d = new Date(y, m-1, 1);
   d.setMonth(d.getMonth()+6);
-  el.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  const computed = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  el.value = computed;
+  if(hintEl) hintEl.textContent = `自動偵測值(最近一次寄送 +6個月):${computed}`;
 }
 
 async function saveCommunity(){
@@ -4795,11 +4807,13 @@ async function saveCommunity(){
     addCommunitySendLog();
   }
 
+  const freshAutoDate = communitySuggestedDate({sendLogs: editingCtx.tempSendLogs.map(l=>({yearMonth:l.yearMonth}))});
+  const enteredDate = document.getElementById('f_communityNextSendDate').value;
   const vals = {
     name: document.getElementById('f_communityName').value.trim(),
     region: document.getElementById('f_communityRegion').value,
     totalUnits: document.getElementById('f_communityUnits').value,
-    nextSendDateOverride: document.getElementById('f_communityNextSendDate').value,
+    nextSendDateOverride: (enteredDate === freshAutoDate) ? '' : enteredDate,
     notes: document.getElementById('f_communityNotes').value.trim(),
   };
   if(!vals.name){ showToast('請輸入社區名稱'); return false; }
