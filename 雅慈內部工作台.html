@@ -4406,6 +4406,12 @@ function renderNewListings(){
   drawNewListingList();
 }
 
+function latestNewListingStatus(l){
+  const logs = l.statusLogs || [];
+  if(logs.length===0) return null;
+  return logs.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+}
+
 function drawNewListingList(){
   const q = (document.getElementById('newListingSearch').value||'').toLowerCase();
   let list = DATA.newListings.filter(l=>{
@@ -4416,19 +4422,21 @@ function drawNewListingList(){
   const wrap = document.getElementById('newListingListWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有記錄</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
-    <th>物件地址</th><th>仲介公司</th><th>委託類型</th><th>售價(萬)</th><th>客戶來源</th><th></th>
+    <th>物件地址</th><th>售價(萬)</th><th>最新狀況時間</th><th>最新狀況內容</th><th></th>
   </tr></thead><tbody>
-    ${list.map(l=>`<tr class="row-hover" style="cursor:pointer;" onclick="openNewListingModal('${l.id}')">
+    ${list.map(l=>{
+      const latest = latestNewListingStatus(l);
+      return `<tr class="row-hover" style="cursor:pointer;" onclick="openNewListingModal('${l.id}')">
       <td>${esc(l.address||'—')}</td>
-      <td>${esc(l.agencyCompany||'—')}</td>
-      <td>${esc(l.listingType||'—')}</td>
       <td>${esc(l.askingPrice||'—')}</td>
-      <td>${esc(l.clientSource||'—')}</td>
+      <td>${esc(latest ? latest.date : '—')}</td>
+      <td>${esc(latest ? latest.note : '—')}</td>
       <td onclick="event.stopPropagation()"><div class="row-actions">
         <button class="icon-btn" onclick="openNewListingModal('${l.id}')" title="編輯">✎</button>
         <button class="icon-btn" onclick="deleteItem('newListings','${l.id}')" title="刪除">🗑</button>
       </div></td>
-    </tr>`).join('')}
+    </tr>`;
+    }).join('')}
   </tbody></table>`;
 }
 
