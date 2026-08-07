@@ -410,6 +410,7 @@
       <div class="nav-item" data-page="entrusted"><span class="nav-icon">⌂</span>物件委託</div>
       <div class="nav-item" data-page="deals"><span class="nav-icon">🏆</span>業績成交</div>
       <div class="nav-item" data-page="communities"><span class="nav-icon">🏘</span>社區開發信</div>
+      <div class="nav-item" data-page="newlistings"><span class="nav-icon">🆕</span>反開發紀錄</div>
       <div class="nav-item" data-page="posttool"><span class="nav-icon">✍</span>貼文小工具</div>
       <div class="nav-item" data-page="calendar"><span class="nav-icon">▦</span>行事曆</div>
     </div>
@@ -568,7 +569,7 @@
 
 <script>
 /* ===================== State ===================== */
-let DATA = { clients: [], listings: [], content: [], deals: [], communities: [], adQuotas: [] };
+let DATA = { clients: [], listings: [], content: [], deals: [], communities: [], adQuotas: [], newListings: [] };
 let currentPage = 'dashboard';
 let clientListPage = 1;
 const CLIENT_PAGE_SIZE = 10;
@@ -576,7 +577,7 @@ let editingCtx = null; // {type, id, ...extra}
 let calendarMonth = new Date();
 let loaded = false;
 
-const KEYS = { clients:'clients', listings:'listings', content:'content', deals:'deals', communities:'communities', adQuotas:'adQuotas' };
+const KEYS = { clients:'clients', listings:'listings', content:'content', deals:'deals', communities:'communities', adQuotas:'adQuotas', newListings:'newListings' };
 
 /* ===================== Storage: records (chunked to stay under Firestore's ~1MB per-document limit) ===================== */
 function utf8ByteLength(str){
@@ -1172,6 +1173,7 @@ function render(){
   if(currentPage === 'entrusted') return renderEntrustedProperties();
   if(currentPage === 'deals') return renderDeals();
   if(currentPage === 'communities') return renderCommunities();
+  if(currentPage === 'newlistings') return renderNewListings();
   if(currentPage === 'posttool') return renderPostTool();
   if(currentPage === 'calendar') return renderCalendar();
 }
@@ -4381,6 +4383,73 @@ function communityLatestSentDate(community){
   return latest ? latest.yearMonth : '';
 }
 
+/* ===================== 反開發紀錄 Page (quick capture, independent of communities) ===================== */
+function renderNewListings(){
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="page-head">
+      <div>
+        <div class="page-title"><span class="eyebrow">NEW LISTINGS</span>反開發紀錄</div>
+        <div class="page-desc">快速記錄在591、樂屋、5168等平台上看到的新上架物件</div>
+      </div>
+    </div>
+    <div class="section-block" style="margin-bottom:16px;">
+      <div class="section-block-body" style="padding:14px 16px;">
+        <div class="field-row" style="flex-wrap:wrap;">
+          <input type="text" id="newListingUrl" placeholder="貼網址(選填)" style="flex:1; min-width:200px;">
+        </div>
+        <textarea id="newListingNote" placeholder="物件內容(地址、價格、備註等)" style="min-height:60px; margin-top:8px; width:100%;"></textarea>
+        <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="addNewListingEntry()">＋ 新增</button>
+      </div>
+    </div>
+    <div class="toolbar">
+      <input class="search-input" id="newListingSearch" placeholder="搜尋內容/網址…">
+    </div>
+    <div class="section-block"><div class="section-block-body" id="newListingListWrap"></div></div>
+  `;
+  document.getElementById('newListingSearch').oninput = drawNewListingList;
+  drawNewListingList();
+}
+
+async function addNewListingEntry(){
+  const url = document.getElementById('newListingUrl').value.trim();
+  const note = document.getElementById('newListingNote').value.trim();
+  if(!url && !note){ showToast('請貼網址或輸入內容'); return; }
+  DATA.newListings.push({ id: uid(), date: new Date().toISOString().slice(0,10), url, note });
+  document.getElementById('newListingUrl').value = '';
+  document.getElementById('newListingNote').value = '';
+  await saveType('newListings');
+  drawNewListingList();
+  showToast('已新增');
+}
+
+function drawNewListingList(){
+  const q = (document.getElementById('newListingSearch').value||'').toLowerCase();
+  let list = DATA.newListings.filter(l=>{
+    const text = [l.url, l.note].filter(Boolean).join(' ').toLowerCase();
+    return !q || text.includes(q);
+  });
+  list.sort((a,b)=>(b.date||'').localeCompare(a.date||'') || 0);
+  const wrap = document.getElementById('newListingListWrap');
+  if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有記錄</div>'; return; }
+  wrap.innerHTML = `<div class="log-list">${list.map(l=>`
+    <div class="log-entry">
+      <div class="log-entry-note">
+        <div class="log-entry-date">${esc(l.date)}</div>
+        ${l.url?`<a href="${esc(l.url)}" target="_blank" rel="noopener" style="word-break:break-all;">${esc(l.url)}</a>`:''}
+        ${l.note?`<div style="margin-top:2px;">${esc(l.note).replace(/\n/g,'<br>')}</div>`:''}
+      </div>
+      <button class="rm" onclick="removeNewListingEntry('${l.id}')" title="刪除">✕</button>
+    </div>
+  `).join('')}</div>`;
+}
+
+async function removeNewListingEntry(id){
+  DATA.newListings = DATA.newListings.filter(l=>l.id!==id);
+  await saveType('newListings');
+  drawNewListingList();
+}
+
 function renderCommunities(){
   const main = document.getElementById('main');
   main.innerHTML = `
@@ -6188,7 +6257,7 @@ async function deleteItem(type, id){
 /* ===================== Init ===================== */
 window.__appBoot = async function(){
   await loadAll();
-  const validPages = ['dashboard','clients','soldclients','entrusted','posttool','calendar','deals','communities'];
+  const validPages = ['dashboard','clients','soldclients','entrusted','posttool','calendar','deals','communities','newlistings'];
   const hashPage = location.hash.replace('#','');
   if(validPages.includes(hashPage)){
     currentPage = hashPage;
