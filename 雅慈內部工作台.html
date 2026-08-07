@@ -4657,7 +4657,7 @@ function drawCommunityTable(){
 
 function openCommunityModal(id){
   const item = id ? DATA.communities.find(c=>c.id===id) : {name:'', region:'', registeredAddress:'', propertyAddress:'', totalUnits:'', notes:'', sendLogs:[]};
-  editingCtx = {type:'communities', id: id||null, tempSendLogs: (item.sendLogs||[]).map(l=>({...l, tempPhotos:[], removedPhotoKeys:[], _photosLoaded:false}))};
+  editingCtx = {type:'communities', id: id||null, tempSendLogs: (item.sendLogs||[]).map(l=>({...l, tempPhotos:[], removedPhotoKeys:[], _photosLoaded:false})), editingSendLogId: null};
   document.getElementById('modalTitle').textContent = id ? '編輯社區' : '新增社區';
   document.getElementById('modalBody').innerHTML = `
     <div class="field"><label>社區名稱</label><input id="f_communityName" value="${esc(item.name)}"></div>
@@ -4763,6 +4763,29 @@ async function renderCommunitySendLogList(){
     }
   }
   wrap.innerHTML = logs.length ? logs.slice().sort((a,b)=>(b.yearMonth||'').localeCompare(a.yearMonth||'')).map(l=>{
+    if(editingCtx.editingSendLogId === l.id){
+      const editThumbs = (l.tempPhotos||[]).map((p,idx)=>{
+        const isImage = p.dataUrl && p.dataUrl.startsWith('data:image/');
+        const inner = isImage
+          ? `<img src="${p.dataUrl}" style="cursor:pointer;" onclick="openDataUrlInNewTab('${p.dataUrl}')">`
+          : `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; cursor:pointer; font-size:11px;" onclick="openDataUrlInNewTab('${p.dataUrl}')">📄</div>`;
+        return `<div class="photo-chip">${inner}<button class="rm" onclick="removeCommunitySendLogEditPhoto('${l.id}',${idx})">✕</button></div>`;
+      }).join('');
+      return `<div class="log-entry" style="flex-direction:column; align-items:stretch; gap:8px;">
+        <div class="field-row">
+          <input type="month" id="editSendLogYearMonth-${l.id}" value="${esc(l.yearMonth)}">
+          <select id="editSendLogAddressType-${l.id}">
+            ${COMMUNITY_ADDRESS_TYPES.map(t=>`<option ${l.addressType===t?'selected':''}>${t}</option>`).join('')}
+          </select>
+        </div>
+        <div class="photo-grid">${editThumbs}<div class="upload-btn" onclick="document.getElementById('editSendLogPhotoInput-${l.id}').click()">＋<br>新增</div></div>
+        <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple id="editSendLogPhotoInput-${l.id}" style="display:none;" onchange="addCommunitySendLogEditPhotos('${l.id}', this.files)">
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-primary btn-sm" onclick="saveSendLogEdit('${l.id}')">儲存</button>
+          <button class="btn btn-ghost btn-sm" onclick="cancelSendLogEdit()">取消</button>
+        </div>
+      </div>`;
+    }
     const thumbs = (l.tempPhotos||[]).map(p=>{
       const isImage = p.dataUrl && p.dataUrl.startsWith('data:image/');
       return isImage ? `<img src="${p.dataUrl}" style="width:36px; height:36px; object-fit:cover; border-radius:2px; margin-right:4px; cursor:pointer;" onclick="openDataUrlInNewTab('${p.dataUrl}')">` : `<span style="margin-right:4px; cursor:pointer;" onclick="openDataUrlInNewTab('${p.dataUrl}')" title="點擊開啟檔案">📄</span>`;
@@ -4772,9 +4795,50 @@ async function renderCommunitySendLogList(){
         <b>${esc(l.yearMonth)}</b>　${esc(l.addressType||'')}
         ${thumbs?`<div style="margin-top:4px;">${thumbs}</div>`:''}
       </div>
-      <button class="rm" onclick="removeCommunitySendLog('${l.id}')" title="刪除">✕</button>
+      <div style="display:flex; gap:4px; flex-shrink:0;">
+        <button class="icon-btn" onclick="editSendLogEntry('${l.id}')" title="編輯">✎</button>
+        <button class="rm" onclick="removeCommunitySendLog('${l.id}')" title="刪除">✕</button>
+      </div>
     </div>`;
   }).join('') : '<div class="empty-state" style="padding:12px;">尚無寄送紀錄</div>';
+}
+
+function editSendLogEntry(logId){
+  editingCtx.editingSendLogId = logId;
+  renderCommunitySendLogList();
+}
+function cancelSendLogEdit(){
+  editingCtx.editingSendLogId = null;
+  renderCommunitySendLogList();
+}
+async function addCommunitySendLogEditPhotos(logId, files){
+  const log = editingCtx.tempSendLogs.find(l=>l.id===logId);
+  if(!log) return;
+  for(const file of Array.from(files||[])){
+    if(file.size > 15*1024*1024){ showToast(`${file.name} 超過 15MB`); continue; }
+    const dataUrl = file.type.startsWith('image/') ? await resizeImage(file, 1400, 0.78) : await readFileAsDataUrl(file);
+    log.tempPhotos.push({key:null, dataUrl, fileName:file.name});
+  }
+  renderCommunitySendLogList();
+}
+function removeCommunitySendLogEditPhoto(logId, idx){
+  const log = editingCtx.tempSendLogs.find(l=>l.id===logId);
+  if(!log) return;
+  const p = log.tempPhotos[idx];
+  if(p && p.key) log.removedPhotoKeys.push(p.key);
+  log.tempPhotos.splice(idx,1);
+  renderCommunitySendLogList();
+}
+function saveSendLogEdit(logId){
+  const log = editingCtx.tempSendLogs.find(l=>l.id===logId);
+  if(!log) return;
+  const yearMonth = document.getElementById('editSendLogYearMonth-'+logId).value;
+  if(!yearMonth){ showToast('請選擇寄送年月'); return; }
+  log.yearMonth = yearMonth;
+  log.addressType = document.getElementById('editSendLogAddressType-'+logId).value;
+  editingCtx.editingSendLogId = null;
+  renderCommunitySendLogList();
+  resetCommunityNextSendDate();
 }
 
 function resetCommunityNextSendDate(){
@@ -4802,6 +4866,9 @@ function resetCommunityNextSendDate(){
 }
 
 async function saveCommunity(){
+  if(editingCtx.editingSendLogId){
+    saveSendLogEdit(editingCtx.editingSendLogId);
+  }
   const pendingYearMonth = document.getElementById('communitySendYearMonth');
   if(pendingYearMonth && pendingYearMonth.value){
     addCommunitySendLog();
