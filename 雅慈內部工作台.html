@@ -4733,7 +4733,7 @@ async function renderCommunitySendLogList(){
   wrap.innerHTML = logs.length ? logs.slice().sort((a,b)=>(b.yearMonth||'').localeCompare(a.yearMonth||'')).map(l=>{
     const thumbs = (l.tempPhotos||[]).map(p=>{
       const isImage = p.dataUrl && p.dataUrl.startsWith('data:image/');
-      return isImage ? `<img src="${p.dataUrl}" style="width:36px; height:36px; object-fit:cover; border-radius:2px; margin-right:4px; cursor:pointer;" onclick="window.open('${p.dataUrl}','_blank')">` : `<span style="margin-right:4px;">📄</span>`;
+      return isImage ? `<img src="${p.dataUrl}" style="width:36px; height:36px; object-fit:cover; border-radius:2px; margin-right:4px; cursor:pointer;" onclick="window.open('${p.dataUrl}','_blank')">` : `<span style="margin-right:4px; cursor:pointer;" onclick="window.open('${p.dataUrl}','_blank')" title="點擊開啟檔案">📄</span>`;
     }).join('');
     return `<div class="log-entry">
       <div class="log-entry-note">
