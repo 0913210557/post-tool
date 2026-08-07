@@ -4383,71 +4383,155 @@ function communityLatestSentDate(community){
   return latest ? latest.yearMonth : '';
 }
 
-/* ===================== 反開發紀錄 Page (quick capture, independent of communities) ===================== */
+/* ===================== 反開發紀錄 Page ===================== */
+const LISTING_TYPES = ['一般委託','專任委託'];
+
 function renderNewListings(){
   const main = document.getElementById('main');
   main.innerHTML = `
     <div class="page-head">
       <div>
         <div class="page-title"><span class="eyebrow">NEW LISTINGS</span>反開發紀錄</div>
-        <div class="page-desc">快速記錄在591、樂屋、5168等平台上看到的新上架物件</div>
+        <div class="page-desc">記錄其他仲介掛牌中、想反向開發的物件</div>
       </div>
-    </div>
-    <div class="section-block" style="margin-bottom:16px;">
-      <div class="section-block-body" style="padding:14px 16px;">
-        <div class="field-row" style="flex-wrap:wrap;">
-          <input type="text" id="newListingUrl" placeholder="貼網址(選填)" style="flex:1; min-width:200px;">
-        </div>
-        <textarea id="newListingNote" placeholder="物件內容(地址、價格、備註等)" style="min-height:60px; margin-top:8px; width:100%;"></textarea>
-        <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="addNewListingEntry()">＋ 新增</button>
-      </div>
+      <button class="btn btn-primary" id="addNewListingBtn">＋ 新增</button>
     </div>
     <div class="toolbar">
-      <input class="search-input" id="newListingSearch" placeholder="搜尋內容/網址…">
+      <input class="search-input" id="newListingSearch" placeholder="搜尋地址/仲介公司/所有權人/客戶來源…">
     </div>
     <div class="section-block"><div class="section-block-body" id="newListingListWrap"></div></div>
   `;
+  document.getElementById('addNewListingBtn').onclick = ()=>openNewListingModal();
   document.getElementById('newListingSearch').oninput = drawNewListingList;
   drawNewListingList();
-}
-
-async function addNewListingEntry(){
-  const url = document.getElementById('newListingUrl').value.trim();
-  const note = document.getElementById('newListingNote').value.trim();
-  if(!url && !note){ showToast('請貼網址或輸入內容'); return; }
-  DATA.newListings.push({ id: uid(), date: new Date().toISOString().slice(0,10), url, note });
-  document.getElementById('newListingUrl').value = '';
-  document.getElementById('newListingNote').value = '';
-  await saveType('newListings');
-  drawNewListingList();
-  showToast('已新增');
 }
 
 function drawNewListingList(){
   const q = (document.getElementById('newListingSearch').value||'').toLowerCase();
   let list = DATA.newListings.filter(l=>{
-    const text = [l.url, l.note].filter(Boolean).join(' ').toLowerCase();
+    const text = [l.address, l.agencyCompany, l.ownerName, l.clientSource, l.companyName].filter(Boolean).join(' ').toLowerCase();
     return !q || text.includes(q);
   });
   list.sort((a,b)=>(b.date||'').localeCompare(a.date||'') || 0);
   const wrap = document.getElementById('newListingListWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有記錄</div>'; return; }
-  wrap.innerHTML = `<div class="log-list">${list.map(l=>`
-    <div class="log-entry">
-      <div class="log-entry-note">
-        <div class="log-entry-date">${esc(l.date)}</div>
-        ${l.url?`<a href="${esc(l.url)}" target="_blank" rel="noopener" style="word-break:break-all;">${esc(l.url)}</a>`:''}
-        ${l.note?`<div style="margin-top:2px;">${esc(l.note).replace(/\n/g,'<br>')}</div>`:''}
-      </div>
-      <button class="rm" onclick="removeNewListingEntry('${l.id}')" title="刪除">✕</button>
-    </div>
-  `).join('')}</div>`;
+  wrap.innerHTML = `<table><thead><tr>
+    <th>物件地址</th><th>仲介公司</th><th>委託類型</th><th>售價(萬)</th><th>客戶來源</th><th></th>
+  </tr></thead><tbody>
+    ${list.map(l=>`<tr class="row-hover" style="cursor:pointer;" onclick="openNewListingModal('${l.id}')">
+      <td>${esc(l.address||'—')}</td>
+      <td>${esc(l.agencyCompany||'—')}</td>
+      <td>${esc(l.listingType||'—')}</td>
+      <td>${esc(l.askingPrice||'—')}</td>
+      <td>${esc(l.clientSource||'—')}</td>
+      <td onclick="event.stopPropagation()"><div class="row-actions">
+        <button class="icon-btn" onclick="openNewListingModal('${l.id}')" title="編輯">✎</button>
+        <button class="icon-btn" onclick="deleteItem('newListings','${l.id}')" title="刪除">🗑</button>
+      </div></td>
+    </tr>`).join('')}
+  </tbody></table>`;
 }
 
-async function removeNewListingEntry(id){
-  DATA.newListings = DATA.newListings.filter(l=>l.id!==id);
+function openNewListingModal(id){
+  const item = id ? DATA.newListings.find(l=>l.id===id) : {
+    address:'', askingPrice:'', agencyCompany:'', listingType:'', registeredAddress:'',
+    ownerName:'', email:'', mailName:'', phone:'', companyName:'', clientSource:'', statusLogs:[],
+  };
+  editingCtx = {type:'newListings', id: id||null, tempStatusLogs: (item.statusLogs||[]).map(s=>({...s}))};
+  document.getElementById('modalTitle').textContent = id ? '編輯反開發紀錄' : '新增反開發紀錄';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>物件地址</label><input id="f_nlAddress" value="${esc(item.address)}"></div>
+    <div class="field-row">
+      <div class="field"><label>售價(萬)</label><input type="number" id="f_nlAskingPrice" value="${esc(item.askingPrice)}"></div>
+      <div class="field"><label>仲介公司</label><input id="f_nlAgencyCompany" value="${esc(item.agencyCompany)}"></div>
+    </div>
+    <div class="field"><label>委託類型</label>
+      <select id="f_nlListingType">
+        <option value="">未指定</option>
+        ${LISTING_TYPES.map(t=>`<option ${item.listingType===t?'selected':''}>${t}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field"><label>戶籍地</label><input id="f_nlRegisteredAddress" value="${esc(item.registeredAddress)}"></div>
+    <div class="field-row">
+      <div class="field"><label>所有權人姓名</label><input id="f_nlOwnerName" value="${esc(item.ownerName)}"></div>
+      <div class="field"><label>電話</label><input id="f_nlPhone" value="${esc(item.phone)}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>信箱</label><input id="f_nlEmail" value="${esc(item.email)}"></div>
+      <div class="field"><label>信件名</label><input id="f_nlMailName" value="${esc(item.mailName)}"></div>
+    </div>
+    <div class="field"><label>公司名稱</label><input id="f_nlCompanyName" value="${esc(item.companyName)}"></div>
+    <div class="field"><label>客戶來源</label><input id="f_nlClientSource" value="${esc(item.clientSource)}"></div>
+
+    <div class="field field-divider">
+      <div class="field-sub-title">狀況紀錄</div>
+      <div class="log-list" id="nlStatusLogList"></div>
+      <div class="log-add-row" style="margin-top:8px;">
+        <input type="date" id="nlStatusLogDate" value="${new Date().toISOString().slice(0,10)}">
+        <input type="text" id="nlStatusLogNote" placeholder="這次接觸/狀況內容" style="flex:1;">
+        <button class="btn btn-ghost btn-sm" id="nlStatusLogAddBtn">新增</button>
+      </div>
+    </div>
+  `;
+  openModal();
+  renderNewListingStatusLogList();
+  document.getElementById('nlStatusLogAddBtn').onclick = ()=>{
+    if(!addNewListingStatusLog()) showToast('請輸入狀況內容');
+  };
+}
+
+function addNewListingStatusLog(){
+  const date = document.getElementById('nlStatusLogDate').value;
+  const note = document.getElementById('nlStatusLogNote').value.trim();
+  if(!note) return false;
+  editingCtx.tempStatusLogs.push({id: uid(), date, note});
+  document.getElementById('nlStatusLogNote').value = '';
+  renderNewListingStatusLogList();
+  return true;
+}
+function removeNewListingStatusLog(logId){
+  editingCtx.tempStatusLogs = editingCtx.tempStatusLogs.filter(s=>s.id!==logId);
+  renderNewListingStatusLogList();
+}
+function renderNewListingStatusLogList(){
+  const wrap = document.getElementById('nlStatusLogList');
+  if(!wrap) return;
+  const logs = editingCtx.tempStatusLogs || [];
+  wrap.innerHTML = logs.length ? logs.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(s=>`
+    <div class="log-entry">
+      <div class="log-entry-note"><div class="log-entry-date">${esc(s.date||'—')}</div>${esc(s.note)}</div>
+      <button class="rm" onclick="removeNewListingStatusLog('${s.id}')" title="刪除">✕</button>
+    </div>
+  `).join('') : '<div class="empty-state" style="padding:12px;">尚無狀況紀錄</div>';
+}
+
+async function saveNewListing(){
+  const pendingNote = document.getElementById('nlStatusLogNote');
+  if(pendingNote && pendingNote.value.trim()) addNewListingStatusLog();
+
+  const vals = {
+    address: document.getElementById('f_nlAddress').value.trim(),
+    askingPrice: document.getElementById('f_nlAskingPrice').value.trim(),
+    agencyCompany: document.getElementById('f_nlAgencyCompany').value.trim(),
+    listingType: document.getElementById('f_nlListingType').value,
+    registeredAddress: document.getElementById('f_nlRegisteredAddress').value.trim(),
+    ownerName: document.getElementById('f_nlOwnerName').value.trim(),
+    phone: document.getElementById('f_nlPhone').value.trim(),
+    email: document.getElementById('f_nlEmail').value.trim(),
+    mailName: document.getElementById('f_nlMailName').value.trim(),
+    companyName: document.getElementById('f_nlCompanyName').value.trim(),
+    clientSource: document.getElementById('f_nlClientSource').value.trim(),
+    statusLogs: editingCtx.tempStatusLogs || [],
+  };
+  if(!vals.address){ showToast('請輸入物件地址'); return false; }
+  if(editingCtx.id){
+    const idx = DATA.newListings.findIndex(l=>l.id===editingCtx.id);
+    DATA.newListings[idx] = {...DATA.newListings[idx], ...vals, date: DATA.newListings[idx].date};
+  }else{
+    DATA.newListings.push({id: uid(), date: new Date().toISOString().slice(0,10), ...vals});
+  }
   await saveType('newListings');
-  drawNewListingList();
+  return true;
 }
 
 function renderCommunities(){
@@ -6234,6 +6318,7 @@ document.getElementById('modalSave').onclick = async ()=>{
   if(editingCtx.type==='deals') ok = await saveDeal();
   if(editingCtx.type==='communities') ok = await saveCommunity();
   if(editingCtx.type==='adQuotas') ok = await saveAdQuota();
+  if(editingCtx.type==='newListings') ok = await saveNewListing();
   saveBtn.disabled = false;
   if(ok){
     showToast('已儲存');
