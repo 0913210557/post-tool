@@ -2808,24 +2808,22 @@ function renderPropertyRecordList(){
     const ownerLine = owners.length ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">屋主 ${owners.map(o=>[o.name,o.idNumber,o.phone].filter(Boolean).map(esc).join('/')).join('、')}</div>` : '';
 
     return `
-    <div class="log-entry" style="flex-direction:column; align-items:stretch; gap:8px;">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
-        <div style="flex:1;">
-          <div class="log-entry-date">${esc(r.category)}</div>
-          ${r.caseName?`<div style="font-weight:700; margin-top:2px;">${esc(r.caseName)}</div>`:''}
-          ${r.address?`<div style="font-size:13px; color:var(--ink); margin-top:2px;">${esc(r.address)}</div>`:''}
-          ${r.content?`<div class="log-entry-note" style="margin-top:2px;">${esc(r.content).replace(/\n/g,'<br>')}</div>`:''}
-          ${entrustLine}
-          ${priceLine}
-          ${ownerLine}
-        </div>
-        <div style="display:flex; gap:4px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end;">
-          <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordAlbum('${r.id}')">📎 相簿/檔案${photoCount?`(${photoCount})`:''}</button>
-          <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordHistory('${r.id}')">📈 變更紀錄${history.length?`(${history.length})`:''}</button>
-          <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordOwners('${r.id}')">👤 屋主${owners.length?`(${owners.length})`:''}</button>
-          <button class="btn btn-ghost btn-sm" onclick="startPropertyRecordEdit('${r.id}')">✎ 編輯</button>
-          <button class="rm" onclick="removePropertyRecord('${r.id}')" title="刪除">✕</button>
-        </div>
+    <div class="log-entry" style="flex-direction:column; align-items:stretch; justify-content:flex-start; gap:8px;">
+      <div>
+        <div class="log-entry-date">${esc(r.category)}</div>
+        ${r.caseName?`<div style="font-weight:700; margin-top:2px;">${esc(r.caseName)}</div>`:''}
+        ${r.address?`<div style="font-size:13px; color:var(--ink); margin-top:2px;">${esc(r.address)}</div>`:''}
+        ${r.content?`<div class="log-entry-note" style="margin-top:2px;">${esc(r.content).replace(/\n/g,'<br>')}</div>`:''}
+        ${entrustLine}
+        ${priceLine}
+        ${ownerLine}
+      </div>
+      <div style="display:flex; gap:4px; flex-wrap:wrap;">
+        <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordAlbum('${r.id}')">📎 相簿/檔案${photoCount?`(${photoCount})`:''}</button>
+        <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordHistory('${r.id}')">📈 變更紀錄${history.length?`(${history.length})`:''}</button>
+        <button class="btn btn-ghost btn-sm" onclick="togglePropertyRecordOwners('${r.id}')">👤 屋主${owners.length?`(${owners.length})`:''}</button>
+        <button class="btn btn-ghost btn-sm" onclick="startPropertyRecordEdit('${r.id}')">✎ 編輯</button>
+        <button class="rm" onclick="removePropertyRecord('${r.id}')" title="刪除">✕</button>
       </div>
       ${isAlbumOpen ? `
         <div class="photo-grid" id="propRecordPhotoGrid-${r.id}"><span class="tag-soft">載入中…</span></div>
