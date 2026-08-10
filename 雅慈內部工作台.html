@@ -4467,7 +4467,7 @@ function openNewListingModal(id){
     url:'', address:'', askingPrice:'', agencyCompany:'', listingType:'', registeredAddress:'',
     ownerName:'', email:'', mailName:'', phone:'', companyName:'', clientSource:'', statusLogs:[],
   };
-  editingCtx = {type:'newListings', id: id||null, tempStatusLogs: (item.statusLogs||[]).map(s=>({...s}))};
+  editingCtx = {type:'newListings', id: id||null, tempStatusLogs: (item.statusLogs||[]).map(s=>({...s, tempPhotos:[], removedPhotoKeys:[], _photosLoaded:false}))};
   document.getElementById('modalTitle').textContent = id ? '編輯反開發紀錄' : '新增反開發紀錄';
   document.getElementById('modalBody').innerHTML = `
     <div class="field"><label>網址</label>
@@ -4505,42 +4505,99 @@ function openNewListingModal(id){
       <div class="log-list" id="nlStatusLogList"></div>
       <div class="log-add-row" style="margin-top:8px;">
         <input type="date" id="nlStatusLogDate" value="${new Date().toISOString().slice(0,10)}">
-        <input type="text" id="nlStatusLogNote" placeholder="這次接觸/狀況內容" style="flex:1;">
-        <button class="btn btn-ghost btn-sm" id="nlStatusLogAddBtn">新增</button>
+        <input type="text" id="nlStatusLogNote" placeholder="這次接觸/狀況內容(例如寄出的開發信內容)" style="flex:1;">
       </div>
+      <div class="photo-grid" id="nlStatusLogPhotoGrid" style="margin-top:8px;"></div>
+      <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple id="nlStatusLogPhotoInput" style="display:none;">
+      <button class="btn btn-ghost btn-sm" id="nlStatusLogAddBtn" style="margin-top:8px;">＋ 新增狀況紀錄</button>
     </div>
   `;
   openModal();
   document.getElementById('nlAutoFillBtn').onclick = nlAutoFillFromUrl;
+  editingCtx.newStatusLogPhotos = [];
+  renderNewListingStatusLogPhotoGrid();
   renderNewListingStatusLogList();
   document.getElementById('nlStatusLogAddBtn').onclick = ()=>{
     if(!addNewListingStatusLog()) showToast('請輸入狀況內容');
   };
+  document.getElementById('nlStatusLogPhotoInput').onchange = async (e)=>{
+    const files = Array.from(e.target.files||[]);
+    for(const file of files){
+      if(file.size > 15*1024*1024){ showToast(`${file.name} 超過 15MB`); continue; }
+      const dataUrl = file.type.startsWith('image/') ? await resizeImage(file, 1400, 0.78) : await readFileAsDataUrl(file);
+      editingCtx.newStatusLogPhotos.push({key:null, dataUrl, fileName:file.name});
+    }
+    e.target.value = '';
+    renderNewListingStatusLogPhotoGrid();
+  };
+}
+
+function renderNewListingStatusLogPhotoGrid(){
+  const grid = document.getElementById('nlStatusLogPhotoGrid');
+  if(!grid) return;
+  const addTile = `<div class="upload-btn" id="addNlStatusLogPhotoTile">＋<br>新增照片/檔案</div>`;
+  grid.innerHTML = editingCtx.newStatusLogPhotos.map((p,idx)=>{
+    const isImage = p.dataUrl && p.dataUrl.startsWith('data:image/');
+    const inner = isImage
+      ? `<img src="${p.dataUrl}" style="cursor:pointer;" onclick="openDataUrlInNewTab('${p.dataUrl}')">`
+      : `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; cursor:pointer; font-size:11px; text-align:center; padding:4px; word-break:break-all;" onclick="openDataUrlInNewTab('${p.dataUrl}')">📄<br>${esc(p.fileName||'檔案')}</div>`;
+    return `<div class="photo-chip">${inner}<button class="rm" onclick="removeNewListingStatusLogPhoto(${idx})">✕</button></div>`;
+  }).join('') + addTile;
+  const tile = document.getElementById('addNlStatusLogPhotoTile');
+  if(tile) tile.onclick = ()=>document.getElementById('nlStatusLogPhotoInput').click();
+}
+function removeNewListingStatusLogPhoto(idx){
+  editingCtx.newStatusLogPhotos.splice(idx,1);
+  renderNewListingStatusLogPhotoGrid();
 }
 
 function addNewListingStatusLog(){
   const date = document.getElementById('nlStatusLogDate').value;
   const note = document.getElementById('nlStatusLogNote').value.trim();
-  if(!note) return false;
-  editingCtx.tempStatusLogs.push({id: uid(), date, note});
+  if(!note && editingCtx.newStatusLogPhotos.length===0) return false;
+  editingCtx.tempStatusLogs.push({
+    id: uid(), date, note,
+    tempPhotos: editingCtx.newStatusLogPhotos, removedPhotoKeys: [], photoKeys: [], _photosLoaded: true,
+  });
+  editingCtx.newStatusLogPhotos = [];
   document.getElementById('nlStatusLogNote').value = '';
+  renderNewListingStatusLogPhotoGrid();
   renderNewListingStatusLogList();
   return true;
 }
 function removeNewListingStatusLog(logId){
+  const log = editingCtx.tempStatusLogs.find(s=>s.id===logId);
+  if(log) (log.tempPhotos||[]).forEach(p=>{ if(p.key) log.removedPhotoKeys.push(p.key); });
   editingCtx.tempStatusLogs = editingCtx.tempStatusLogs.filter(s=>s.id!==logId);
   renderNewListingStatusLogList();
 }
-function renderNewListingStatusLogList(){
+async function renderNewListingStatusLogList(){
   const wrap = document.getElementById('nlStatusLogList');
   if(!wrap) return;
   const logs = editingCtx.tempStatusLogs || [];
-  wrap.innerHTML = logs.length ? logs.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(s=>`
-    <div class="log-entry">
-      <div class="log-entry-note"><div class="log-entry-date">${esc(s.date||'—')}</div>${esc(s.note)}</div>
+  for(const log of logs){
+    if(!log._photosLoaded){
+      log.tempPhotos = [];
+      for(const k of (log.photoKeys||[])){
+        const dataUrl = await loadStoredFile(k);
+        if(dataUrl) log.tempPhotos.push({key:k, dataUrl});
+      }
+      log._photosLoaded = true;
+    }
+  }
+  wrap.innerHTML = logs.length ? logs.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(s=>{
+    const thumbs = (s.tempPhotos||[]).map(p=>{
+      const isImage = p.dataUrl && p.dataUrl.startsWith('data:image/');
+      return isImage ? `<img src="${p.dataUrl}" style="width:36px; height:36px; object-fit:cover; border-radius:2px; margin-right:4px; cursor:pointer;" onclick="openDataUrlInNewTab('${p.dataUrl}')">` : `<span style="margin-right:4px; cursor:pointer;" onclick="openDataUrlInNewTab('${p.dataUrl}')" title="點擊開啟檔案">📄</span>`;
+    }).join('');
+    return `<div class="log-entry">
+      <div class="log-entry-note">
+        <div class="log-entry-date">${esc(s.date||'—')}</div>${esc(s.note)}
+        ${thumbs?`<div style="margin-top:4px;">${thumbs}</div>`:''}
+      </div>
       <button class="rm" onclick="removeNewListingStatusLog('${s.id}')" title="刪除">✕</button>
-    </div>
-  `).join('') : '<div class="empty-state" style="padding:12px;">尚無狀況紀錄</div>';
+    </div>`;
+  }).join('') : '<div class="empty-state" style="padding:12px;">尚無狀況紀錄</div>';
 }
 
 function nlExtractAgencyCompany(rawText){
@@ -4572,7 +4629,21 @@ async function nlAutoFillFromUrl(){
 
 async function saveNewListing(){
   const pendingNote = document.getElementById('nlStatusLogNote');
-  if(pendingNote && pendingNote.value.trim()) addNewListingStatusLog();
+  if((pendingNote && pendingNote.value.trim()) || (editingCtx.newStatusLogPhotos||[]).length){
+    addNewListingStatusLog();
+  }
+
+  for(const log of editingCtx.tempStatusLogs){
+    for(const k of log.removedPhotoKeys) await deleteStoredFile(k);
+    for(const p of log.tempPhotos){
+      if(!p.key){
+        const newKey = 'file:newlisting-status:' + uid();
+        if(!await saveStoredFile(newKey, p.dataUrl, p.fileName||'狀況紀錄檔案')) return false;
+        p.key = newKey;
+      }
+    }
+    log.photoKeys = log.tempPhotos.map(p=>p.key);
+  }
 
   const vals = {
     url: document.getElementById('f_nlUrl').value.trim(),
@@ -4587,7 +4658,7 @@ async function saveNewListing(){
     mailName: document.getElementById('f_nlMailName').value.trim(),
     companyName: document.getElementById('f_nlCompanyName').value.trim(),
     clientSource: document.getElementById('f_nlClientSource').value.trim(),
-    statusLogs: editingCtx.tempStatusLogs || [],
+    statusLogs: editingCtx.tempStatusLogs.map(s=>({id:s.id, date:s.date, note:s.note, photoKeys:s.photoKeys})),
   };
   if(!vals.address){ showToast('請輸入物件地址'); return false; }
   if(editingCtx.id){
@@ -6505,6 +6576,7 @@ async function deleteItem(type, id){
     if(type==='listings' && item.photoKeys) for(const k of item.photoKeys) await deleteStoredFile(k);
     if(type==='deals' && item.attachmentKeys) for(const k of item.attachmentKeys) await deleteStoredFile(k);
     if(type==='communities' && item.sendLogs) for(const l of item.sendLogs) for(const k of (l.photoKeys||[])) await deleteStoredFile(k);
+    if(type==='newListings' && item.statusLogs) for(const s of item.statusLogs) for(const k of (s.photoKeys||[])) await deleteStoredFile(k);
   }
   DATA[type] = DATA[type].filter(x=>x.id!==id);
   await saveType(type);
