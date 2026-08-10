@@ -1293,8 +1293,9 @@ async function syncAdQuotaCalendarEntry(platform, expireDate){
 function renderDashboard(){
   const main = document.getElementById('main');
   const thisMonth = new Date().toISOString().slice(0,7);
+  const todayStr = new Date().toISOString().slice(0,10);
   const monthEntrustedCount = DATA.clients.reduce((sum,c)=>sum + getClientPropertyRecords(c).filter(r=>r.category==='委託中' && (r.entrustDateStart||r.entrustDate||'').startsWith(thisMonth)).length, 0);
-  const entrustedCount = DATA.clients.reduce((sum,c)=>sum + getClientPropertyRecords(c).filter(r=>r.category==='委託中').length, 0);
+  const dueNewListingsCount = DATA.newListings.filter(l=>l.nextFollowUpDate && l.nextFollowUpDate <= todayStr).length;
   const monthDeals = DATA.deals.filter(d=>d.closedDate && d.closedDate.startsWith(thisMonth));
   const monthCommission = monthDeals.reduce((s,d)=>s+(Number(d.commission)||0),0);
   const monthCommunities = DATA.communities.filter(c=>communityNextSendDate(c)===thisMonth);
@@ -1309,7 +1310,7 @@ function renderDashboard(){
 
     <div class="stat-row">
       <div class="stat-card"><div class="stat-num">${monthEntrustedCount}</div><div class="stat-label">本月委託件數</div></div>
-      <div class="stat-card"><div class="stat-num">${entrustedCount}</div><div class="stat-label">反開發</div></div>
+      <div class="stat-card"><div class="stat-num" style="${dueNewListingsCount?'color:var(--brick);':''}">${dueNewListingsCount}</div><div class="stat-label">${dueNewListingsCount?'⚠ ':''}待追蹤反開發</div></div>
       <div class="stat-card">
         <div class="stat-num" style="font-size:14px; line-height:1.5;">${monthCommunities.length ? monthCommunities.map(c=>esc(c.name)).join('、') : '—'}</div>
         <div class="stat-label">本月社區開發信</div>
@@ -4443,14 +4444,17 @@ function drawNewListingList(){
   list.sort((a,b)=>(b.date||'').localeCompare(a.date||'') || 0);
   const wrap = document.getElementById('newListingListWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有記錄</div>'; return; }
+  const todayStr = new Date().toISOString().slice(0,10);
   wrap.innerHTML = `<table><thead><tr>
-    <th>物件地址</th><th>售價(萬)</th><th>最新狀況時間</th><th>最新狀況內容</th><th></th>
+    <th>物件地址</th><th>售價(萬)</th><th>下次追蹤時間</th><th>最新狀況時間</th><th>最新狀況內容</th><th></th>
   </tr></thead><tbody>
     ${list.map(l=>{
       const latest = latestNewListingStatus(l);
+      const isDue = l.nextFollowUpDate && l.nextFollowUpDate <= todayStr;
       return `<tr class="row-hover" style="cursor:pointer;" onclick="openNewListingModal('${l.id}')">
       <td>${esc(l.address||'—')}</td>
       <td>${esc(l.askingPrice||'—')}</td>
+      <td style="${isDue?'color:var(--brick); font-weight:700;':''}">${isDue?'⚠ ':''}${esc(l.nextFollowUpDate||'—')}</td>
       <td>${esc(latest ? latest.date : '—')}</td>
       <td>${esc(latest ? latest.note : '—')}</td>
       <td onclick="event.stopPropagation()"><div class="row-actions">
@@ -4465,7 +4469,7 @@ function drawNewListingList(){
 function openNewListingModal(id){
   const item = id ? DATA.newListings.find(l=>l.id===id) : {
     url:'', address:'', askingPrice:'', agencyCompany:'', listingType:'', registeredAddress:'',
-    ownerName:'', email:'', mailName:'', phone:'', companyName:'', clientSource:'', statusLogs:[],
+    ownerName:'', email:'', mailName:'', phone:'', companyName:'', clientSource:'', nextFollowUpDate:'', statusLogs:[],
   };
   editingCtx = {type:'newListings', id: id||null, tempStatusLogs: (item.statusLogs||[]).map(s=>({...s, tempPhotos:[], removedPhotoKeys:[], _photosLoaded:false}))};
   document.getElementById('modalTitle').textContent = id ? '編輯反開發紀錄' : '新增反開發紀錄';
@@ -4499,6 +4503,7 @@ function openNewListingModal(id){
     </div>
     <div class="field"><label>公司名稱</label><input id="f_nlCompanyName" value="${esc(item.companyName)}"></div>
     <div class="field"><label>客戶來源</label><input id="f_nlClientSource" value="${esc(item.clientSource)}"></div>
+    <div class="field"><label>下次追蹤時間</label><input type="date" id="f_nlNextFollowUp" value="${esc(item.nextFollowUpDate)}"></div>
 
     <div class="field field-divider">
       <div class="field-sub-title">狀況紀錄</div>
@@ -4658,6 +4663,7 @@ async function saveNewListing(){
     mailName: document.getElementById('f_nlMailName').value.trim(),
     companyName: document.getElementById('f_nlCompanyName').value.trim(),
     clientSource: document.getElementById('f_nlClientSource').value.trim(),
+    nextFollowUpDate: document.getElementById('f_nlNextFollowUp').value,
     statusLogs: editingCtx.tempStatusLogs.map(s=>({id:s.id, date:s.date, note:s.note, photoKeys:s.photoKeys})),
   };
   if(!vals.address){ showToast('請輸入物件地址'); return false; }
