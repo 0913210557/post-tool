@@ -1309,10 +1309,10 @@ function renderDashboard(){
     </div>
 
     <div class="stat-row">
-      <div class="stat-card"><div class="stat-num">${monthEntrustedCount}</div><div class="stat-label">本月委託件數</div></div>
+      <div class="stat-card"><div class="stat-num" style="${monthEntrustedCount===0?'color:var(--brick);':''}">${monthEntrustedCount}</div><div class="stat-label">本月委託件數</div></div>
       <div class="stat-card"><div class="stat-num" style="${dueNewListingsCount?'color:var(--brick);':''}">${dueNewListingsCount}</div><div class="stat-label">${dueNewListingsCount?'⚠ ':''}待追蹤反開發</div></div>
       <div class="stat-card">
-        <div class="stat-num" style="font-size:14px; line-height:1.5;">${monthCommunities.length ? monthCommunities.map(c=>esc(c.name)).join('、') : '—'}</div>
+        <div class="stat-num" style="font-size:14px; line-height:1.5; ${monthCommunities.length?'color:var(--brick); font-weight:700;':''}">${monthCommunities.length ? monthCommunities.map(c=>esc(c.name)).join('、') : '—'}</div>
         <div class="stat-label">本月社區開發信</div>
       </div>
       ${renderAdQuotaCard()}
