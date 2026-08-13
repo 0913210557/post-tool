@@ -2457,13 +2457,14 @@ function renderLogExtraFields(){
 
   if(config.special === 'meeting'){
     const defaultDate = (document.getElementById('logDate') && document.getElementById('logDate').value) || '';
+    const defaultTime = (document.getElementById('logTime') && document.getElementById('logTime').value) || '';
     container.innerHTML = `
       <div class="pt-hint" style="margin:0 0 4px;">地址 / 停車場 / 面談日期 / 面談時間 / 準備資料</div>
       <input type="text" id="logExtra_address" placeholder="地址" value="${esc(config.fields[0].default)}" style="margin-bottom:6px;">
       <input type="text" id="logExtra_parking" placeholder="停車場" value="${esc(config.fields[1].default)}" style="margin-bottom:6px;">
       <div class="field-row" style="margin-bottom:6px;">
         <input type="date" id="logExtra_meetingDate" value="${esc(defaultDate)}">
-        ${timePickerHTML('logExtra_meetingTime', '')}
+        ${timePickerHTML('logExtra_meetingTime', defaultTime)}
       </div>
       <select id="logExtra_party" style="margin-bottom:6px;">
         <option value="">請選擇買方或賣方</option>
@@ -2563,7 +2564,7 @@ function formatLogExtraPlainText(l){
       return `第${i+1}筆 ${parts}`;
     }).join(' ｜ ');
   }
-  const base = config.fields.map(f=>renderField(f, l.extra[f.key])).filter(Boolean).join(' ・ ');
+  const base = config.fields.filter(f=>f.key!=='party').map(f=>renderField(f, l.extra[f.key])).filter(Boolean).join(' ・ ');
   if(config.special === 'meeting' && l.extra.checklist && l.extra.checklist.length){
     return [base, `準備:${l.extra.checklist.join('、')}`].filter(Boolean).join(' ・ ');
   }
@@ -2649,7 +2650,7 @@ function formatLogExtra(l, multiline){
     }).join(itemSep);
   }
   const parts = [];
-  config.fields.forEach(f=>{
+  config.fields.filter(f=>f.key!=='party').forEach(f=>{
     const html = renderField(f, l.extra[f.key]);
     if(html) parts.push(html);
   });
