@@ -5020,12 +5020,6 @@ function renderPostTool(){
           <div class="pt-status" id="ptGenStatus"></div>
         </div>
 
-        <div class="pt-step" id="ptPhotoStep" style="display:none;">
-          <div class="pt-step-label">抓到的照片，點右上角 ✕ 可移除（最後一張是固定附加的名片）</div>
-          <div class="pt-photo-grid" id="ptPhotoGrid"></div>
-          <div id="ptPhotoDownloadWrap"></div>
-        </div>
-
         <div class="pt-step">
           <div class="pt-step-label"><span class="pt-step-num">2</span>確認 / 編輯擷取欄位</div>
 
@@ -5134,6 +5128,25 @@ function renderPostTool(){
           </div>
         </div>
 
+        <div class="pt-step" id="ptPhotoStep" style="display:none;">
+          <div class="pt-step-label">抓到的照片，點右上角 ✕ 可移除（最後一張是固定附加的名片）</div>
+          <div class="pt-photo-grid" id="ptPhotoGrid"></div>
+          <div id="ptPhotoDownloadWrap"></div>
+        </div>
+
+        <div class="pt-step">
+          <div class="pt-step-label"><span class="pt-step-num">🎨</span>封面圖提示詞（給 GPT/AI 生圖用）</div>
+          <div class="pt-hint">按「產生提示詞」會照上面填的物件資料，自動組一段可以直接貼給 GPT 的生圖描述，你也可以自己修改。</div>
+          <div class="pt-row-buttons">
+            <button class="pt-btn-outline" onclick="ptGenerateCoverPrompt()">產生提示詞</button>
+          </div>
+          <textarea id="ptCoverPromptText" placeholder="按上面「產生提示詞」自動帶入，或直接手動輸入、修改..." style="margin-top:8px;"></textarea>
+          <div class="pt-row-buttons">
+            <button class="pt-btn-brass" onclick="ptCopyCoverPrompt()">複製提示詞</button>
+          </div>
+          <div class="pt-status" id="ptCoverPromptStatus"></div>
+        </div>
+
         <div class="pt-step">
           <div class="pt-step-label"><span class="pt-step-num">4</span>確認可以 → 發社團</div>
           <div class="pt-row-buttons">
@@ -5150,19 +5163,6 @@ function renderPostTool(){
 
           <div id="ptGroupList" style="margin-top:6px;"></div>
           <div class="pt-hint">複製文字後，點清單裡的「開啟」逐一到社團貼上發布。</div>
-        </div>
-
-        <div class="pt-step">
-          <div class="pt-step-label"><span class="pt-step-num">🎨</span>封面圖提示詞（給 GPT/AI 生圖用）</div>
-          <div class="pt-hint">按「產生提示詞」會照上面填的物件資料，自動組一段可以直接貼給 GPT 的生圖描述，你也可以自己修改。</div>
-          <div class="pt-row-buttons">
-            <button class="pt-btn-outline" onclick="ptGenerateCoverPrompt()">產生提示詞</button>
-          </div>
-          <textarea id="ptCoverPromptText" placeholder="按上面「產生提示詞」自動帶入，或直接手動輸入、修改..." style="margin-top:8px;"></textarea>
-          <div class="pt-row-buttons">
-            <button class="pt-btn-brass" onclick="ptCopyCoverPrompt()">複製提示詞</button>
-          </div>
-          <div class="pt-status" id="ptCoverPromptStatus"></div>
         </div>
 
       </div>
