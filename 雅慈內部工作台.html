@@ -5128,12 +5128,6 @@ function renderPostTool(){
           </div>
         </div>
 
-        <div class="pt-step" id="ptPhotoStep" style="display:none;">
-          <div class="pt-step-label">抓到的照片，點右上角 ✕ 可移除（最後一張是固定附加的名片）</div>
-          <div class="pt-photo-grid" id="ptPhotoGrid"></div>
-          <div id="ptPhotoDownloadWrap"></div>
-        </div>
-
         <div class="pt-step">
           <div class="pt-step-label"><span class="pt-step-num">🎨</span>封面圖提示詞（給 GPT/AI 生圖用）</div>
           <div class="pt-hint">按「產生提示詞」會照上面填的物件資料，自動組一段可以直接貼給 GPT 的生圖描述，你也可以自己修改。</div>
@@ -5145,6 +5139,12 @@ function renderPostTool(){
             <button class="pt-btn-brass" onclick="ptCopyCoverPrompt()">複製提示詞</button>
           </div>
           <div class="pt-status" id="ptCoverPromptStatus"></div>
+        </div>
+
+        <div class="pt-step" id="ptPhotoStep" style="display:none;">
+          <div class="pt-step-label">抓到的照片，點右上角 ✕ 可移除（最後一張是固定附加的名片）</div>
+          <div class="pt-photo-grid" id="ptPhotoGrid"></div>
+          <div id="ptPhotoDownloadWrap"></div>
         </div>
 
         <div class="pt-step">
