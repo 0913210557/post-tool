@@ -5152,6 +5152,19 @@ function renderPostTool(){
           <div class="pt-hint">複製文字後，點清單裡的「開啟」逐一到社團貼上發布。</div>
         </div>
 
+        <div class="pt-step">
+          <div class="pt-step-label"><span class="pt-step-num">🎨</span>封面圖提示詞（給 GPT/AI 生圖用）</div>
+          <div class="pt-hint">按「產生提示詞」會照上面填的物件資料，自動組一段可以直接貼給 GPT 的生圖描述，你也可以自己修改。</div>
+          <div class="pt-row-buttons">
+            <button class="pt-btn-outline" onclick="ptGenerateCoverPrompt()">產生提示詞</button>
+          </div>
+          <textarea id="ptCoverPromptText" placeholder="按上面「產生提示詞」自動帶入，或直接手動輸入、修改..." style="margin-top:8px;"></textarea>
+          <div class="pt-row-buttons">
+            <button class="pt-btn-brass" onclick="ptCopyCoverPrompt()">複製提示詞</button>
+          </div>
+          <div class="pt-status" id="ptCoverPromptStatus"></div>
+        </div>
+
       </div>
     </div>
   `;
@@ -5732,6 +5745,42 @@ async function ptCopyDraft(){
   }catch(e){
     ptCopyStatusEl.textContent = '複製失敗，請手動選取文字複製。';
     ptCopyStatusEl.className = 'pt-status err';
+  }
+}
+
+function ptGenerateCoverPrompt(){
+  const f = ptFieldEls;
+  const val = el => (el && el.value ? el.value.trim() : '');
+  const parts = [];
+  parts.push('請幫我畫一張房地產物件的封面宣傳圖，風格簡潔大氣、適合放在社團貼文最上方吸引目光，畫面裡不要出現任何文字或浮水印。');
+  const propertyBits = [val(f.title), val(f.layout), val(f.buildPing)?`建物約${val(f.buildPing)}坪`:''].filter(Boolean).join('、');
+  if(propertyBits) parts.push(`物件重點：${propertyBits}`);
+  if(val(f.address)) parts.push(`地點氛圍參考：${val(f.address)}，可以帶一點在地生活感（不用畫出實際門牌或招牌文字）`);
+  const nearby = [val(f.park)&&'公園綠意', val(f.market)&&'生活機能熱鬧', val(f.conv)&&'便利商店林立', val(f.bus)&&'交通便利', val(f.px)&&'商圈氣息'].filter(Boolean).join('、');
+  if(nearby) parts.push(`環境調性：${nearby}`);
+  if(val(f.price)) parts.push('整體質感偏向溫馨、明亮、有質感的居家風格。');
+  const promptEl = document.getElementById('ptCoverPromptText');
+  if(promptEl) promptEl.value = parts.join('\n');
+  const statusEl = document.getElementById('ptCoverPromptStatus');
+  if(statusEl){
+    statusEl.textContent = '已產生提示詞，可以自己再調整內容。';
+    statusEl.className = 'pt-status ok';
+  }
+}
+
+async function ptCopyCoverPrompt(){
+  const promptEl = document.getElementById('ptCoverPromptText');
+  const statusEl = document.getElementById('ptCoverPromptStatus');
+  const text = promptEl ? promptEl.value.trim() : '';
+  if(!text){
+    if(statusEl){ statusEl.textContent = '目前沒有提示詞可以複製'; statusEl.className = 'pt-status err'; }
+    return;
+  }
+  try{
+    await navigator.clipboard.writeText(text);
+    if(statusEl){ statusEl.textContent = '已複製，可以貼給 GPT 請它幫你畫封面圖。'; statusEl.className = 'pt-status ok'; }
+  }catch(e){
+    if(statusEl){ statusEl.textContent = '複製失敗，請手動選取文字複製。'; statusEl.className = 'pt-status err'; }
   }
 }
 
