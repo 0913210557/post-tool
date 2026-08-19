@@ -383,6 +383,7 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
@@ -3007,13 +3008,13 @@ function drawPropertyRecordAlbumGrid(recordId){
   grid.innerHTML = cache.photos.map((p,idx)=>{
     if(isImageDataUrl(p.dataUrl)){
       return `<div class="photo-chip">
-        <img src="${p.dataUrl}">
+        <img src="${p.dataUrl}" style="cursor:pointer;" onclick="openDataUrlInNewTab('${p.dataUrl}')">
         <button class="rm" onclick="removePropertyRecordPhoto('${recordId}',${idx})" title="移除">✕</button>
       </div>`;
     }
-    return `<div class="photo-chip" style="display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:22px; background:var(--stone); gap:2px;">
+    return `<div class="photo-chip" style="display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:22px; background:var(--stone); gap:2px; cursor:pointer;" onclick="openDataUrlInNewTab('${p.dataUrl}')" title="點擊開啟/下載">
       <span>📄</span><span style="font-size:9px; color:var(--ink-soft);">${mimeExtFromDataUrl(p.dataUrl)||'檔案'}</span>
-      <button class="rm" onclick="removePropertyRecordPhoto('${recordId}',${idx})" title="移除">✕</button>
+      <button class="rm" onclick="event.stopPropagation(); removePropertyRecordPhoto('${recordId}',${idx})" title="移除">✕</button>
     </div>`;
   }).join('') + addTile;
 }
@@ -3432,19 +3433,56 @@ function openOrDownloadFile(i){
     document.body.removeChild(a);
   }
 }
-function downloadAllPhotos(indices){
-  indices.forEach((idx, i)=>{
+async function downloadAllPhotos(indices){
+  if(typeof JSZip === 'undefined'){
+    showToast('壓縮功能載入失敗,改成一張一張下載');
+    indices.forEach((idx, i)=>{
+      const p = __lightboxPhotos[idx];
+      if(!p || !p.src) return;
+      setTimeout(()=>{
+        const a = document.createElement('a');
+        a.href = p.src;
+        a.download = p.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, i * 250);
+    });
+    return;
+  }
+  showToast('打包中…');
+  const zip = new JSZip();
+  const usedNames = new Set();
+  indices.forEach(idx=>{
     const p = __lightboxPhotos[idx];
     if(!p || !p.src) return;
-    setTimeout(()=>{
-      const a = document.createElement('a');
-      a.href = p.src;
-      a.download = p.filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }, i * 250);
+    const commaIdx = p.src.indexOf(',');
+    const base64 = p.src.slice(commaIdx+1);
+    let name = p.filename || 'file';
+    let finalName = name;
+    let n = 1;
+    while(usedNames.has(finalName)){
+      const dot = name.lastIndexOf('.');
+      finalName = dot>0 ? `${name.slice(0,dot)}(${n})${name.slice(dot)}` : `${name}(${n})`;
+      n++;
+    }
+    usedNames.add(finalName);
+    zip.file(finalName, base64, {base64:true});
   });
+  try{
+    const blob = await zip.generateAsync({type:'blob'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `照片檔案_${new Date().toISOString().slice(0,10)}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 60000);
+    showToast('已下載壓縮檔');
+  }catch(e){
+    showToast('打包失敗：' + (e && e.message ? e.message : '未知錯誤'));
+  }
 }
 function openLightbox(src, filename){
   document.getElementById('lightboxImg').src = src;
