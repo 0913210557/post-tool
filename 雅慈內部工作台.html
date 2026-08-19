@@ -1325,8 +1325,8 @@ function renderDashboard(){
       </div>
       <div class="stat-card" style="text-align:left;">
         <div class="stat-label" style="margin-bottom:6px;">自媒體(本月)</div>
-        <div style="display:flex; justify-content:space-between; padding:4px 0; ${monthVideoCount===0?'color:var(--brick); font-weight:700;':''}"><span>🎬 已拍影片</span><span>${monthVideoCount}</span></div>
-        <div style="display:flex; justify-content:space-between; padding:4px 0; ${monthImageCount===0?'color:var(--brick); font-weight:700;':''}"><span>🖼 已傳圖片</span><span>${monthImageCount}</span></div>
+        <div style="display:grid; grid-template-columns:1fr auto; padding:4px 0; ${monthVideoCount===0?'color:var(--brick); font-weight:700;':''}"><span>🎬 已拍影片</span><span style="text-align:right;">${monthVideoCount}</span></div>
+        <div style="display:grid; grid-template-columns:1fr auto; padding:4px 0; ${monthImageCount===0?'color:var(--brick); font-weight:700;':''}"><span>🖼 已傳圖片</span><span style="text-align:right;">${monthImageCount}</span></div>
       </div>
       ${renderAdQuotaCard()}
     </div>
@@ -3389,6 +3389,7 @@ async function saveClient(){
 let currentViewClientId = null;
 let currentViewDealId = null;
 let currentViewRecordId = null;
+let currentViewSocialMediaId = null;
 let __lightboxPhotos = [];
 
 function pushLightboxPhoto(src, filename){
@@ -3461,6 +3462,7 @@ async function viewClientModal(id){
   currentViewClientId = id;
   currentViewDealId = null;
   currentViewRecordId = null;
+  currentViewSocialMediaId = null;
   __lightboxPhotos = [];
 
   document.getElementById('viewModalTitle').textContent = item.name || '客戶資料';
@@ -3608,6 +3610,7 @@ document.getElementById('viewModalOverlay').addEventListener('click', (e)=>{
 document.getElementById('viewModalEditBtn').onclick = ()=>{
   document.getElementById('viewModalOverlay').classList.remove('open');
   if(currentViewDealId) openDealModal(currentViewDealId);
+  else if(currentViewSocialMediaId) openSocialMediaModal(currentViewSocialMediaId);
   else if(currentViewClientId) openClientModal(currentViewClientId);
 };
 document.getElementById('viewModalAddLogBtn').onclick = async ()=>{
@@ -3631,6 +3634,7 @@ async function viewPropertyRecordModal(clientId, recordId){
   currentViewClientId = clientId;
   currentViewDealId = null;
   currentViewRecordId = recordId;
+  currentViewSocialMediaId = null;
   __lightboxPhotos = [];
 
   document.getElementById('viewModalTitle').textContent = r.caseName || r.address || '物件資料';
@@ -3677,6 +3681,7 @@ async function viewDealModal(id){
   currentViewDealId = id;
   currentViewClientId = null;
   currentViewRecordId = null;
+  currentViewSocialMediaId = null;
   __lightboxPhotos = [];
 
   document.getElementById('viewModalTitle').textContent = item.caseName || '成交案';
@@ -4725,23 +4730,81 @@ async function drawSocialMediaList(){
   list.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const wrap = document.getElementById('socialMediaListWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有記錄</div>'; return; }
-  wrap.innerHTML = list.map(l=>{
+
+  const thumbUrls = await Promise.all(list.map(async l=>{
+    const firstKey = (l.mediaKeys||[])[0];
+    return firstKey ? await loadStoredFile(firstKey) : null;
+  }));
+
+  wrap.innerHTML = list.map((l,i)=>{
     const mediaKeys = l.mediaKeys || [];
     const hasVideo = (l.mediaTypes||[]).includes('video');
     const hasImage = (l.mediaTypes||[]).includes('image');
     const posted = l.postedTo || [];
-    return `<div class="log-entry" style="flex-direction:column; align-items:stretch; justify-content:flex-start; gap:8px; cursor:pointer;" onclick="openSocialMediaModal('${l.id}')">
+    const thumbSrc = thumbUrls[i];
+    let thumbHtml = '';
+    if(thumbSrc){
+      if(isImageDataUrl(thumbSrc)){
+        thumbHtml = `<img src="${thumbSrc}" style="width:64px; height:64px; object-fit:cover; border-radius:2px; flex-shrink:0;">`;
+      }else if(isVideoDataUrl(thumbSrc)){
+        thumbHtml = `<video src="${thumbSrc}" style="width:64px; height:64px; object-fit:cover; border-radius:2px; flex-shrink:0; background:#000;" muted></video>`;
+      }else{
+        thumbHtml = `<div style="width:64px; height:64px; border-radius:2px; flex-shrink:0; background:var(--stone); display:flex; align-items:center; justify-content:center; font-size:22px;">📄</div>`;
+      }
+    }
+    return `<div class="log-entry" style="flex-direction:column; align-items:stretch; justify-content:flex-start; gap:8px; cursor:pointer;" onclick="viewSocialMediaModal('${l.id}')">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
-        <div>
-          <div class="log-entry-date">${esc(l.date||'—')}</div>
-          <div style="margin-top:2px;">${hasVideo?'🎬 影片　':''}${hasImage?'🖼 圖片':''}${(!hasVideo&&!hasImage)?'（無媒體）':''}　共${mediaKeys.length}個檔案</div>
-          ${l.content?`<div style="margin-top:2px; color:var(--ink-soft); font-size:12px;">${esc(l.content.slice(0,60))}${l.content.length>60?'…':''}</div>`:''}
-          <div style="margin-top:4px;">${SOCIAL_MEDIA_PLATFORMS.map(p=>`<span class="tag-soft" style="margin-right:4px; ${posted.includes(p)?'':'opacity:0.35;'}">${posted.includes(p)?'✅':'⬜'} ${esc(p)}</span>`).join('')}</div>
+        <div style="display:flex; gap:10px; align-items:flex-start;">
+          ${thumbHtml}
+          <div>
+            <div class="log-entry-date">${esc(l.date||'—')}</div>
+            <div style="margin-top:2px;">${hasVideo?'🎬 影片　':''}${hasImage?'🖼 圖片':''}${(!hasVideo&&!hasImage)?'（無媒體）':''}　共${mediaKeys.length}個檔案</div>
+            ${l.content?`<div style="margin-top:2px; color:var(--ink-soft); font-size:12px;">${esc(l.content.slice(0,60))}${l.content.length>60?'…':''}</div>`:''}
+            <div style="margin-top:4px;">${SOCIAL_MEDIA_PLATFORMS.map(p=>`<span class="tag-soft" style="margin-right:4px; ${posted.includes(p)?'':'opacity:0.35;'}">${posted.includes(p)?'✅':'⬜'} ${esc(p)}</span>`).join('')}</div>
+          </div>
         </div>
         <div onclick="event.stopPropagation()"><button class="icon-btn" onclick="deleteItem('socialMedia','${l.id}')" title="刪除">🗑</button></div>
       </div>
     </div>`;
   }).join('');
+}
+
+async function viewSocialMediaModal(id){
+  const item = DATA.socialMedia.find(l=>l.id===id);
+  if(!item) return;
+
+  currentViewSocialMediaId = id;
+  currentViewClientId = null;
+  currentViewDealId = null;
+  currentViewRecordId = null;
+  __lightboxPhotos = [];
+
+  document.getElementById('viewModalTitle').textContent = item.date || '自媒體內容';
+  document.getElementById('viewModalOverlay').classList.add('open');
+  document.getElementById('viewModalAddLogBtn').style.display = 'none';
+  document.getElementById('viewModalBody').innerHTML = '<div class="loading-note">載入中…</div>';
+
+  const mediaUrls = (item.mediaKeys && item.mediaKeys.length) ? await Promise.all(item.mediaKeys.map(k=>loadStoredFile(k))) : [];
+  const mediaHtml = mediaUrls.length ? `<div class="photo-grid">${mediaUrls.map((src,i)=>{
+    if(!src) return '';
+    if(isImageDataUrl(src)){
+      const idx = pushLightboxPhoto(src, `自媒體-${item.date}-${i+1}.jpg`);
+      return `<div class="photo-chip" style="cursor:pointer;" onclick="openLightboxByIndex(${idx})"><img src="${src}"></div>`;
+    }
+    if(isVideoDataUrl(src)){
+      return `<div style="grid-column:1/-1;"><video src="${src}" controls style="width:100%; max-height:360px; border-radius:2px; background:#000;"></video></div>`;
+    }
+    return `<div class="photo-chip" style="cursor:pointer;" onclick="openDataUrlInNewTab('${src}')"><div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:22px;">📄</div></div>`;
+  }).join('')}</div>` : '<div class="empty-state" style="padding:12px;">尚無圖片/影片</div>';
+
+  const posted = item.postedTo || [];
+  document.getElementById('viewModalBody').innerHTML = `
+    ${viewInfoRow('日期', esc(item.date))}
+    <div class="field-sub-title" style="margin-top:12px;">圖片/影片</div>
+    ${mediaHtml}
+    ${item.content ? viewInfoRow('內文', esc(item.content).replace(/\n/g,'<br>')) : ''}
+    ${viewInfoRow('已 PO 上哪裡', SOCIAL_MEDIA_PLATFORMS.map(p=>`<span class="tag-soft" style="margin-right:4px; ${posted.includes(p)?'':'opacity:0.35;'}">${posted.includes(p)?'✅':'⬜'} ${esc(p)}</span>`).join(''))}
+  `;
 }
 
 function openSocialMediaModal(id){
@@ -4772,7 +4835,9 @@ function openSocialMediaModal(id){
   document.getElementById('smMediaInput').onchange = async (e)=>{
     const files = Array.from(e.target.files||[]);
     for(const file of files){
-      if(file.size > 15*1024*1024){ showToast(`${file.name} 超過 15MB`); continue; }
+      const isVideo = file.type.startsWith('video/');
+      const cap = isVideo ? 60*1024*1024 : 15*1024*1024;
+      if(file.size > cap){ showToast(`${file.name} 超過 ${isVideo?'60MB':'15MB'}`); continue; }
       const dataUrl = file.type.startsWith('image/') ? await resizeImage(file, 1400, 0.78) : await readFileAsDataUrl(file);
       editingCtx.tempPhotos.push({key:null, dataUrl, fileName:file.name});
     }
