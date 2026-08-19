@@ -1325,8 +1325,8 @@ function renderDashboard(){
       </div>
       <div class="stat-card" style="text-align:left;">
         <div class="stat-label" style="margin-bottom:6px;">自媒體(本月)</div>
-        <div style="display:flex; justify-content:space-between; padding:4px 0;"><span>🎬 已拍影片</span><span>${monthVideoCount}</span></div>
-        <div style="display:flex; justify-content:space-between; padding:4px 0;"><span>🖼 已傳圖片</span><span>${monthImageCount}</span></div>
+        <div style="display:flex; justify-content:space-between; padding:4px 0; ${monthVideoCount===0?'color:var(--brick); font-weight:700;':''}"><span>🎬 已拍影片</span><span>${monthVideoCount}</span></div>
+        <div style="display:flex; justify-content:space-between; padding:4px 0; ${monthImageCount===0?'color:var(--brick); font-weight:700;':''}"><span>🖼 已傳圖片</span><span>${monthImageCount}</span></div>
       </div>
       ${renderAdQuotaCard()}
     </div>
