@@ -673,27 +673,33 @@ function withTimeout(promise, ms, label){
   ]);
 }
 
+async function saveOneChunkWithRetry(baseKey, i, chunkData, totalChunks){
+  let lastErr = null;
+  for(let attempt=1; attempt<=3; attempt++){
+    try{
+      await withTimeout(window.storage.set(`${baseKey}-chunk-${i}`, chunkData, false), 20000, `第${i+1}份儲存`);
+      return;
+    }catch(e){
+      lastErr = e;
+      if(attempt<3) await new Promise(r=>setTimeout(r, 800*attempt));
+    }
+  }
+  throw new Error(`檔案第 ${i+1}/${totalChunks} 份儲存失敗(已重試3次)：${lastErr && lastErr.message ? lastErr.message : '未知錯誤'}`);
+}
+
 async function saveFileChunked(baseKey, dataUrl, onProgress){
   const chunks = [];
   for(let i=0; i<dataUrl.length; i+=FILE_CHUNK_SIZE){
     chunks.push(dataUrl.slice(i, i+FILE_CHUNK_SIZE));
   }
-  for(let i=0; i<chunks.length; i++){
-    let lastErr = null;
-    let ok = false;
-    for(let attempt=1; attempt<=3 && !ok; attempt++){
-      try{
-        await withTimeout(window.storage.set(`${baseKey}-chunk-${i}`, chunks[i], false), 20000, `第${i+1}份儲存`);
-        ok = true;
-      }catch(e){
-        lastErr = e;
-        if(attempt<3) await new Promise(r=>setTimeout(r, 800*attempt));
-      }
-    }
-    if(!ok){
-      throw new Error(`檔案第 ${i+1}/${chunks.length} 份儲存失敗(已重試3次)：${lastErr && lastErr.message ? lastErr.message : '未知錯誤'}`);
-    }
-    if(onProgress && chunks.length>3) onProgress(i+1, chunks.length);
+  const BATCH_SIZE = 5;
+  let done = 0;
+  for(let start=0; start<chunks.length; start+=BATCH_SIZE){
+    const batchIndices = [];
+    for(let i=start; i<Math.min(start+BATCH_SIZE, chunks.length); i++) batchIndices.push(i);
+    await Promise.all(batchIndices.map(i=>saveOneChunkWithRetry(baseKey, i, chunks[i], chunks.length)));
+    done += batchIndices.length;
+    if(onProgress && chunks.length>3) onProgress(done, chunks.length);
   }
   await withTimeout(window.storage.set(`${baseKey}-chunk-count`, String(chunks.length), false), 20000, '完成儲存');
 }
@@ -703,12 +709,9 @@ async function loadFileChunked(baseKey){
     const countRes = await withTimeout(window.storage.get(`${baseKey}-chunk-count`, false), 20000, '讀取檔案');
     const count = countRes && countRes.value ? Number(countRes.value) || 0 : 0;
     if(count === 0) return null;
-    let combined = '';
-    for(let i=0;i<count;i++){
-      const res = await withTimeout(window.storage.get(`${baseKey}-chunk-${i}`, false), 20000, '讀取檔案');
-      if(res && res.value) combined += res.value;
-    }
-    return combined;
+    const indices = Array.from({length:count}, (_,i)=>i);
+    const results = await Promise.all(indices.map(i=>withTimeout(window.storage.get(`${baseKey}-chunk-${i}`, false), 20000, '讀取檔案').catch(()=>null)));
+    return results.map(res=>(res && res.value) ? res.value : '').join('');
   }catch(e){ return null; }
 }
 async function deleteFileChunked(baseKey){
