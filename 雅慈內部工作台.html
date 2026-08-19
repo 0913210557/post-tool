@@ -130,7 +130,7 @@
 
   /* ---------- Cards / grid ---------- */
   .stat-row{
-    display:grid; grid-template-columns:repeat(4,1fr); gap:14px;
+    display:grid; grid-template-columns:repeat(5,1fr); gap:14px;
     margin-bottom:32px;
   }
   .stat-card{
@@ -3615,18 +3615,11 @@ document.getElementById('viewModalAddLogBtn').onclick = async ()=>{
   if(!currentViewClientId) return;
   await openClientModal(currentViewClientId);
   const logs = editingCtx.tempLogs || [];
-  if(logs.length === 0){
-    const section = document.getElementById('serviceLogSection');
-    if(section) section.scrollIntoView({behavior:'smooth', block:'start'});
-    const noteEl = document.getElementById('logNote');
-    if(noteEl) noteEl.focus();
-    showToast('目前還沒有服務紀錄可以編輯,先新增一筆');
-    return;
-  }
-  const mostRecent = logs.slice().sort((a,b)=>((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||'')))[0];
-  startLogEdit(mostRecent.id);
   const listEl = document.getElementById('logList');
   if(listEl) listEl.scrollIntoView({behavior:'smooth', block:'start'});
+  if(logs.length === 0){
+    showToast('目前還沒有服務紀錄');
+  }
 };
 
 async function viewPropertyRecordModal(clientId, recordId){
