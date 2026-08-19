@@ -411,6 +411,7 @@
       <div class="nav-item" data-page="deals"><span class="nav-icon">🏆</span>業績成交</div>
       <div class="nav-item" data-page="communities"><span class="nav-icon">🏘</span>社區開發信</div>
       <div class="nav-item" data-page="newlistings"><span class="nav-icon">🆕</span>反開發紀錄</div>
+      <div class="nav-item" data-page="socialmedia"><span class="nav-icon">📱</span>自媒體經營</div>
       <div class="nav-item" data-page="posttool"><span class="nav-icon">✍</span>貼文小工具</div>
       <div class="nav-item" data-page="calendar"><span class="nav-icon">▦</span>行事曆</div>
     </div>
@@ -569,7 +570,7 @@
 
 <script>
 /* ===================== State ===================== */
-let DATA = { clients: [], listings: [], content: [], deals: [], communities: [], adQuotas: [], newListings: [] };
+let DATA = { clients: [], listings: [], content: [], deals: [], communities: [], adQuotas: [], newListings: [], socialMedia: [] };
 let currentPage = 'dashboard';
 let clientListPage = 1;
 const CLIENT_PAGE_SIZE = 10;
@@ -577,7 +578,7 @@ let editingCtx = null; // {type, id, ...extra}
 let calendarMonth = new Date();
 let loaded = false;
 
-const KEYS = { clients:'clients', listings:'listings', content:'content', deals:'deals', communities:'communities', adQuotas:'adQuotas', newListings:'newListings' };
+const KEYS = { clients:'clients', listings:'listings', content:'content', deals:'deals', communities:'communities', adQuotas:'adQuotas', newListings:'newListings', socialMedia:'socialMedia' };
 
 /* ===================== Storage: records (chunked to stay under Firestore's ~1MB per-document limit) ===================== */
 function utf8ByteLength(str){
@@ -788,6 +789,9 @@ function readFileAsDataUrl(file){
 
 function isImageDataUrl(url){
   return /^data:image\//.test(url||'');
+}
+function isVideoDataUrl(url){
+  return /^data:video\//.test(url||'');
 }
 function mimeExtFromDataUrl(url){
   const m = /^data:([^;]+);/.exec(url||'');
@@ -1194,6 +1198,7 @@ function render(){
   if(currentPage === 'deals') return renderDeals();
   if(currentPage === 'communities') return renderCommunities();
   if(currentPage === 'newlistings') return renderNewListings();
+  if(currentPage === 'socialmedia') return renderSocialMedia();
   if(currentPage === 'posttool') return renderPostTool();
   if(currentPage === 'calendar') return renderCalendar();
 }
@@ -1299,6 +1304,9 @@ function renderDashboard(){
   const monthDeals = DATA.deals.filter(d=>d.closedDate && d.closedDate.startsWith(thisMonth));
   const monthCommission = monthDeals.reduce((s,d)=>s+(Number(d.commission)||0),0);
   const monthCommunities = DATA.communities.filter(c=>communityNextSendDate(c)===thisMonth);
+  const monthSocialMedia = DATA.socialMedia.filter(l=>l.date && l.date.startsWith(thisMonth));
+  const monthVideoCount = monthSocialMedia.filter(l=>(l.mediaTypes||[]).includes('video')).length;
+  const monthImageCount = monthSocialMedia.filter(l=>(l.mediaTypes||[]).includes('image')).length;
 
   main.innerHTML = `
     <div class="page-head">
@@ -1314,6 +1322,11 @@ function renderDashboard(){
       <div class="stat-card">
         <div class="stat-num" style="font-size:14px; line-height:1.5; ${monthCommunities.length?'color:var(--brick); font-weight:700;':''}">${monthCommunities.length ? monthCommunities.map(c=>esc(c.name)).join('、') : '—'}</div>
         <div class="stat-label">本月社區開發信</div>
+      </div>
+      <div class="stat-card" style="text-align:left;">
+        <div class="stat-label" style="margin-bottom:6px;">自媒體(本月)</div>
+        <div style="display:flex; justify-content:space-between; padding:4px 0;"><span>🎬 已拍影片</span><span>${monthVideoCount}</span></div>
+        <div style="display:flex; justify-content:space-between; padding:4px 0;"><span>🖼 已傳圖片</span><span>${monthImageCount}</span></div>
       </div>
       ${renderAdQuotaCard()}
     </div>
@@ -4678,6 +4691,158 @@ async function saveNewListing(){
   return true;
 }
 
+/* ===================== 自媒體經營 Page ===================== */
+const SOCIAL_MEDIA_PLATFORMS = ['房產好夥伴雅慈','Google商家','FB','IG'];
+
+function renderSocialMedia(){
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="page-head">
+      <div>
+        <div class="page-title"><span class="eyebrow">SOCIAL MEDIA</span>自媒體經營</div>
+        <div class="page-desc">記錄拍的影片、傳的圖片，跟已經發布到哪些平台</div>
+      </div>
+      <button class="btn btn-primary" id="addSocialMediaBtn">＋ 新增</button>
+    </div>
+    <div class="toolbar">
+      <input class="search-input" id="socialMediaSearch" placeholder="搜尋內文…">
+    </div>
+    <div class="section-block"><div class="section-block-body" id="socialMediaListWrap"></div></div>
+  `;
+  document.getElementById('addSocialMediaBtn').onclick = ()=>openSocialMediaModal();
+  document.getElementById('socialMediaSearch').oninput = drawSocialMediaList;
+  drawSocialMediaList();
+}
+
+async function drawSocialMediaList(){
+  const q = (document.getElementById('socialMediaSearch').value||'').toLowerCase();
+  let list = DATA.socialMedia.filter(l=>{
+    const text = (l.content||'').toLowerCase();
+    return !q || text.includes(q);
+  });
+  list.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const wrap = document.getElementById('socialMediaListWrap');
+  if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有記錄</div>'; return; }
+  wrap.innerHTML = list.map(l=>{
+    const mediaKeys = l.mediaKeys || [];
+    const hasVideo = (l.mediaTypes||[]).includes('video');
+    const hasImage = (l.mediaTypes||[]).includes('image');
+    const posted = l.postedTo || [];
+    return `<div class="log-entry" style="flex-direction:column; align-items:stretch; justify-content:flex-start; gap:8px; cursor:pointer;" onclick="openSocialMediaModal('${l.id}')">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+        <div>
+          <div class="log-entry-date">${esc(l.date||'—')}</div>
+          <div style="margin-top:2px;">${hasVideo?'🎬 影片　':''}${hasImage?'🖼 圖片':''}${(!hasVideo&&!hasImage)?'（無媒體）':''}　共${mediaKeys.length}個檔案</div>
+          ${l.content?`<div style="margin-top:2px; color:var(--ink-soft); font-size:12px;">${esc(l.content.slice(0,60))}${l.content.length>60?'…':''}</div>`:''}
+          <div style="margin-top:4px;">${SOCIAL_MEDIA_PLATFORMS.map(p=>`<span class="tag-soft" style="margin-right:4px; ${posted.includes(p)?'':'opacity:0.35;'}">${posted.includes(p)?'✅':'⬜'} ${esc(p)}</span>`).join('')}</div>
+        </div>
+        <div onclick="event.stopPropagation()"><button class="icon-btn" onclick="deleteItem('socialMedia','${l.id}')" title="刪除">🗑</button></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openSocialMediaModal(id){
+  const item = id ? DATA.socialMedia.find(l=>l.id===id) : {
+    date: new Date().toISOString().slice(0,10), content:'', postedTo:[], mediaKeys:[], mediaTypes:[],
+  };
+  editingCtx = {type:'socialMedia', id: id||null, tempPhotos: [], removedPhotoKeys: [], _photosLoaded: !id};
+  document.getElementById('modalTitle').textContent = id ? '編輯自媒體內容' : '新增自媒體內容';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>日期</label><input type="date" id="f_smDate" value="${esc(item.date)}"></div>
+    <div class="field">
+      <label>圖片/影片</label>
+      <div class="photo-grid" id="smMediaGrid"><span class="tag-soft">載入中…</span></div>
+      <input type="file" accept="image/*,video/*" multiple id="smMediaInput" style="display:none;">
+    </div>
+    <div class="field"><label>內文</label><textarea id="f_smContent" style="min-height:100px;">${esc(item.content)}</textarea></div>
+    <div class="field">
+      <label>已經 PO 上哪裡(可複選)</label>
+      <div style="display:flex; gap:14px; flex-wrap:wrap;">
+        ${SOCIAL_MEDIA_PLATFORMS.map(p=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
+          <input type="checkbox" class="f_sm_posted_cb" value="${p}" ${(item.postedTo||[]).includes(p)?'checked':''} style="width:auto;"> ${p}
+        </label>`).join('')}
+      </div>
+    </div>
+  `;
+  openModal();
+  renderSocialMediaMediaGrid();
+  document.getElementById('smMediaInput').onchange = async (e)=>{
+    const files = Array.from(e.target.files||[]);
+    for(const file of files){
+      if(file.size > 15*1024*1024){ showToast(`${file.name} 超過 15MB`); continue; }
+      const dataUrl = file.type.startsWith('image/') ? await resizeImage(file, 1400, 0.78) : await readFileAsDataUrl(file);
+      editingCtx.tempPhotos.push({key:null, dataUrl, fileName:file.name});
+    }
+    e.target.value = '';
+    renderSocialMediaMediaGrid();
+  };
+}
+
+async function renderSocialMediaMediaGrid(){
+  const grid = document.getElementById('smMediaGrid');
+  if(!grid) return;
+  if(!editingCtx._photosLoaded){
+    const item = DATA.socialMedia.find(l=>l.id===editingCtx.id);
+    if(item && item.mediaKeys && item.mediaKeys.length){
+      for(const k of item.mediaKeys){
+        const dataUrl = await loadStoredFile(k);
+        if(dataUrl) editingCtx.tempPhotos.push({key:k, dataUrl});
+      }
+    }
+    editingCtx._photosLoaded = true;
+  }
+  const addTile = `<div class="upload-btn" id="addSmMediaTile">＋<br>新增圖片/影片</div>`;
+  grid.innerHTML = editingCtx.tempPhotos.map((p,idx)=>{
+    let inner;
+    if(isImageDataUrl(p.dataUrl)){
+      inner = `<img src="${p.dataUrl}" style="cursor:pointer;" onclick="openDataUrlInNewTab('${p.dataUrl}')">`;
+    }else if(isVideoDataUrl(p.dataUrl)){
+      inner = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; cursor:pointer; font-size:22px;" onclick="openDataUrlInNewTab('${p.dataUrl}')">🎬</div>`;
+    }else{
+      inner = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; cursor:pointer; font-size:11px;" onclick="openDataUrlInNewTab('${p.dataUrl}')">📄</div>`;
+    }
+    return `<div class="photo-chip">${inner}<button class="rm" onclick="removeSocialMediaMedia(${idx})">✕</button></div>`;
+  }).join('') + addTile;
+  const tile = document.getElementById('addSmMediaTile');
+  if(tile) tile.onclick = ()=>document.getElementById('smMediaInput').click();
+}
+function removeSocialMediaMedia(idx){
+  const p = editingCtx.tempPhotos[idx];
+  if(p.key) editingCtx.removedPhotoKeys.push(p.key);
+  editingCtx.tempPhotos.splice(idx,1);
+  renderSocialMediaMediaGrid();
+}
+
+async function saveSocialMedia(){
+  const vals = {
+    date: document.getElementById('f_smDate').value,
+    content: document.getElementById('f_smContent').value.trim(),
+    postedTo: Array.from(document.querySelectorAll('.f_sm_posted_cb:checked')).map(cb=>cb.value),
+  };
+  if(!vals.date){ showToast('請選擇日期'); return false; }
+
+  for(const k of editingCtx.removedPhotoKeys) await deleteStoredFile(k);
+  for(const p of editingCtx.tempPhotos){
+    if(!p.key){
+      const newKey = 'file:social-media:' + uid();
+      if(!await saveStoredFile(newKey, p.dataUrl, p.fileName||'自媒體檔案')) return false;
+      p.key = newKey;
+    }
+  }
+  vals.mediaKeys = editingCtx.tempPhotos.map(p=>p.key);
+  vals.mediaTypes = [...new Set(editingCtx.tempPhotos.map(p=>isVideoDataUrl(p.dataUrl)?'video':(isImageDataUrl(p.dataUrl)?'image':'other')))];
+
+  if(editingCtx.id){
+    const idx = DATA.socialMedia.findIndex(l=>l.id===editingCtx.id);
+    DATA.socialMedia[idx] = {...DATA.socialMedia[idx], ...vals};
+  }else{
+    DATA.socialMedia.push({id: uid(), ...vals});
+  }
+  await saveType('socialMedia');
+  return true;
+}
+
 function renderCommunities(){
   const main = document.getElementById('main');
   main.innerHTML = `
@@ -6614,6 +6779,7 @@ document.getElementById('modalSave').onclick = async ()=>{
   if(editingCtx.type==='communities') ok = await saveCommunity();
   if(editingCtx.type==='adQuotas') ok = await saveAdQuota();
   if(editingCtx.type==='newListings') ok = await saveNewListing();
+  if(editingCtx.type==='socialMedia') ok = await saveSocialMedia();
   saveBtn.disabled = false;
   if(ok){
     showToast('已儲存');
@@ -6633,6 +6799,7 @@ async function deleteItem(type, id){
     if(type==='deals' && item.attachmentKeys) for(const k of item.attachmentKeys) await deleteStoredFile(k);
     if(type==='communities' && item.sendLogs) for(const l of item.sendLogs) for(const k of (l.photoKeys||[])) await deleteStoredFile(k);
     if(type==='newListings' && item.statusLogs) for(const s of item.statusLogs) for(const k of (s.photoKeys||[])) await deleteStoredFile(k);
+    if(type==='socialMedia' && item.mediaKeys) for(const k of item.mediaKeys) await deleteStoredFile(k);
   }
   DATA[type] = DATA[type].filter(x=>x.id!==id);
   await saveType(type);
@@ -6643,7 +6810,7 @@ async function deleteItem(type, id){
 /* ===================== Init ===================== */
 window.__appBoot = async function(){
   await loadAll();
-  const validPages = ['dashboard','clients','soldclients','entrusted','posttool','calendar','deals','communities','newlistings'];
+  const validPages = ['dashboard','clients','soldclients','entrusted','posttool','calendar','deals','communities','newlistings','socialmedia'];
   const hashPage = location.hash.replace('#','');
   if(validPages.includes(hashPage)){
     currentPage = hashPage;
