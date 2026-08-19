@@ -462,7 +462,7 @@
     <div class="modal-body" id="viewModalBody"></div>
     <div class="modal-foot">
       <button class="btn btn-ghost" id="viewModalCloseBtn">關閉</button>
-      <button class="btn btn-ghost" id="viewModalAddLogBtn">＋ 新增服務紀錄</button>
+      <button class="btn btn-ghost" id="viewModalAddLogBtn">✎ 編輯服務紀錄</button>
       <button class="btn btn-primary" id="viewModalEditBtn">✎ 編輯</button>
     </div>
   </div>
@@ -3614,10 +3614,19 @@ document.getElementById('viewModalAddLogBtn').onclick = async ()=>{
   document.getElementById('viewModalOverlay').classList.remove('open');
   if(!currentViewClientId) return;
   await openClientModal(currentViewClientId);
-  const section = document.getElementById('serviceLogSection');
-  if(section) section.scrollIntoView({behavior:'smooth', block:'start'});
-  const noteEl = document.getElementById('logNote');
-  if(noteEl) noteEl.focus();
+  const logs = editingCtx.tempLogs || [];
+  if(logs.length === 0){
+    const section = document.getElementById('serviceLogSection');
+    if(section) section.scrollIntoView({behavior:'smooth', block:'start'});
+    const noteEl = document.getElementById('logNote');
+    if(noteEl) noteEl.focus();
+    showToast('目前還沒有服務紀錄可以編輯,先新增一筆');
+    return;
+  }
+  const mostRecent = logs.slice().sort((a,b)=>((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||'')))[0];
+  startLogEdit(mostRecent.id);
+  const listEl = document.getElementById('logList');
+  if(listEl) listEl.scrollIntoView({behavior:'smooth', block:'start'});
 };
 
 async function viewPropertyRecordModal(clientId, recordId){
