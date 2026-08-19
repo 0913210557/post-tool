@@ -666,7 +666,7 @@ async function deletePhoto(key){
 
 /* Chunked storage for larger files (PDFs, docs) that would exceed a single Firestore document's size limit */
 const FILE_CHUNK_SIZE = 700000;
-async function saveFileChunked(baseKey, dataUrl){
+async function saveFileChunked(baseKey, dataUrl, onProgress){
   const chunks = [];
   for(let i=0; i<dataUrl.length; i+=FILE_CHUNK_SIZE){
     chunks.push(dataUrl.slice(i, i+FILE_CHUNK_SIZE));
@@ -686,6 +686,7 @@ async function saveFileChunked(baseKey, dataUrl){
     if(!ok){
       throw new Error(`檔案第 ${i+1}/${chunks.length} 份儲存失敗(已重試3次)：${lastErr && lastErr.message ? lastErr.message : '未知錯誤'}`);
     }
+    if(onProgress && chunks.length>3) onProgress(i+1, chunks.length);
   }
   await window.storage.set(`${baseKey}-chunk-count`, String(chunks.length), false);
 }
@@ -747,8 +748,12 @@ function openDataUrlInNewTab(dataUrl){
 }
 
 async function saveStoredFile(key, dataUrl, fileLabel){
+  const saveBtn = document.getElementById('modalSave');
   try{
-    await saveFileChunked(key, dataUrl);
+    await saveFileChunked(key, dataUrl, (done, total)=>{
+      if(saveBtn) saveBtn.textContent = `儲存中…(${fileLabel||'檔案'} ${done}/${total})`;
+    });
+    if(saveBtn) saveBtn.textContent = '儲存中…';
     return true;
   }catch(e){
     showToast((fileLabel||'檔案') + ' 儲存失敗：' + (e && e.message ? e.message : '未知錯誤') + '，請稍後再試一次');
@@ -4760,7 +4765,7 @@ async function drawSocialMediaList(){
             <div class="log-entry-date">${esc(l.date||'—')}</div>
             <div style="margin-top:2px;">${hasVideo?'🎬 影片　':''}${hasImage?'🖼 圖片':''}${(!hasVideo&&!hasImage)?'（無媒體）':''}　共${mediaKeys.length}個檔案</div>
             ${l.content?`<div style="margin-top:2px; color:var(--ink-soft); font-size:12px;">${esc(l.content.slice(0,60))}${l.content.length>60?'…':''}</div>`:''}
-            <div style="margin-top:4px;">${SOCIAL_MEDIA_PLATFORMS.map(p=>`<span class="tag-soft" style="margin-right:4px; ${posted.includes(p)?'':'opacity:0.35;'}">${posted.includes(p)?'✅':'⬜'} ${esc(p)}</span>`).join('')}</div>
+            <div style="margin-top:4px;"><span style="font-size:12px; color:var(--ink-soft); margin-right:4px;">已PO:</span>${SOCIAL_MEDIA_PLATFORMS.map(p=>`<span class="tag-soft" style="margin-right:4px; ${posted.includes(p)?'':'opacity:0.35;'}">${posted.includes(p)?'✅':'⬜'} ${esc(p)}</span>`).join('')}</div>
           </div>
         </div>
         <div onclick="event.stopPropagation()"><button class="icon-btn" onclick="deleteItem('socialMedia','${l.id}')" title="刪除">🗑</button></div>
@@ -6836,18 +6841,25 @@ document.getElementById('modalCancel').onclick = closeModal;
 document.getElementById('modalSave').onclick = async ()=>{
   if(!editingCtx) return;
   const saveBtn = document.getElementById('modalSave');
+  const originalLabel = saveBtn.textContent;
   saveBtn.disabled = true;
+  saveBtn.textContent = '儲存中…';
   let ok = false;
-  if(editingCtx.type==='clients') ok = await saveClient();
-  if(editingCtx.type==='greetingCard') ok = await saveGreetingCard();
-  if(editingCtx.type==='listings') ok = await saveListing();
-  if(editingCtx.type==='content') ok = await saveContent();
-  if(editingCtx.type==='deals') ok = await saveDeal();
-  if(editingCtx.type==='communities') ok = await saveCommunity();
-  if(editingCtx.type==='adQuotas') ok = await saveAdQuota();
-  if(editingCtx.type==='newListings') ok = await saveNewListing();
-  if(editingCtx.type==='socialMedia') ok = await saveSocialMedia();
+  try{
+    if(editingCtx.type==='clients') ok = await saveClient();
+    if(editingCtx.type==='greetingCard') ok = await saveGreetingCard();
+    if(editingCtx.type==='listings') ok = await saveListing();
+    if(editingCtx.type==='content') ok = await saveContent();
+    if(editingCtx.type==='deals') ok = await saveDeal();
+    if(editingCtx.type==='communities') ok = await saveCommunity();
+    if(editingCtx.type==='adQuotas') ok = await saveAdQuota();
+    if(editingCtx.type==='newListings') ok = await saveNewListing();
+    if(editingCtx.type==='socialMedia') ok = await saveSocialMedia();
+  }catch(e){
+    showToast('儲存失敗：' + (e && e.message ? e.message : '未知錯誤'));
+  }
   saveBtn.disabled = false;
+  saveBtn.textContent = originalLabel;
   if(ok){
     showToast('已儲存');
     closeModal();
