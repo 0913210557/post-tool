@@ -898,7 +898,10 @@ function exportExcel(){
       '建檔日期': c.fileDate || '',
       '來源': c.source || '',
       '物件地址': c.propertyAddress || '',
-      '客戶需求': c.clientNeeds || '',
+      '客戶需求': getClientNeedsProfiles(c).map(p=>{
+        const bits = [p.relation?`【${p.relation}】`:'', (p.needsRentOrBuy||[]).join('/'), (p.needsRegions||[]).join('、'), (p.needsPropertyTypes||[]).join('、'), p.needsBudgetMax?`${p.needsBudgetMax}萬內`:'', p.clientNeeds].filter(Boolean).join(' ');
+        return bits;
+      }).filter(Boolean).join(' ｜ '),
       'LINE名': getClientLineNames(c).join('、'),
       'LINE ID': c.lineId || '',
       'FB': c.fb || '',
@@ -1686,7 +1689,7 @@ function clientSearchText(c){
     getClientPhones(c).map(p=>`${p.number} ${p.owner||''}`).join(' '),
     getClientTypes(c).join(' '),
     getClientStatuses(c).join(' '),
-    c.source, c.propertyAddress, c.clientNeeds,
+    c.source, c.propertyAddress, getClientNeedsProfiles(c).map(p=>`${p.relation||''} ${p.clientNeeds||''}`).join(' '),
     getClientLineNames(c).join(' '), c.lineId, c.fb, c.company, c.idNumber, c.homeAddress,
     getClientPropertyRecords(c).map(r=>`${r.category} ${r.caseName||''} ${r.address||''} ${r.content||''}`).join(' '),
     (c.serviceLogs||[]).map(l=>`${l.type||''} ${l.note||''}`).join(' '),
@@ -1724,11 +1727,12 @@ function drawClientTable(){
     if(c.isDutyRosterClient) return false;
     const matchQ = !q || clientSearchText(c).includes(q);
     const matchSt = !st || (st==='__uncategorized__' ? getClientStatuses(c).length===0 : getClientStatuses(c).includes(st));
-    const matchRentBuy = !needsRentBuy || (c.needsRentOrBuy||[]).includes(needsRentBuy);
-    const matchCounty = !needsCounty || (c.needsRegions||[]).some(r=>r.startsWith(needsCounty));
-    const matchType = !needsType || (c.needsPropertyTypes||[]).includes(needsType);
-    const matchRooms = !needsRooms || c.needsRoomsMin===needsRooms || c.needsRoomsMax===needsRooms;
-    const matchParking = !needsParking || c.needsParking===needsParking;
+    const profiles = getClientNeedsProfiles(c);
+    const matchRentBuy = !needsRentBuy || profiles.some(p=>(p.needsRentOrBuy||[]).includes(needsRentBuy));
+    const matchCounty = !needsCounty || profiles.some(p=>(p.needsRegions||[]).some(r=>r.startsWith(needsCounty)));
+    const matchType = !needsType || profiles.some(p=>(p.needsPropertyTypes||[]).includes(needsType));
+    const matchRooms = !needsRooms || profiles.some(p=>p.needsRoomsMin===needsRooms || p.needsRoomsMax===needsRooms);
+    const matchParking = !needsParking || profiles.some(p=>p.needsParking===needsParking);
     return matchQ && matchSt && matchRentBuy && matchCounty && matchType && matchRooms && matchParking;
   });
   const countLabel = document.getElementById('clientCountLabel');
@@ -1922,6 +1926,224 @@ function drawEntrustedTable(){
   </tbody></table>`;
 }
 
+function renderNeedsProfileList(){
+  const wrap = document.getElementById('needsProfileList');
+  if(!wrap) return;
+  const profiles = editingCtx.tempNeedsProfiles || [];
+  if(profiles.length === 0){
+    wrap.innerHTML = '<div class="empty-state" style="padding:16px;">尚無客戶需求,按下面「新增一筆客戶需求」</div>';
+    return;
+  }
+  wrap.innerHTML = profiles.map(p=>{
+    if(editingCtx.editingNeedsProfileId === p.id) return renderNeedsProfileEditForm(p);
+    const summary = [
+      (p.needsRentOrBuy||[]).join('/'),
+      (p.needsRegions||[]).slice(0,3).join('、'),
+      (p.needsPropertyTypes||[]).join('、'),
+      p.needsBudgetMax ? `${p.needsBudgetMax}萬內` : ''
+    ].filter(Boolean).join(' ・ ');
+    return `<div class="log-entry" style="flex-direction:column; align-items:stretch; justify-content:flex-start; gap:6px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+        <div>
+          <b>${esc(p.relation || '(未填是誰要的)')}</b>
+          ${summary ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${esc(summary)}</div>` : ''}
+        </div>
+        <div style="display:flex; gap:4px; flex-shrink:0;">
+          <button class="icon-btn" onclick="startNeedsProfileEdit('${p.id}')" title="編輯">✎</button>
+          <button class="rm" onclick="removeNeedsProfile('${p.id}')" title="刪除">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderNeedsProfileEditForm(item){
+  return `
+  <div class="log-entry" style="flex-direction:column; align-items:stretch; gap:8px;">
+    <div class="field"><label>這筆需求是誰要的</label><input type="text" id="f_needsRelation" placeholder="例如:本人、朋友、家人…" value="${esc(item.relation)}"></div>
+
+    <div class="pt-hint" style="margin:0 0 4px;">租 / 買(可複選)</div>
+    <div style="display:flex; gap:14px; flex-wrap:wrap;">
+      ${NEEDS_RENT_BUY_OPTIONS.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
+        <input type="checkbox" class="f_needs_rentbuy_cb" value="${t}" ${(item.needsRentOrBuy||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
+      </label>`).join('')}
+    </div>
+
+    <div class="pt-hint" style="margin:12px 0 4px;">需求地區(可複選,先選縣市,再勾選區)</div>
+    <select id="needsRegionCounty" onchange="renderNeedsRegionDistrictCheckboxes()">
+      <option value="">請選擇縣市</option>
+      ${Object.keys(TAIWAN_DISTRICTS).map(c=>`<option value="${c}">${c}</option>`).join('')}
+    </select>
+    <div id="needsRegionDistrictCheckboxes" style="margin-top:8px; display:flex; gap:10px; flex-wrap:wrap;"></div>
+    <div class="pt-hint" style="margin:10px 0 4px;">已選地區</div>
+    <div id="needsRegionSelectedChips"></div>
+
+    <div class="pt-hint" style="margin:12px 0 4px;">物件型態(可複選)</div>
+    <div style="display:flex; gap:14px; flex-wrap:wrap;">
+      ${NEEDS_PROPERTY_TYPES.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
+        <input type="checkbox" class="f_needs_type_cb" value="${t}" ${(item.needsPropertyTypes||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
+      </label>`).join('')}
+    </div>
+
+    <div class="pt-hint" style="margin:12px 0 4px;">價格</div>
+    <div class="field-row">
+      <input type="number" id="f_needsBudgetMax" placeholder="多少萬以內" value="${esc(item.needsBudgetMax)}">
+    </div>
+
+    <div class="pt-hint" style="margin:12px 0 4px;">房數</div>
+    <div class="field-row">
+      <select id="f_needsRoomsMin">
+        <option value="">房數</option>
+        <option value="套房" ${item.needsRoomsMin==='套房'?'selected':''}>套房</option>
+        ${[1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${String(item.needsRoomsMin)===String(n)?'selected':''}>${n}房</option>`).join('')}
+      </select>
+      <select id="f_needsRoomsMax">
+        <option value="">房數</option>
+        <option value="套房" ${item.needsRoomsMax==='套房'?'selected':''}>套房</option>
+        ${[1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${String(item.needsRoomsMax)===String(n)?'selected':''}>${n}房</option>`).join('')}
+      </select>
+    </div>
+
+    <div class="pt-hint" style="margin:12px 0 4px;">建物總坪</div>
+    <div class="field-row">
+      <input type="number" id="f_needsSizeMin" placeholder="坪數下限" value="${esc(item.needsSizeMin)}">
+      <input type="number" id="f_needsSizeMax" placeholder="坪數上限" value="${esc(item.needsSizeMax)}">
+    </div>
+
+    <div class="pt-hint" style="margin:12px 0 4px;">土地坪數</div>
+    <div class="field-row">
+      <input type="number" id="f_needsLandSizeMin" placeholder="坪數下限" value="${esc(item.needsLandSizeMin)}">
+      <input type="number" id="f_needsLandSizeMax" placeholder="坪數上限" value="${esc(item.needsLandSizeMax)}">
+    </div>
+
+    <div class="pt-hint" style="margin:12px 0 4px;">屋齡(年)</div>
+    <div class="field-row">
+      <input type="number" id="f_needsAgeMin" placeholder="年下限" value="${esc(item.needsAgeMin)}">
+      <input type="number" id="f_needsAgeMax" placeholder="年上限" value="${esc(item.needsAgeMax)}">
+    </div>
+
+    <div class="pt-hint" style="margin:12px 0 4px;">樓層</div>
+    <div class="field-row">
+      <input type="number" id="f_needsFloorMin" placeholder="樓層下限" value="${esc(item.needsFloorMin)}">
+      <input type="number" id="f_needsFloorMax" placeholder="樓層上限" value="${esc(item.needsFloorMax)}">
+    </div>
+
+    <div class="pt-hint" style="margin:12px 0 4px;">朝向(可複選)</div>
+    <div style="display:flex; gap:14px; flex-wrap:wrap;">
+      ${NEEDS_DIRECTIONS.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
+        <input type="checkbox" class="f_needs_direction_cb" value="${t}" ${(item.needsDirections||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
+      </label>`).join('')}
+    </div>
+
+    <div class="pt-hint" style="margin:12px 0 4px;">車位需求</div>
+    <select id="f_needsParking">
+      <option value="">未指定</option>
+      ${NEEDS_PARKING_OPTIONS.map(p=>`<option ${item.needsParking===p?'selected':''}>${p}</option>`).join('')}
+    </select>
+
+    <div class="pt-hint" style="margin:12px 0 4px;">停車方式(可複選)</div>
+    <div style="display:flex; gap:14px; flex-wrap:wrap;">
+      ${NEEDS_PARKING_STYLES.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
+        <input type="checkbox" class="f_needs_parkingstyle_cb" value="${t}" ${(item.needsParkingStyles||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
+      </label>`).join('')}
+    </div>
+
+    <div class="pt-hint" style="margin:12px 0 4px;">特殊需求(可複選)</div>
+    <div style="display:flex; gap:14px; flex-wrap:wrap;">
+      ${NEEDS_SPECIAL_OPTIONS.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
+        <input type="checkbox" class="f_needs_special_cb" value="${t}" ${(item.needsSpecial||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
+      </label>`).join('')}
+    </div>
+
+    <textarea id="f_clientNeeds" placeholder="備註" style="min-height:70px; margin-top:12px;">${esc(item.clientNeeds)}</textarea>
+
+    <div style="display:flex; gap:6px; margin-top:8px;">
+      <button class="btn btn-primary btn-sm" onclick="saveNeedsProfileEdit()">確定</button>
+      <button class="btn btn-ghost btn-sm" onclick="cancelNeedsProfileEdit()">取消</button>
+    </div>
+  </div>`;
+}
+
+function startNeedsProfileEdit(profileId){
+  editingCtx.editingNeedsProfileId = profileId;
+  const p = editingCtx.tempNeedsProfiles.find(x=>x.id===profileId);
+  editingCtx.editingNeedsProfileRegions = [...((p&&p.needsRegions)||[])];
+  renderNeedsProfileList();
+  renderNeedsRegionChips();
+}
+
+function addNeedsProfile(){
+  const newProfile = {
+    id: uid(), relation:'', needsRentOrBuy:[], needsRegions:[], needsPropertyTypes:[],
+    needsBudgetMax:'', needsRoomsMin:'', needsRoomsMax:'', needsSizeMin:'', needsSizeMax:'',
+    needsLandSizeMin:'', needsLandSizeMax:'', needsAgeMin:'', needsAgeMax:'', needsFloorMin:'', needsFloorMax:'',
+    needsDirections:[], needsParking:'', needsParkingStyles:[], needsSpecial:[], clientNeeds:'', _isNew:true,
+  };
+  editingCtx.tempNeedsProfiles.push(newProfile);
+  startNeedsProfileEdit(newProfile.id);
+}
+
+function saveNeedsProfileEdit(){
+  const id = editingCtx.editingNeedsProfileId;
+  const p = editingCtx.tempNeedsProfiles.find(x=>x.id===id);
+  if(!p) return;
+  p.relation = document.getElementById('f_needsRelation').value.trim();
+  p.needsRentOrBuy = Array.from(document.querySelectorAll('.f_needs_rentbuy_cb:checked')).map(cb=>cb.value);
+  p.needsRegions = editingCtx.editingNeedsProfileRegions || [];
+  p.needsPropertyTypes = Array.from(document.querySelectorAll('.f_needs_type_cb:checked')).map(cb=>cb.value);
+  p.needsBudgetMax = document.getElementById('f_needsBudgetMax').value.trim();
+  p.needsRoomsMin = document.getElementById('f_needsRoomsMin').value;
+  p.needsRoomsMax = document.getElementById('f_needsRoomsMax').value;
+  p.needsSizeMin = document.getElementById('f_needsSizeMin').value.trim();
+  p.needsSizeMax = document.getElementById('f_needsSizeMax').value.trim();
+  p.needsLandSizeMin = document.getElementById('f_needsLandSizeMin').value.trim();
+  p.needsLandSizeMax = document.getElementById('f_needsLandSizeMax').value.trim();
+  p.needsAgeMin = document.getElementById('f_needsAgeMin').value.trim();
+  p.needsAgeMax = document.getElementById('f_needsAgeMax').value.trim();
+  p.needsFloorMin = document.getElementById('f_needsFloorMin').value.trim();
+  p.needsFloorMax = document.getElementById('f_needsFloorMax').value.trim();
+  p.needsDirections = Array.from(document.querySelectorAll('.f_needs_direction_cb:checked')).map(cb=>cb.value);
+  p.needsParking = document.getElementById('f_needsParking').value;
+  p.needsParkingStyles = Array.from(document.querySelectorAll('.f_needs_parkingstyle_cb:checked')).map(cb=>cb.value);
+  p.needsSpecial = Array.from(document.querySelectorAll('.f_needs_special_cb:checked')).map(cb=>cb.value);
+  p.clientNeeds = document.getElementById('f_clientNeeds').value.trim();
+  delete p._isNew;
+  editingCtx.editingNeedsProfileId = null;
+  renderNeedsProfileList();
+}
+function cancelNeedsProfileEdit(){
+  const id = editingCtx.editingNeedsProfileId;
+  const p = editingCtx.tempNeedsProfiles.find(x=>x.id===id);
+  if(p && p._isNew){
+    editingCtx.tempNeedsProfiles = editingCtx.tempNeedsProfiles.filter(x=>x.id!==id);
+  }
+  editingCtx.editingNeedsProfileId = null;
+  renderNeedsProfileList();
+}
+function removeNeedsProfile(profileId){
+  editingCtx.tempNeedsProfiles = editingCtx.tempNeedsProfiles.filter(p=>p.id!==profileId);
+  if(editingCtx.editingNeedsProfileId === profileId) editingCtx.editingNeedsProfileId = null;
+  renderNeedsProfileList();
+}
+
+function getClientNeedsProfiles(item){
+  if(item.needsProfiles && item.needsProfiles.length) return item.needsProfiles;
+  const hasOldData = (item.needsRentOrBuy||[]).length || (item.needsRegions||[]).length || (item.needsPropertyTypes||[]).length ||
+    item.needsBudgetMax || item.needsRoomsMin || item.needsRoomsMax || item.needsSizeMin || item.needsSizeMax ||
+    item.needsLandSizeMin || item.needsLandSizeMax || item.needsAgeMin || item.needsAgeMax || item.needsFloorMin || item.needsFloorMax ||
+    (item.needsDirections||[]).length || item.needsParking || (item.needsParkingStyles||[]).length || (item.needsSpecial||[]).length || item.clientNeeds;
+  if(!hasOldData) return [];
+  return [{
+    id: uid(), relation: '',
+    needsRentOrBuy: item.needsRentOrBuy||[], needsRegions: item.needsRegions||[], needsPropertyTypes: item.needsPropertyTypes||[],
+    needsBudgetMax: item.needsBudgetMax||'', needsRoomsMin: item.needsRoomsMin||'', needsRoomsMax: item.needsRoomsMax||'',
+    needsSizeMin: item.needsSizeMin||'', needsSizeMax: item.needsSizeMax||'', needsLandSizeMin: item.needsLandSizeMin||'', needsLandSizeMax: item.needsLandSizeMax||'',
+    needsAgeMin: item.needsAgeMin||'', needsAgeMax: item.needsAgeMax||'', needsFloorMin: item.needsFloorMin||'', needsFloorMax: item.needsFloorMax||'',
+    needsDirections: item.needsDirections||[], needsParking: item.needsParking||'', needsParkingStyles: item.needsParkingStyles||[],
+    needsSpecial: item.needsSpecial||[], clientNeeds: item.clientNeeds||'',
+  }];
+}
+
 function switchClientTab(tab){
   document.querySelectorAll('.client-tab-basic').forEach(el=>{ el.style.display = tab==='basic' ? '' : 'none'; });
   document.querySelectorAll('.client-tab-needs').forEach(el=>{ el.style.display = tab==='needs' ? '' : 'none'; });
@@ -1949,7 +2171,9 @@ async function openClientModal(id){
     tempLogs: JSON.parse(JSON.stringify(item.serviceLogs||[])),
     tempPhones: JSON.parse(JSON.stringify(getClientPhones(item))),
     tempLineNames: getClientLineNames(item).map(v=>({id:uid(), value:v})),
-    tempNeedsRegions: [...(item.needsRegions||[])],
+    tempNeedsProfiles: JSON.parse(JSON.stringify(getClientNeedsProfiles(item))),
+    editingNeedsProfileId: null,
+    editingNeedsProfileRegions: [],
     tempPropertyRecords: JSON.parse(JSON.stringify(getClientPropertyRecords(item))),
     recordPhotosCache: {},   // recordId -> {photos:[{key,dataUrl}], removedKeys:[]}
     removedRecordPhotoKeys: [],
@@ -2047,101 +2271,8 @@ async function openClientModal(id){
 
     </div>
     <div class="client-tab-needs" style="display:none;">
-
-      <div class="pt-hint" style="margin:0 0 4px;">租 / 買(可複選)</div>
-      <div style="display:flex; gap:14px; flex-wrap:wrap;">
-        ${NEEDS_RENT_BUY_OPTIONS.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
-          <input type="checkbox" class="f_needs_rentbuy_cb" value="${t}" ${(item.needsRentOrBuy||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
-        </label>`).join('')}
-      </div>
-
-      <div class="pt-hint" style="margin:12px 0 4px;">需求地區(可複選,先選縣市,再勾選區)</div>
-      <select id="needsRegionCounty" onchange="renderNeedsRegionDistrictCheckboxes()">
-        <option value="">請選擇縣市</option>
-        ${Object.keys(TAIWAN_DISTRICTS).map(c=>`<option value="${c}">${c}</option>`).join('')}
-      </select>
-      <div id="needsRegionDistrictCheckboxes" style="margin-top:8px; display:flex; gap:10px; flex-wrap:wrap;"></div>
-      <div class="pt-hint" style="margin:10px 0 4px;">已選地區</div>
-      <div id="needsRegionSelectedChips"></div>
-
-      <div class="pt-hint" style="margin:12px 0 4px;">物件型態(可複選)</div>
-      <div style="display:flex; gap:14px; flex-wrap:wrap;">
-        ${NEEDS_PROPERTY_TYPES.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
-          <input type="checkbox" class="f_needs_type_cb" value="${t}" ${(item.needsPropertyTypes||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
-        </label>`).join('')}
-      </div>
-
-      <div class="pt-hint" style="margin:12px 0 4px;">價格</div>
-      <div class="field-row">
-        <input type="number" id="f_needsBudgetMax" placeholder="多少萬以內" value="${esc(item.needsBudgetMax)}">
-      </div>
-
-      <div class="pt-hint" style="margin:12px 0 4px;">房數</div>
-      <div class="field-row">
-        <select id="f_needsRoomsMin">
-          <option value="">房數</option>
-          <option value="套房" ${item.needsRoomsMin==='套房'?'selected':''}>套房</option>
-          ${[1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${String(item.needsRoomsMin)===String(n)?'selected':''}>${n}房</option>`).join('')}
-        </select>
-        <select id="f_needsRoomsMax">
-          <option value="">房數</option>
-          <option value="套房" ${item.needsRoomsMax==='套房'?'selected':''}>套房</option>
-          ${[1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${String(item.needsRoomsMax)===String(n)?'selected':''}>${n}房</option>`).join('')}
-        </select>
-      </div>
-
-      <div class="pt-hint" style="margin:12px 0 4px;">建物總坪</div>
-      <div class="field-row">
-        <input type="number" id="f_needsSizeMin" placeholder="坪數下限" value="${esc(item.needsSizeMin)}">
-        <input type="number" id="f_needsSizeMax" placeholder="坪數上限" value="${esc(item.needsSizeMax)}">
-      </div>
-
-      <div class="pt-hint" style="margin:12px 0 4px;">土地坪數</div>
-      <div class="field-row">
-        <input type="number" id="f_needsLandSizeMin" placeholder="坪數下限" value="${esc(item.needsLandSizeMin)}">
-        <input type="number" id="f_needsLandSizeMax" placeholder="坪數上限" value="${esc(item.needsLandSizeMax)}">
-      </div>
-
-      <div class="pt-hint" style="margin:12px 0 4px;">屋齡(年)</div>
-      <div class="field-row">
-        <input type="number" id="f_needsAgeMin" placeholder="年下限" value="${esc(item.needsAgeMin)}">
-        <input type="number" id="f_needsAgeMax" placeholder="年上限" value="${esc(item.needsAgeMax)}">
-      </div>
-
-      <div class="pt-hint" style="margin:12px 0 4px;">樓層</div>
-      <div class="field-row">
-        <input type="number" id="f_needsFloorMin" placeholder="樓層下限" value="${esc(item.needsFloorMin)}">
-        <input type="number" id="f_needsFloorMax" placeholder="樓層上限" value="${esc(item.needsFloorMax)}">
-      </div>
-
-      <div class="pt-hint" style="margin:12px 0 4px;">朝向(可複選)</div>
-      <div style="display:flex; gap:14px; flex-wrap:wrap;">
-        ${NEEDS_DIRECTIONS.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
-          <input type="checkbox" class="f_needs_direction_cb" value="${t}" ${(item.needsDirections||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
-        </label>`).join('')}
-      </div>
-
-      <div class="pt-hint" style="margin:12px 0 4px;">車位需求</div>
-      <select id="f_needsParking">
-        <option value="">未指定</option>
-        ${NEEDS_PARKING_OPTIONS.map(p=>`<option ${item.needsParking===p?'selected':''}>${p}</option>`).join('')}
-      </select>
-
-      <div class="pt-hint" style="margin:12px 0 4px;">停車方式(可複選)</div>
-      <div style="display:flex; gap:14px; flex-wrap:wrap;">
-        ${NEEDS_PARKING_STYLES.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
-          <input type="checkbox" class="f_needs_parkingstyle_cb" value="${t}" ${(item.needsParkingStyles||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
-        </label>`).join('')}
-      </div>
-
-      <div class="pt-hint" style="margin:12px 0 4px;">特殊需求(可複選)</div>
-      <div style="display:flex; gap:14px; flex-wrap:wrap;">
-        ${NEEDS_SPECIAL_OPTIONS.map(t=>`<label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
-          <input type="checkbox" class="f_needs_special_cb" value="${t}" ${(item.needsSpecial||[]).includes(t)?'checked':''} style="width:auto;"> ${t}
-        </label>`).join('')}
-      </div>
-
-      <textarea id="f_clientNeeds" placeholder="備註" style="min-height:70px; margin-top:12px;">${esc(item.clientNeeds)}</textarea>
+      <div class="log-list" id="needsProfileList"></div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="addNeedsProfile()">＋ 新增一筆客戶需求</button>
     </div>
 
     <div class="client-tab-property" style="display:none;">
@@ -2197,7 +2328,7 @@ async function openClientModal(id){
   switchClientTab('basic');
   renderPhoneList();
   renderLineNameList();
-  renderNeedsRegionChips();
+  renderNeedsProfileList();
   renderPropertyRecordList();
   renderLogList();
   renderLogExtraFields();
@@ -2290,31 +2421,31 @@ function renderNeedsRegionDistrictCheckboxes(){
   const districts = TAIWAN_DISTRICTS[county] || [];
   wrap.innerHTML = districts.map(d=>{
     const key = county + d;
-    const checked = (editingCtx.tempNeedsRegions||[]).includes(key);
+    const checked = (editingCtx.editingNeedsProfileRegions||[]).includes(key);
     return `<label style="display:flex; align-items:center; gap:4px; font-size:13px; font-weight:400; color:var(--ink); cursor:pointer;">
       <input type="checkbox" style="width:auto;" ${checked?'checked':''} onchange="toggleNeedsRegion('${key}', this.checked)"> ${d}
     </label>`;
   }).join('');
 }
 function toggleNeedsRegion(key, checked){
-  if(!editingCtx.tempNeedsRegions) editingCtx.tempNeedsRegions = [];
+  if(!editingCtx.editingNeedsProfileRegions) editingCtx.editingNeedsProfileRegions = [];
   if(checked){
-    if(!editingCtx.tempNeedsRegions.includes(key)) editingCtx.tempNeedsRegions.push(key);
+    if(!editingCtx.editingNeedsProfileRegions.includes(key)) editingCtx.editingNeedsProfileRegions.push(key);
   }else{
-    editingCtx.tempNeedsRegions = editingCtx.tempNeedsRegions.filter(k=>k!==key);
+    editingCtx.editingNeedsProfileRegions = editingCtx.editingNeedsProfileRegions.filter(k=>k!==key);
   }
   renderNeedsRegionChips();
 }
 function renderNeedsRegionChips(){
   const wrap = document.getElementById('needsRegionSelectedChips');
   if(!wrap) return;
-  const regions = editingCtx.tempNeedsRegions || [];
+  const regions = editingCtx.editingNeedsProfileRegions || [];
   wrap.innerHTML = regions.length
     ? regions.map(k=>`<span class="tag-soft" style="margin:2px 4px 2px 0; display:inline-block;">${esc(k)} <span style="cursor:pointer;" onclick="removeNeedsRegionChip('${k}')">✕</span></span>`).join('')
     : '<span class="tag-soft" style="color:var(--ink-soft);">尚未選擇地區</span>';
 }
 function removeNeedsRegionChip(key){
-  editingCtx.tempNeedsRegions = (editingCtx.tempNeedsRegions||[]).filter(k=>k!==key);
+  editingCtx.editingNeedsProfileRegions = (editingCtx.editingNeedsProfileRegions||[]).filter(k=>k!==key);
   renderNeedsRegionChips();
   renderNeedsRegionDistrictCheckboxes();
 }
@@ -2743,6 +2874,9 @@ function flushPendingViewingItem(){
 async function flushPendingClientInputs(){
   addPhoneEntry();
   addLineNameEntry();
+  if(editingCtx.editingNeedsProfileId){
+    saveNeedsProfileEdit();
+  }
   if(editingCtx.editingRecordId){
     savePropertyRecordEdit(editingCtx.editingRecordId);
   }
@@ -3331,25 +3465,7 @@ async function saveClient(){
     company: document.getElementById('f_company').value.trim(),
     idNumber: document.getElementById('f_idNumber').value.trim(),
     homeAddress: document.getElementById('f_homeAddress').value.trim(),
-    clientNeeds: document.getElementById('f_clientNeeds').value.trim(),
-    needsRentOrBuy: Array.from(document.querySelectorAll('.f_needs_rentbuy_cb:checked')).map(cb=>cb.value),
-    needsRegions: editingCtx.tempNeedsRegions || [],
-    needsPropertyTypes: Array.from(document.querySelectorAll('.f_needs_type_cb:checked')).map(cb=>cb.value),
-    needsParking: document.getElementById('f_needsParking').value,
-    needsParkingStyles: Array.from(document.querySelectorAll('.f_needs_parkingstyle_cb:checked')).map(cb=>cb.value),
-    needsSpecial: Array.from(document.querySelectorAll('.f_needs_special_cb:checked')).map(cb=>cb.value),
-    needsBudgetMax: document.getElementById('f_needsBudgetMax').value.trim(),
-    needsRoomsMin: document.getElementById('f_needsRoomsMin').value,
-    needsRoomsMax: document.getElementById('f_needsRoomsMax').value,
-    needsSizeMin: document.getElementById('f_needsSizeMin').value.trim(),
-    needsSizeMax: document.getElementById('f_needsSizeMax').value.trim(),
-    needsLandSizeMin: document.getElementById('f_needsLandSizeMin').value.trim(),
-    needsLandSizeMax: document.getElementById('f_needsLandSizeMax').value.trim(),
-    needsAgeMin: document.getElementById('f_needsAgeMin').value.trim(),
-    needsAgeMax: document.getElementById('f_needsAgeMax').value.trim(),
-    needsFloorMin: document.getElementById('f_needsFloorMin').value.trim(),
-    needsFloorMax: document.getElementById('f_needsFloorMax').value.trim(),
-    needsDirections: Array.from(document.querySelectorAll('.f_needs_direction_cb:checked')).map(cb=>cb.value),
+    needsProfiles: editingCtx.tempNeedsProfiles || [],
     propertyRecords: editingCtx.tempPropertyRecords || [],
     notes: document.getElementById('f_notes').value.trim(),
     serviceLogs: editingCtx.tempLogs || [],
@@ -3627,20 +3743,23 @@ async function viewClientModal(id){
     ${viewInfoRow('公司名稱', esc(item.company))}
     ${viewInfoRow('身份證字號', esc(item.idNumber))}
     ${viewInfoRow('居住地址', esc(item.homeAddress))}
-    ${(item.needsRentOrBuy&&item.needsRentOrBuy.length) ? viewInfoRow('租/買', item.needsRentOrBuy.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
-    ${(item.needsRegions&&item.needsRegions.length) ? viewInfoRow('需求地區', item.needsRegions.map(a=>`<span class="tag">${esc(a)}</span>`).join(' ')) : ''}
-    ${(item.needsPropertyTypes&&item.needsPropertyTypes.length) ? viewInfoRow('物件型態', item.needsPropertyTypes.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
-    ${item.needsBudgetMax ? viewInfoRow('價格', `${esc(item.needsBudgetMax)} 萬以內`) : ''}
-    ${(item.needsRoomsMin||item.needsRoomsMax) ? viewInfoRow('房數', `${esc(item.needsRoomsMin||'不限')} ~ ${esc(item.needsRoomsMax||'不限')}`) : ''}
-    ${(item.needsSizeMin||item.needsSizeMax) ? viewInfoRow('建物總坪', `${esc(item.needsSizeMin||'不限')} ~ ${esc(item.needsSizeMax||'不限')}`) : ''}
-    ${(item.needsLandSizeMin||item.needsLandSizeMax) ? viewInfoRow('土地坪數', `${esc(item.needsLandSizeMin||'不限')} ~ ${esc(item.needsLandSizeMax||'不限')}`) : ''}
-    ${(item.needsAgeMin||item.needsAgeMax) ? viewInfoRow('屋齡', `${esc(item.needsAgeMin||'不限')} ~ ${esc(item.needsAgeMax||'不限')}`) : ''}
-    ${(item.needsFloorMin||item.needsFloorMax) ? viewInfoRow('樓層', `${esc(item.needsFloorMin||'不限')} ~ ${esc(item.needsFloorMax||'不限')}`) : ''}
-    ${(item.needsDirections&&item.needsDirections.length) ? viewInfoRow('朝向', item.needsDirections.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
-    ${item.needsParking ? viewInfoRow('車位需求', esc(item.needsParking)) : ''}
-    ${(item.needsParkingStyles&&item.needsParkingStyles.length) ? viewInfoRow('停車方式', item.needsParkingStyles.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
-    ${(item.needsSpecial&&item.needsSpecial.length) ? viewInfoRow('特殊需求', item.needsSpecial.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
-    ${item.clientNeeds ? viewInfoRow('需求備註', esc(item.clientNeeds).replace(/\n/g,'<br>')) : ''}
+    ${getClientNeedsProfiles(item).map(p=>`
+      <div class="field-sub-title" style="margin-top:14px;">客戶需求${p.relation?`(${esc(p.relation)}要的)`:''}</div>
+      ${(p.needsRentOrBuy&&p.needsRentOrBuy.length) ? viewInfoRow('租/買', p.needsRentOrBuy.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
+      ${(p.needsRegions&&p.needsRegions.length) ? viewInfoRow('需求地區', p.needsRegions.map(a=>`<span class="tag">${esc(a)}</span>`).join(' ')) : ''}
+      ${(p.needsPropertyTypes&&p.needsPropertyTypes.length) ? viewInfoRow('物件型態', p.needsPropertyTypes.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
+      ${p.needsBudgetMax ? viewInfoRow('價格', `${esc(p.needsBudgetMax)} 萬以內`) : ''}
+      ${(p.needsRoomsMin||p.needsRoomsMax) ? viewInfoRow('房數', `${esc(p.needsRoomsMin||'不限')} ~ ${esc(p.needsRoomsMax||'不限')}`) : ''}
+      ${(p.needsSizeMin||p.needsSizeMax) ? viewInfoRow('建物總坪', `${esc(p.needsSizeMin||'不限')} ~ ${esc(p.needsSizeMax||'不限')}`) : ''}
+      ${(p.needsLandSizeMin||p.needsLandSizeMax) ? viewInfoRow('土地坪數', `${esc(p.needsLandSizeMin||'不限')} ~ ${esc(p.needsLandSizeMax||'不限')}`) : ''}
+      ${(p.needsAgeMin||p.needsAgeMax) ? viewInfoRow('屋齡', `${esc(p.needsAgeMin||'不限')} ~ ${esc(p.needsAgeMax||'不限')}`) : ''}
+      ${(p.needsFloorMin||p.needsFloorMax) ? viewInfoRow('樓層', `${esc(p.needsFloorMin||'不限')} ~ ${esc(p.needsFloorMax||'不限')}`) : ''}
+      ${(p.needsDirections&&p.needsDirections.length) ? viewInfoRow('朝向', p.needsDirections.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
+      ${p.needsParking ? viewInfoRow('車位需求', esc(p.needsParking)) : ''}
+      ${(p.needsParkingStyles&&p.needsParkingStyles.length) ? viewInfoRow('停車方式', p.needsParkingStyles.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
+      ${(p.needsSpecial&&p.needsSpecial.length) ? viewInfoRow('特殊需求', p.needsSpecial.map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')) : ''}
+      ${p.clientNeeds ? viewInfoRow('需求備註', esc(p.clientNeeds).replace(/\n/g,'<br>')) : ''}
+    `).join('')}
     ${viewInfoRow('備註', item.notes ? esc(item.notes).replace(/\n/g,'<br>') : '')}
     ${cardsHtml ? viewInfoRow('賀卡紀錄', cardsHtml) : ''}
 
