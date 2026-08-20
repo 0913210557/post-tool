@@ -4780,7 +4780,11 @@ async function drawSocialMediaList(){
     const text = (l.content||'').toLowerCase();
     return !q || text.includes(q);
   });
-  list.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  list.sort((a,b)=>{
+    const dc = (b.date||'').localeCompare(a.date||'');
+    if(dc !== 0) return dc;
+    return DATA.socialMedia.indexOf(b) - DATA.socialMedia.indexOf(a);
+  });
   const wrap = document.getElementById('socialMediaListWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有記錄</div>'; return; }
 
