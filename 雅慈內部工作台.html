@@ -3285,11 +3285,24 @@ function renderEditLogExtraFields(logId){
     container.innerHTML = `
       <div class="pt-hint" style="margin:0 0 4px;">這筆服務的詳細項目(可加入多筆)</div>
       <div class="log-list" id="editViewingItemsList-${logId}"></div>
-      <div class="pt-hint" style="margin:8px 0 4px;">${config.fields.map(f=>f.label).join(' / ')}</div>
-      ${config.fields.map(f=>`<input type="${f.type||'text'}" id="editViewItem-${logId}-${f.key}" placeholder="${esc(f.label)}" style="margin-bottom:6px;">`).join('')}
-      <button class="btn btn-ghost btn-sm" type="button" onclick="addEditViewingItem('${logId}')">＋ 加入這一筆</button>
+      <button class="btn btn-ghost btn-sm" type="button" id="editShowViewingItemFormBtn-${logId}" style="margin-top:6px;">＋ 新增物件</button>
+      <div id="editViewingItemFormFields-${logId}" style="display:none; margin-top:8px;">
+        <div class="pt-hint" style="margin:0 0 4px;">${config.fields.map(f=>f.label).join(' / ')}</div>
+        ${config.fields.map(f=>`<input type="${f.type||'text'}" id="editViewItem-${logId}-${f.key}" placeholder="${esc(f.label)}" style="margin-bottom:6px;">`).join('')}
+        <button class="btn btn-ghost btn-sm" type="button" onclick="addEditViewingItem('${logId}')">確認加入</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="editCancelViewingItemBtn-${logId}">取消</button>
+      </div>
     `;
     drawEditViewingItemsList(logId);
+    document.getElementById(`editShowViewingItemFormBtn-${logId}`).onclick = ()=>{
+      document.getElementById(`editShowViewingItemFormBtn-${logId}`).style.display = 'none';
+      document.getElementById(`editViewingItemFormFields-${logId}`).style.display = 'block';
+    };
+    document.getElementById(`editCancelViewingItemBtn-${logId}`).onclick = ()=>{
+      config.fields.forEach(f=>{ const el = document.getElementById(`editViewItem-${logId}-${f.key}`); if(el) el.value=''; });
+      document.getElementById(`editViewingItemFormFields-${logId}`).style.display = 'none';
+      document.getElementById(`editShowViewingItemFormBtn-${logId}`).style.display = 'inline-block';
+    };
     return;
   }
 
@@ -3356,6 +3369,10 @@ function addEditViewingItem(logId){
   editingCtx.editingLogViewingItems.push({id:uid(), ...item});
   config.fields.forEach(f=>{ const el = document.getElementById(`editViewItem-${logId}-${f.key}`); if(el) el.value=''; });
   drawEditViewingItemsList(logId);
+  const formEl = document.getElementById(`editViewingItemFormFields-${logId}`);
+  const btnEl = document.getElementById(`editShowViewingItemFormBtn-${logId}`);
+  if(formEl) formEl.style.display = 'none';
+  if(btnEl) btnEl.style.display = 'inline-block';
 }
 
 async function saveLogEdit(logId){
