@@ -1926,6 +1926,25 @@ function drawEntrustedTable(){
   </tbody></table>`;
 }
 
+function needsProfileFullSummary(p){
+  return [
+    (p.needsRentOrBuy||[]).join('/'),
+    (p.needsRegions||[]).join('、'),
+    (p.needsPropertyTypes||[]).join('、'),
+    p.needsBudgetMax ? `${p.needsBudgetMax}萬內` : '',
+    (p.needsRoomsMin||p.needsRoomsMax) ? `房數${p.needsRoomsMin||'不限'}~${p.needsRoomsMax||'不限'}` : '',
+    (p.needsSizeMin||p.needsSizeMax) ? `建物${p.needsSizeMin||'不限'}~${p.needsSizeMax||'不限'}坪` : '',
+    (p.needsLandSizeMin||p.needsLandSizeMax) ? `土地${p.needsLandSizeMin||'不限'}~${p.needsLandSizeMax||'不限'}坪` : '',
+    (p.needsAgeMin||p.needsAgeMax) ? `屋齡${p.needsAgeMin||'不限'}~${p.needsAgeMax||'不限'}年` : '',
+    (p.needsFloorMin||p.needsFloorMax) ? `樓層${p.needsFloorMin||'不限'}~${p.needsFloorMax||'不限'}` : '',
+    (p.needsDirections||[]).length ? `朝向:${p.needsDirections.join('、')}` : '',
+    p.needsParking ? `車位:${p.needsParking}` : '',
+    (p.needsParkingStyles||[]).length ? `停車方式:${p.needsParkingStyles.join('、')}` : '',
+    (p.needsSpecial||[]).length ? `特殊需求:${p.needsSpecial.join('、')}` : '',
+    p.clientNeeds ? `備註:${p.clientNeeds}` : '',
+  ].filter(Boolean).join(' ・ ');
+}
+
 function renderNeedsProfileList(){
   const wrap = document.getElementById('needsProfileList');
   if(!wrap) return;
@@ -1936,12 +1955,7 @@ function renderNeedsProfileList(){
   }
   wrap.innerHTML = profiles.map(p=>{
     if(editingCtx.editingNeedsProfileId === p.id) return renderNeedsProfileEditForm(p);
-    const summary = [
-      (p.needsRentOrBuy||[]).join('/'),
-      (p.needsRegions||[]).slice(0,3).join('、'),
-      (p.needsPropertyTypes||[]).join('、'),
-      p.needsBudgetMax ? `${p.needsBudgetMax}萬內` : ''
-    ].filter(Boolean).join(' ・ ');
+    const summary = needsProfileFullSummary(p);
     return `<div class="log-entry" style="flex-direction:column; align-items:stretch; justify-content:flex-start; gap:6px;">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
         <div>
