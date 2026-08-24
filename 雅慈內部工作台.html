@@ -1611,6 +1611,56 @@ function statusStamp(status){
 }
 
 /* ===================== Clients Page ===================== */
+function runDuplicateClientCheck(){
+  const clients = DATA.clients.filter(c=>!c.isDutyRosterClient);
+  const nameGroups = {};
+  const phoneGroups = {};
+  clients.forEach(c=>{
+    const name = (c.name||'').trim();
+    if(name){
+      if(!nameGroups[name]) nameGroups[name] = [];
+      nameGroups[name].push(c);
+    }
+    getClientPhones(c).forEach(p=>{
+      const num = (p.number||'').trim();
+      if(!num) return;
+      if(!phoneGroups[num]) phoneGroups[num] = [];
+      if(!phoneGroups[num].includes(c)) phoneGroups[num].push(c);
+    });
+  });
+  const dupNameGroups = Object.entries(nameGroups).filter(([,list])=>list.length>1);
+  const dupPhoneGroups = Object.entries(phoneGroups).filter(([,list])=>list.length>1);
+
+  const block = document.getElementById('duplicateReportBlock');
+  const body = document.getElementById('duplicateReportBody');
+  block.style.display = 'block';
+  if(dupNameGroups.length===0 && dupPhoneGroups.length===0){
+    body.innerHTML = `<div class="field-sub-title">檢查結果</div><div class="empty-state" style="padding:12px;">沒有找到姓名或電話重複的客戶。</div>`;
+    return;
+  }
+  const nameHtml = dupNameGroups.map(([name, list])=>`
+    <div class="log-entry" style="flex-direction:column; align-items:stretch;">
+      <b>姓名「${esc(name)}」重複 ${list.length} 筆</b>
+      <div style="margin-top:4px; display:flex; gap:6px; flex-wrap:wrap;">
+        ${list.map(c=>`<button class="btn btn-ghost btn-sm" onclick="openClientModal('${c.id}')">${esc(c.name)}(${clientPhoneSummary(c)||'無電話'})</button>`).join('')}
+      </div>
+    </div>
+  `).join('');
+  const phoneHtml = dupPhoneGroups.map(([num, list])=>`
+    <div class="log-entry" style="flex-direction:column; align-items:stretch;">
+      <b>電話「${esc(num)}」重複 ${list.length} 筆</b>
+      <div style="margin-top:4px; display:flex; gap:6px; flex-wrap:wrap;">
+        ${list.map(c=>`<button class="btn btn-ghost btn-sm" onclick="openClientModal('${c.id}')">${esc(c.name)}</button>`).join('')}
+      </div>
+    </div>
+  `).join('');
+  body.innerHTML = `
+    <div class="field-sub-title">檢查結果</div>
+    <div class="pt-hint" style="margin:4px 0 10px;">姓名重複 ${dupNameGroups.length} 組、電話重複 ${dupPhoneGroups.length} 組,點客戶名字可以直接打開編輯。</div>
+    <div class="log-list">${nameHtml}${phoneHtml}</div>
+  `;
+}
+
 function renderClients(){
   const main = document.getElementById('main');
   main.innerHTML = `
@@ -1619,7 +1669,10 @@ function renderClients(){
         <div class="page-title"><span class="eyebrow">CLIENTS</span>客戶名單</div>
         <div class="page-desc">買方、賣方與租客的追蹤與服務紀錄 · <span id="clientCountLabel">共 0 筆</span></div>
       </div>
-      <button class="btn btn-primary" id="addClientBtn">＋ 新增客戶</button>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-ghost" id="checkDuplicatesBtn">🔍 檢查重複客戶</button>
+        <button class="btn btn-primary" id="addClientBtn">＋ 新增客戶</button>
+      </div>
     </div>
     <div class="toolbar">
       <input class="search-input" id="clientSearch" placeholder="搜尋客戶所有資料(姓名/電話/LINE/物件記錄/服務紀錄…)">
@@ -1628,6 +1681,9 @@ function renderClients(){
         ${CLIENT_STATUSES.map(s=>`<option>${s}</option>`).join('')}
         <option value="__uncategorized__">未分類</option>
       </select>
+    </div>
+    <div class="section-block" id="duplicateReportBlock" style="display:none; margin-bottom:16px;">
+      <div class="section-block-body" id="duplicateReportBody" style="padding:14px 16px;"></div>
     </div>
     <div class="section-block" style="margin-bottom:16px;">
       <div class="section-block-body" style="padding:14px 16px;">
@@ -1665,6 +1721,7 @@ function renderClients(){
     <div class="section-block"><div class="section-block-body" id="clientTableWrap"></div></div>
   `;
   document.getElementById('addClientBtn').onclick = ()=>openClientModal();
+  document.getElementById('checkDuplicatesBtn').onclick = ()=>runDuplicateClientCheck();
   document.getElementById('clientSearch').oninput = ()=>{ clientListPage = 1; drawClientTable(); };
   document.getElementById('clientStatusFilter').onchange = ()=>{ clientListPage = 1; drawClientTable(); };
   ['clientNeedsFilterRentBuy','clientNeedsFilterCounty','clientNeedsFilterType','clientNeedsFilterRooms','clientNeedsFilterParking'].forEach(id=>{
