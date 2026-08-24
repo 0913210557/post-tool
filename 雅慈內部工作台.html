@@ -3503,6 +3503,23 @@ async function saveClient(){
   };
   if(!vals.name){ showToast('請輸入姓名'); return false; }
 
+  const otherClients = DATA.clients.filter(c=>!c.isDutyRosterClient && c.id !== editingCtx.id);
+  const nameMatches = otherClients.filter(c=>c.name && c.name.trim() === vals.name);
+  const newPhoneNumbers = (vals.phones||[]).map(p=>(p.number||'').trim()).filter(Boolean);
+  const phoneMatches = [];
+  otherClients.forEach(c=>{
+    const existingNumbers = getClientPhones(c).map(p=>(p.number||'').trim()).filter(Boolean);
+    const overlap = existingNumbers.filter(n=>newPhoneNumbers.includes(n));
+    if(overlap.length) phoneMatches.push({client:c, numbers:overlap});
+  });
+  if(nameMatches.length || phoneMatches.length){
+    const lines = [];
+    if(nameMatches.length) lines.push(`姓名重複：${nameMatches.map(c=>c.name).join('、')}`);
+    if(phoneMatches.length) lines.push(`電話重複：${phoneMatches.map(m=>`${m.client.name}(${m.numbers.join('、')})`).join('、')}`);
+    const proceed = confirm(`發現可能重複的客戶資料：\n${lines.join('\n')}\n\n要繼續儲存嗎？`);
+    if(!proceed) return false;
+  }
+
   for(const k of editingCtx.removedCardPhotoKeys) await deleteStoredFile(k);
   for(const p of editingCtx.cardPhotos){
     if(!p.key){
