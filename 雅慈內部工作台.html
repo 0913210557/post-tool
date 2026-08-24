@@ -6261,23 +6261,26 @@ async function ptCopyDraft(){
   }
 }
 
-function ptGenerateCoverPrompt(){
+async function ptGenerateCoverPrompt(){
   const f = ptFieldEls;
   const val = el => (el && el.value ? el.value.trim() : '');
   const parts = [];
-  parts.push('請幫我畫一張房地產物件的封面宣傳圖，風格簡潔大氣、適合放在社團貼文最上方吸引目光，畫面裡不要出現任何文字或浮水印。');
+  parts.push('請幫我畫一張房地產物件的封面宣傳圖，風格簡潔大氣、適合放在社團貼文最上方吸引目光。');
   const propertyBits = [val(f.title), val(f.layout), val(f.buildPing)?`建物約${val(f.buildPing)}坪`:''].filter(Boolean).join('、');
   if(propertyBits) parts.push(`物件重點：${propertyBits}`);
   if(val(f.address)) parts.push(`地點氛圍參考：${val(f.address)}，可以帶一點在地生活感（不用畫出實際門牌或招牌文字）`);
   const nearby = [val(f.park)&&'公園綠意', val(f.market)&&'生活機能熱鬧', val(f.conv)&&'便利商店林立', val(f.bus)&&'交通便利', val(f.px)&&'商圈氣息'].filter(Boolean).join('、');
   if(nearby) parts.push(`環境調性：${nearby}`);
   if(val(f.price)) parts.push('整體質感偏向溫馨、明亮、有質感的居家風格。');
+  parts.push('請在畫面右下角，用小小的、不搶眼的文字加上這個聯絡資訊當浮水印：\n張雅慈 0913-210-557\n有巢氏房屋｜平鎮南勢中豐店\n起家厝團隊 讓幸福有個家\n眾鑫房屋仲介有限公司\n（這段文字要清楚可辨識，但字體要小，不要蓋住主要畫面）');
   const promptEl = document.getElementById('ptCoverPromptText');
   if(promptEl) promptEl.value = parts.join('\n');
   const statusEl = document.getElementById('ptCoverPromptStatus');
-  if(statusEl){
-    statusEl.textContent = '已產生提示詞，可以自己再調整內容。';
-    statusEl.className = 'pt-status ok';
+  try{
+    await navigator.clipboard.writeText(promptEl.value);
+    if(statusEl){ statusEl.textContent = '已產生並複製提示詞，可以直接貼給 GPT 了。'; statusEl.className = 'pt-status ok'; }
+  }catch(e){
+    if(statusEl){ statusEl.textContent = '已產生提示詞，但自動複製失敗，請按下面「複製提示詞」。'; statusEl.className = 'pt-status err'; }
   }
 }
 
