@@ -5988,7 +5988,7 @@ function ptComposeFromFields(){
   if(juniorHigh) nearbyLines.push(`🏫 國中：${juniorHigh}`);
 
   const parts = [];
-  if(title) parts.push(`【${title}】`);
+  if(title) parts.push(title);
   if(specs.length) parts.push(specs.join('\n'));
   if(desc) parts.push(desc);
   if(nearbyLines.length) parts.push(`📍 生活機能\n${nearbyLines.join('\n')}`);
