@@ -1556,7 +1556,9 @@ function toggleFieldSection(bodyId, headerEl){
 
 function logItemAddresses(l){
   if(!l || !l.extra || !l.extra.items || !l.extra.items.length) return [];
-  return l.extra.items.map(it=>it.address).filter(Boolean);
+  return l.extra.items
+    .filter(it=>it.address)
+    .map(it=>[it.address, it.viewMethod, it.devAgent].filter(Boolean).join('・'));
 }
 
 function esc(s){
@@ -2385,7 +2387,7 @@ async function openClientModal(id){
       <div class="field-sub-title">服務紀錄</div>
       <div class="log-add-row" style="flex-wrap:wrap;">
         <input type="date" id="logDate" value="${new Date().toISOString().slice(0,10)}">
-        ${timePickerHTML('logTime', new Date().toTimeString().slice(0,5))}
+        ${timePickerHTML('logTime', '21:00')}
       </div>
       <select id="logType" style="margin-top:8px;">
         ${SERVICE_LOG_TYPES.map(t=>`<option>${t}</option>`).join('')}
