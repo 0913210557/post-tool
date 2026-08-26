@@ -4746,7 +4746,11 @@ function drawNewListingList(){
     const text = [l.address, l.agencyCompany, l.ownerName, l.clientSource, l.companyName].filter(Boolean).join(' ').toLowerCase();
     return !q || text.includes(q);
   });
-  list.sort((a,b)=>(b.date||'').localeCompare(a.date||'') || 0);
+  list.sort((a,b)=>{
+    const da = a.nextFollowUpDate || '9999-99-99';
+    const db = b.nextFollowUpDate || '9999-99-99';
+    return da.localeCompare(db);
+  });
   const wrap = document.getElementById('newListingListWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有記錄</div>'; return; }
   const todayStr = new Date().toISOString().slice(0,10);
