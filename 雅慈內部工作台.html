@@ -1292,6 +1292,29 @@ async function saveAdQuota(){
   return true;
 }
 
+async function syncNewListingCalendarEntry(listingId, address, nextFollowUpDate){
+  const client = getOrCreatePersonalScheduleClient();
+  const existingIdx = client.serviceLogs.findIndex(l=>l.type==='反開發追蹤' && l.relatedListingId===listingId);
+  if(!nextFollowUpDate){
+    if(existingIdx !== -1){
+      const removed = client.serviceLogs[existingIdx];
+      client.serviceLogs.splice(existingIdx,1);
+      await saveType('clients');
+      if(removed.gcalEventId) await gcalAutoDeleteEvent(removed.gcalEventId);
+    }
+    return;
+  }
+  const noteText = `反開發追蹤：${address||'(未填地址)'}`;
+  if(existingIdx !== -1){
+    client.serviceLogs[existingIdx].date = nextFollowUpDate;
+    client.serviceLogs[existingIdx].note = noteText;
+  }else{
+    client.serviceLogs.push({id: uid(), date: nextFollowUpDate, time:'', type:'反開發追蹤', note: noteText, relatedListingId: listingId});
+  }
+  await saveType('clients');
+  gcalAutoSyncClient(client.id);
+}
+
 async function syncAdQuotaCalendarEntry(platform, expireDate){
   const client = getOrCreatePersonalScheduleClient();
   const marker = `${platform} 廣告到期`;
@@ -1391,7 +1414,7 @@ const TAIWAN_DISTRICTS = {
   '金門縣': ['金城鎮','金湖鎮','金沙鎮','金寧鄉','烈嶼鄉','烏坵鄉'],
   '連江縣': ['南竿鄉','北竿鄉','莒光鄉','東引鄉'],
 };
-const SERVICE_LOG_TYPES = ['帶看','收斡','退斡','買方聯絡','賣方聯絡','復看','簽委託','驗屋','面談','拍照/實境','續約','拜訪','契變','結案','值班','月會','土地公拜拜','廣告到期','寄賀卡'];
+const SERVICE_LOG_TYPES = ['帶看','收斡','退斡','買方聯絡','賣方聯絡','復看','簽委託','驗屋','面談','拍照/實境','續約','拜訪','契變','結案','值班','月會','土地公拜拜','廣告到期','寄賀卡','反開發追蹤'];
 const SERVICE_LOG_EXTRA_FIELDS = {
   '帶看': { repeating: true, fields: [
     {key:'viewOrder', label:'帶看順序'},
@@ -4976,13 +4999,15 @@ async function saveNewListing(){
     statusLogs: editingCtx.tempStatusLogs.map(s=>({id:s.id, date:s.date, note:s.note, photoKeys:s.photoKeys})),
   };
   if(!vals.address){ showToast('請輸入物件地址'); return false; }
+  const listingId = editingCtx.id || uid();
   if(editingCtx.id){
     const idx = DATA.newListings.findIndex(l=>l.id===editingCtx.id);
     DATA.newListings[idx] = {...DATA.newListings[idx], ...vals, date: DATA.newListings[idx].date};
   }else{
-    DATA.newListings.push({id: uid(), date: new Date().toISOString().slice(0,10), ...vals});
+    DATA.newListings.push({id: listingId, date: new Date().toISOString().slice(0,10), ...vals});
   }
   await saveType('newListings');
+  await syncNewListingCalendarEntry(listingId, vals.address, vals.nextFollowUpDate);
   return true;
 }
 
@@ -7165,6 +7190,7 @@ async function deleteItem(type, id){
     if(type==='deals' && item.attachmentKeys) for(const k of item.attachmentKeys) await deleteStoredFile(k);
     if(type==='communities' && item.sendLogs) for(const l of item.sendLogs) for(const k of (l.photoKeys||[])) await deleteStoredFile(k);
     if(type==='newListings' && item.statusLogs) for(const s of item.statusLogs) for(const k of (s.photoKeys||[])) await deleteStoredFile(k);
+    if(type==='newListings') await syncNewListingCalendarEntry(item.id, item.address, '');
     if(type==='socialMedia' && item.mediaKeys) for(const k of item.mediaKeys) await deleteStoredFile(k);
   }
   DATA[type] = DATA[type].filter(x=>x.id!==id);
