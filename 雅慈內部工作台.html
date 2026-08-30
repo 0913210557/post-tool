@@ -6661,7 +6661,7 @@ const DUTY_SHIFT_SCHEDULE = {
   weekday: {
     '早班': { start:'09:30', end:'13:00' },
     '中班': { start:'13:00', end:'17:00' },
-    '晚班': { start:'17:00', end:'20:30' },
+    '晚班': { start:'17:00', end:'20:00' },
   },
   sunday: {
     '早班': { start:'09:30', end:'12:00' },
@@ -6669,7 +6669,7 @@ const DUTY_SHIFT_SCHEDULE = {
     '晚班': { start:'15:00', end:'18:00' },
   },
 };
-const DUTY_TRASH_TIME = { 0: null, 1: '20:30', 2: '19:30', 3: null, 4: '20:30', 5: '19:30', 6: '19:30' };
+const DUTY_TRASH_TIME = { 0: null, 1: '17:20', 2: '19:30', 3: null, 4: '17:20', 5: '19:30', 6: '19:30' };
 
 function getDutyShiftInfo(dateStr, shiftType){
   const dow = new Date(dateStr + 'T00:00:00').getDay();
