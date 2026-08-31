@@ -819,7 +819,9 @@ function mimeExtFromDataUrl(url){
     'application/vnd.ms-excel':'.xls',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'.xlsx',
     'image/jpeg':'.jpg', 'image/png':'.png', 'image/webp':'.webp', 'image/gif':'.gif',
-    'text/plain':'.txt'
+    'text/plain':'.txt',
+    'video/mp4':'.mp4', 'video/quicktime':'.mov', 'video/webm':'.webm',
+    'video/x-msvideo':'.avi', 'video/3gpp':'.3gp', 'video/x-matroska':'.mkv'
   };
   return map[mime] || '';
 }
@@ -3803,7 +3805,7 @@ async function viewClientModal(id){
     const recordIndices = [];
     const photosHtml = photos.length ? `<div class="photo-grid" style="margin-top:8px;">${photos.map((src,i)=>{
       if(!src) return '';
-      const ext = mimeExtFromDataUrl(src) || '.jpg';
+      const ext = mimeExtFromDataUrl(src) || (isVideoDataUrl(src) ? '.mp4' : '.jpg');
       const idx = pushLightboxPhoto(src, `${item.name}-${r.category}-${i+1}${ext}`);
       recordIndices.push(idx);
       if(isImageDataUrl(src)){
@@ -3952,7 +3954,7 @@ async function viewPropertyRecordModal(clientId, recordId){
   const recordIndices = [];
   const photosHtml = photos.length ? `<div class="photo-grid" style="margin-top:8px;">${photos.map((src,i)=>{
     if(!src) return '';
-    const ext = mimeExtFromDataUrl(src) || '.jpg';
+    const ext = mimeExtFromDataUrl(src) || (isVideoDataUrl(src) ? '.mp4' : '.jpg');
     const idx = pushLightboxPhoto(src, `${client.name}-${r.category}-${i+1}${ext}`);
     recordIndices.push(idx);
     if(isImageDataUrl(src)){
@@ -6449,14 +6451,14 @@ function renderDutyRosterGrid(){
 
 function getDutyRosterClient(){
   const c = DATA.clients.find(c=>c.isDutyRosterClient);
-  if(c && c.name === '📋 個人行程'){ c.name = '📋 值班表'; saveType('clients'); }
+  if(c && c.name === '📋 值班表'){ c.name = '📋 個人行程'; saveType('clients'); }
   return c;
 }
 
 function getOrCreatePersonalScheduleClient(){
   let c = getDutyRosterClient();
   if(!c){
-    c = { id: uid(), name: '📋 值班表', phones:[], types:[], statuses:[], isDutyRosterClient: true, serviceLogs:[] };
+    c = { id: uid(), name: '📋 個人行程', phones:[], types:[], statuses:[], isDutyRosterClient: true, serviceLogs:[] };
     DATA.clients.push(c);
   }
   if(!c.serviceLogs) c.serviceLogs = [];
