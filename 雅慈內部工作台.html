@@ -6924,6 +6924,8 @@ const GCAL_TYPE_COLOR_ID = {
   '賣方聯絡': '9',
   '土地公拜拜': '8',
 };
+/* 這些類型只顯示在 App 內的行事曆，不會同步到 Google 日曆 */
+const GCAL_NO_SYNC_TYPES = ['買方聯絡','賣方聯絡'];
 
 function gcalBuildEventBody(client, l){
   const trashMatch = l.note && l.note.match(/垃圾車\s*[\d:：]+/);
@@ -6986,6 +6988,14 @@ async function gcalAutoSyncClient(clientId){
   let failed = false;
   for(const log of (client.serviceLogs||[])){
     if(!log.date) continue;
+    if(GCAL_NO_SYNC_TYPES.includes(log.type)){
+      if(log.gcalEventId){
+        await gcalAutoDeleteEvent(log.gcalEventId);
+        log.gcalEventId = null;
+        dataChanged = true;
+      }
+      continue;
+    }
     const body = gcalBuildEventBody(client, log);
     try{
       if(log.gcalEventId){
@@ -7055,11 +7065,20 @@ async function gcalSyncEvents(){
   document.getElementById('gcalSyncBtn').disabled = true;
   document.getElementById('gcalStatus').textContent = '同步中，請稍候…';
 
-  let created = 0, updated = 0, failed = 0, dataChanged = false;
+  let created = 0, updated = 0, failed = 0, deleted = 0, dataChanged = false;
 
   for(const client of DATA.clients){
     for(const log of (client.serviceLogs||[])){
       if(!log.date) continue;
+      if(GCAL_NO_SYNC_TYPES.includes(log.type)){
+        if(log.gcalEventId){
+          await gcalAutoDeleteEvent(log.gcalEventId);
+          log.gcalEventId = null;
+          dataChanged = true;
+          deleted++;
+        }
+        continue;
+      }
       const body = gcalBuildEventBody(client, log);
       try{
         if(log.gcalEventId){
@@ -7092,8 +7111,8 @@ async function gcalSyncEvents(){
   if(dataChanged) await saveType('clients');
 
   document.getElementById('gcalSyncBtn').disabled = false;
-  document.getElementById('gcalStatus').textContent = `上次同步：新增 ${created} 筆、更新 ${updated} 筆${failed?`、失敗 ${failed} 筆`:''}`;
-  showToast(`Google 日曆同步完成：新增 ${created} 筆、更新 ${updated} 筆${failed?`、失敗 ${failed} 筆`:''}`);
+  document.getElementById('gcalStatus').textContent = `上次同步：新增 ${created} 筆、更新 ${updated} 筆${deleted?`、移除 ${deleted} 筆`:''}${failed?`、失敗 ${failed} 筆`:''}`;
+  showToast(`Google 日曆同步完成：新增 ${created} 筆、更新 ${updated} 筆${deleted?`、移除 ${deleted} 筆`:''}${failed?`、失敗 ${failed} 筆`:''}`);
 }
 
 function openDayAgenda(dateStr){
