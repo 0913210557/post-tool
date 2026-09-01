@@ -6375,6 +6375,8 @@ function renderCalendar(){
           <div class="pt-hint" style="margin-top:4px;">改了之後,新增/編輯行程時會套用新設定;想讓「已經同步過」的舊行程也套用新提醒時間,按下面「全部重新同步一次」</div>
           <div class="pt-hint" style="margin-top:8px;">登入後,新增/編輯/刪除服務紀錄時會自動同步,不用手動按。下面這顆按鈕只是保險用的「全部重新同步」,平常不用點。</div>
           <button class="btn btn-ghost btn-sm" style="margin-top:8px;" id="gcalSyncBtn" onclick="gcalSyncEvents()" ${gcalAccessToken?'':'disabled'}>全部重新同步一次</button>
+          <button class="btn btn-ghost btn-sm" style="margin-top:8px; margin-left:6px;" id="gcalCleanupBtn" onclick="gcalCleanupContactEvents()" ${gcalAccessToken?'':'disabled'}>清除Google日曆上殘留的買方/賣方聯絡</button>
+          <div class="pt-hint" style="margin-top:4px;">如果「全部重新同步」後,Google日曆上還看得到買方聯絡/賣方聯絡(可能是舊行程沒有記錄對應的Google事件),按這顆會直接用標題去Google日曆搜尋並刪除。</div>
         </div>
       </div>
     </div>
@@ -7058,6 +7060,69 @@ async function gcalAutoDeleteEvent(gcalEventId){
     console.error(e);
     showToast('Google 日曆行程刪除失敗，可能需要手動到 Google 日曆刪除');
   }
+}
+
+async function gcalCleanupContactEvents(){
+  if(!gcalAccessToken){ showToast('請先登入 Google'); return; }
+  const btnEl = document.getElementById('gcalCleanupBtn');
+  const statusEl = document.getElementById('gcalStatus');
+  btnEl.disabled = true;
+  if(statusEl) statusEl.textContent = '搜尋中，請稍候…';
+
+  let deleted = 0, failed = 0;
+
+  for(const keyword of GCAL_NO_SYNC_TYPES){
+    let pageToken = '';
+    do{
+      try{
+        const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
+        url.searchParams.set('q', keyword);
+        url.searchParams.set('maxResults', '250');
+        url.searchParams.set('showDeleted', 'false');
+        if(pageToken) url.searchParams.set('pageToken', pageToken);
+        const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + gcalAccessToken } });
+        if(!res.ok){
+          if(res.status===401){ gcalHandleExpiredToken(); return; }
+          failed++;
+          break;
+        }
+        const data = await res.json();
+        const items = data.items || [];
+        for(const ev of items){
+          const summary = ev.summary || '';
+          if(!summary.startsWith(keyword)) continue;
+          try{
+            const delRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${ev.id}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': 'Bearer ' + gcalAccessToken }
+            });
+            if(delRes.ok || delRes.status===410 || delRes.status===404) deleted++;
+            else failed++;
+          }catch(e){ console.error(e); failed++; }
+        }
+        pageToken = data.nextPageToken || '';
+      }catch(e){
+        console.error(e);
+        failed++;
+        break;
+      }
+    }while(pageToken);
+  }
+
+  let dataChanged = false;
+  for(const client of DATA.clients){
+    for(const log of (client.serviceLogs||[])){
+      if(GCAL_NO_SYNC_TYPES.includes(log.type) && log.gcalEventId){
+        log.gcalEventId = null;
+        dataChanged = true;
+      }
+    }
+  }
+  if(dataChanged) await saveType('clients');
+
+  btnEl.disabled = false;
+  if(statusEl) statusEl.textContent = `清除完成：移除 ${deleted} 筆${failed?`、失敗 ${failed} 筆`:''}`;
+  showToast(`清除完成：從 Google 日曆移除 ${deleted} 筆買方/賣方聯絡${failed?`，${failed} 筆失敗`:''}`);
 }
 
 async function gcalSyncEvents(){
