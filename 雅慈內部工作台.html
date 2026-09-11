@@ -4576,7 +4576,6 @@ function dealDateDescComparator(a,b){
 }
 
 function dealExpectedCollection(actualPerformance, dealType){
-  if(dealType === '租') return Math.round(actualPerformance * 0.5);
   return Math.round(actualPerformance * 0.5 * 0.9);
 }
 
@@ -4620,9 +4619,7 @@ function renderDealCollectionsList(){
 
   const formulaEl = document.getElementById('dealExpectedFormulaHint');
   if(formulaEl){
-    const formulaText = currentDealType === '租'
-      ? '應領金額 = 實際業績 × 50%(公司抽成)'
-      : '應領金額 = 實際業績 × 50%(公司抽成) × 90%(扣10%執行業務所得後)';
+    const formulaText = '應領金額 = 實際業績 × 50%(公司抽成) × 90%(扣10%執行業務所得後)';
     formulaEl.innerHTML = `${formulaText} <b>$${expectedCollection.toLocaleString()}</b>`;
   }
 
