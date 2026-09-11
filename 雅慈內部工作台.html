@@ -3837,9 +3837,11 @@ async function viewClientModal(id){
   const attachmentIndices = [];
   const attachmentThumbsHtml = attachmentUrls.length ? `<div class="photo-grid">${attachmentUrls.map((src,i)=>{
     if(!src) return '';
-    const idx = pushLightboxPhoto(src, `${item.name}-附件-${i+1}.jpg`);
+    const idx = pushLightboxPhoto(src, `${item.name}-附件-${i+1}${mimeExtFromDataUrl(src)||'.jpg'}`);
     attachmentIndices.push(idx);
-    return `<div class="photo-chip" style="cursor:pointer;" onclick="openLightboxByIndex(${idx})"><img src="${src}"></div>`;
+    const isImg = isImageDataUrl(src);
+    const thumbInner = isImg ? `<img src="${src}">` : `<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:28px;">${/^data:application\/pdf/.test(src)?'📄':'📎'}</div>`;
+    return `<div class="photo-chip" style="cursor:pointer;" onclick="openOrDownloadFile(${idx})">${thumbInner}</div>`;
   }).join('')}</div>` : '';
   const attachmentsHtml = attachmentUrls.length
     ? `${attachmentThumbsHtml}${attachmentIndices.length>1 ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="downloadAllPhotos([${attachmentIndices.join(',')}])">⬇ 全部下載(${attachmentIndices.length}張)</button>` : ''}`
