@@ -3226,9 +3226,7 @@ async function loadPropertyRecordAlbum(recordId){
     input.onchange = async (e)=>{
       const files = Array.from(e.target.files||[]);
       for(const file of files){
-        const dataUrl = file.type.startsWith('image/')
-          ? await resizeImage(file, 1000, 0.72)
-          : await readFileAsDataUrl(file);
+        const dataUrl = await readFileAsDataUrl(file);
         editingCtx.recordPhotosCache[recordId].photos.push({key:null, dataUrl});
       }
       e.target.value = '';
