@@ -574,6 +574,8 @@
 let DATA = { clients: [], listings: [], content: [], deals: [], communities: [], adQuotas: [], newListings: [], socialMedia: [] };
 let currentPage = 'dashboard';
 let clientListPage = 1;
+let clientSearchQuery = '';
+let clientStatusFilterValue = '';
 const CLIENT_PAGE_SIZE = 10;
 let editingCtx = null; // {type, id, ...extra}
 let calendarMonth = new Date();
@@ -1707,11 +1709,11 @@ function renderClients(){
       </div>
     </div>
     <div class="toolbar">
-      <input class="search-input" id="clientSearch" placeholder="搜尋客戶所有資料(姓名/電話/LINE/物件記錄/服務紀錄…)">
+      <input class="search-input" id="clientSearch" placeholder="搜尋客戶所有資料(姓名/電話/LINE/物件記錄/服務紀錄…)" value="${esc(clientSearchQuery)}">
       <select class="filter-select" id="clientStatusFilter">
         <option value="">全部狀態</option>
-        ${CLIENT_STATUSES.map(s=>`<option>${s}</option>`).join('')}
-        <option value="__uncategorized__">未分類</option>
+        ${CLIENT_STATUSES.map(s=>`<option ${clientStatusFilterValue===s?'selected':''}>${s}</option>`).join('')}
+        <option value="__uncategorized__" ${clientStatusFilterValue==='__uncategorized__'?'selected':''}>未分類</option>
       </select>
     </div>
     <div class="section-block" id="duplicateReportBlock" style="display:none; margin-bottom:16px;">
@@ -1754,8 +1756,8 @@ function renderClients(){
   `;
   document.getElementById('addClientBtn').onclick = ()=>openClientModal();
   document.getElementById('checkDuplicatesBtn').onclick = ()=>runDuplicateClientCheck();
-  document.getElementById('clientSearch').oninput = ()=>{ clientListPage = 1; drawClientTable(); };
-  document.getElementById('clientStatusFilter').onchange = ()=>{ clientListPage = 1; drawClientTable(); };
+  document.getElementById('clientSearch').oninput = (e)=>{ clientSearchQuery = e.target.value; clientListPage = 1; drawClientTable(); };
+  document.getElementById('clientStatusFilter').onchange = (e)=>{ clientStatusFilterValue = e.target.value; clientListPage = 1; drawClientTable(); };
   ['clientNeedsFilterRentBuy','clientNeedsFilterCounty','clientNeedsFilterType','clientNeedsFilterRooms','clientNeedsFilterParking'].forEach(id=>{
     document.getElementById(id).onchange = ()=>{ clientListPage = 1; drawClientTable(); };
   });
