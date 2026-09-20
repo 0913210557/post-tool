@@ -1826,8 +1826,8 @@ function drawClientTable(){
     const matchParking = !needsParking || profiles.some(p=>p.needsParking===needsParking);
     return matchQ && matchSt && matchRentBuy && matchCounty && matchType && matchRooms && matchParking;
   });
-  const countLabel = document.getElementById('clientCountLabel');
-  const realClientCount = DATA.clients.filter(c=>!c.isDutyRosterClient).length;
+  list.sort((a,b)=>(b.fileDate||'').localeCompare(a.fileDate||''));
+  const countLabel = document.getElementById('clientCountLabel');  const realClientCount = DATA.clients.filter(c=>!c.isDutyRosterClient).length;
   if(countLabel){
     countLabel.textContent = (q || st || hasNeedsFilter)
       ? `符合條件 ${list.length} 筆(共 ${realClientCount} 筆)`
