@@ -2288,8 +2288,10 @@ async function openClientModal(id){
     editingRecordId: null,
     logDraftTouched: false,
     logViewingItems: [],
+    logViewingItemEditIndex: -1,
     editingLogId: null,
     editingLogViewingItems: [],
+    editLogViewingItemEditIndex: -1,
     cardPhotos: [],         // {key, dataUrl}
     removedCardPhotoKeys: [],
     attachments: [],       // {key, dataUrl}
@@ -2696,11 +2698,16 @@ function renderLogExtraFields(){
     `;
     drawViewingItemsList();
     document.getElementById('showViewingItemFormBtn').onclick = ()=>{
+      editingCtx.logViewingItemEditIndex = -1;
+      config.fields.forEach(f=>{ const el = document.getElementById('viewItem_'+f.key); if(el) el.value=''; });
+      document.getElementById('addViewingItemBtn').textContent = '確認加入';
       document.getElementById('showViewingItemFormBtn').style.display = 'none';
       document.getElementById('viewingItemFormFields').style.display = 'block';
     };
     document.getElementById('cancelViewingItemBtn').onclick = ()=>{
+      editingCtx.logViewingItemEditIndex = -1;
       config.fields.forEach(f=>{ const el = document.getElementById('viewItem_'+f.key); if(el) el.value=''; });
+      document.getElementById('addViewingItemBtn').textContent = '確認加入';
       document.getElementById('viewingItemFormFields').style.display = 'none';
       document.getElementById('showViewingItemFormBtn').style.display = 'inline-block';
     };
@@ -2711,8 +2718,17 @@ function renderLogExtraFields(){
         if(el && el.value) item[f.key] = el.value.trim ? el.value.trim() : el.value;
       });
       if(Object.keys(item).length === 0){ showToast('請至少填寫一項資料'); return; }
-      editingCtx.logViewingItems.push({id:uid(), ...item});
+      const editIdx = editingCtx.logViewingItemEditIndex;
+      if(editIdx >= 0 && editingCtx.logViewingItems[editIdx]){
+        const existingId = editingCtx.logViewingItems[editIdx].id;
+        editingCtx.logViewingItems[editIdx] = {id: existingId, ...item};
+      } else {
+        editingCtx.logViewingItems.push({id:uid(), ...item});
+      }
+      editingCtx.logViewingItemEditIndex = -1;
       editingCtx.logDraftTouched = true;
+      config.fields.forEach(f=>{ const el = document.getElementById('viewItem_'+f.key); if(el) el.value=''; });
+      document.getElementById('addViewingItemBtn').textContent = '確認加入';
       drawViewingItemsList();
       document.getElementById('viewingItemFormFields').style.display = 'none';
       document.getElementById('showViewingItemFormBtn').style.display = 'inline-block';
@@ -2776,12 +2792,32 @@ function drawViewingItemsList(){
     const summary = config.fields.map(f=> it[f.key] ? `${f.label}:${it[f.key]}` : '').filter(Boolean).join(' ・ ');
     return `<div class="log-entry">
       <div class="log-entry-note">第${idx+1}筆　${esc(summary || '(未填寫)')}</div>
+      <button class="icon-btn" onclick="editViewingItem(${idx})" title="編輯">✎</button>
       <button class="rm" onclick="removeViewingItem(${idx})" title="移除">✕</button>
     </div>`;
   }).join('');
 }
+function editViewingItem(idx){
+  const type = document.getElementById('logType').value;
+  const config = SERVICE_LOG_EXTRA_FIELDS[type];
+  if(!config || !config.repeating) return;
+  const item = editingCtx.logViewingItems[idx];
+  if(!item) return;
+  editingCtx.logViewingItemEditIndex = idx;
+  document.getElementById('showViewingItemFormBtn').style.display = 'none';
+  document.getElementById('viewingItemFormFields').style.display = 'block';
+  config.fields.forEach(f=>{
+    const el = document.getElementById('viewItem_'+f.key);
+    if(el) el.value = item[f.key] || '';
+  });
+  const addBtn = document.getElementById('addViewingItemBtn');
+  if(addBtn) addBtn.textContent = '更新此筆';
+  const section = document.getElementById('logExtraFields');
+  if(section) section.scrollIntoView({behavior:'smooth', block:'center'});
+}
 function removeViewingItem(idx){
   editingCtx.logViewingItems.splice(idx,1);
+  if(editingCtx.logViewingItemEditIndex === idx) editingCtx.logViewingItemEditIndex = -1;
   drawViewingItemsList();
 }
 
@@ -3368,11 +3404,13 @@ function startLogEdit(logId){
   editingCtx.editingLogId = logId;
   const config = SERVICE_LOG_EXTRA_FIELDS[l.type];
   editingCtx.editingLogViewingItems = (config && config.repeating && l.extra && l.extra.items) ? JSON.parse(JSON.stringify(l.extra.items)) : [];
+  editingCtx.editLogViewingItemEditIndex = -1;
   renderLogList();
 }
 function cancelLogEdit(){
   editingCtx.editingLogId = null;
   editingCtx.editingLogViewingItems = [];
+  editingCtx.editLogViewingItemEditIndex = -1;
   renderLogList();
 }
 
@@ -3392,17 +3430,24 @@ function renderEditLogExtraFields(logId){
       <div id="editViewingItemFormFields-${logId}" style="display:none; margin-top:8px;">
         <div class="pt-hint" style="margin:0 0 4px;">${config.fields.map(f=>f.label).join(' / ')}</div>
         ${config.fields.map(f=>`<input type="${f.type||'text'}" id="editViewItem-${logId}-${f.key}" placeholder="${esc(f.label)}" style="margin-bottom:6px;">`).join('')}
-        <button class="btn btn-ghost btn-sm" type="button" onclick="addEditViewingItem('${logId}')">確認加入</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="editConfirmViewingItemBtn-${logId}" onclick="addEditViewingItem('${logId}')">確認加入</button>
         <button class="btn btn-ghost btn-sm" type="button" id="editCancelViewingItemBtn-${logId}">取消</button>
       </div>
     `;
     drawEditViewingItemsList(logId);
     document.getElementById(`editShowViewingItemFormBtn-${logId}`).onclick = ()=>{
+      editingCtx.editLogViewingItemEditIndex = -1;
+      config.fields.forEach(f=>{ const el = document.getElementById(`editViewItem-${logId}-${f.key}`); if(el) el.value=''; });
+      const btn = document.getElementById(`editConfirmViewingItemBtn-${logId}`);
+      if(btn) btn.textContent = '確認加入';
       document.getElementById(`editShowViewingItemFormBtn-${logId}`).style.display = 'none';
       document.getElementById(`editViewingItemFormFields-${logId}`).style.display = 'block';
     };
     document.getElementById(`editCancelViewingItemBtn-${logId}`).onclick = ()=>{
+      editingCtx.editLogViewingItemEditIndex = -1;
       config.fields.forEach(f=>{ const el = document.getElementById(`editViewItem-${logId}-${f.key}`); if(el) el.value=''; });
+      const btn = document.getElementById(`editConfirmViewingItemBtn-${logId}`);
+      if(btn) btn.textContent = '確認加入';
       document.getElementById(`editViewingItemFormFields-${logId}`).style.display = 'none';
       document.getElementById(`editShowViewingItemFormBtn-${logId}`).style.display = 'inline-block';
     };
@@ -3451,12 +3496,30 @@ function drawEditViewingItemsList(logId){
     const summary = config.fields.map(f=> it[f.key] ? `${f.label}:${it[f.key]}` : '').filter(Boolean).join(' ・ ');
     return `<div class="log-entry">
       <div class="log-entry-note">第${idx+1}筆　${esc(summary || '(未填寫)')}</div>
+      <button class="icon-btn" onclick="editEditViewingItem('${logId}',${idx})" title="編輯">✎</button>
       <button class="rm" onclick="removeEditViewingItem('${logId}',${idx})" title="移除">✕</button>
     </div>`;
   }).join('');
 }
+function editEditViewingItem(logId, idx){
+  const type = document.getElementById('editLogType-'+logId).value;
+  const config = SERVICE_LOG_EXTRA_FIELDS[type];
+  if(!config || !config.repeating) return;
+  const item = editingCtx.editingLogViewingItems[idx];
+  if(!item) return;
+  editingCtx.editLogViewingItemEditIndex = idx;
+  document.getElementById(`editShowViewingItemFormBtn-${logId}`).style.display = 'none';
+  document.getElementById(`editViewingItemFormFields-${logId}`).style.display = 'block';
+  config.fields.forEach(f=>{
+    const el = document.getElementById(`editViewItem-${logId}-${f.key}`);
+    if(el) el.value = item[f.key] || '';
+  });
+  const btn = document.getElementById(`editConfirmViewingItemBtn-${logId}`);
+  if(btn) btn.textContent = '更新此筆';
+}
 function removeEditViewingItem(logId, idx){
   editingCtx.editingLogViewingItems.splice(idx,1);
+  if(editingCtx.editLogViewingItemEditIndex === idx) editingCtx.editLogViewingItemEditIndex = -1;
   drawEditViewingItemsList(logId);
 }
 function addEditViewingItem(logId){
@@ -3469,8 +3532,17 @@ function addEditViewingItem(logId){
     if(el && el.value) item[f.key] = el.value.trim ? el.value.trim() : el.value;
   });
   if(Object.keys(item).length === 0){ showToast('請至少填寫一項資料'); return; }
-  editingCtx.editingLogViewingItems.push({id:uid(), ...item});
+  const editIdx = editingCtx.editLogViewingItemEditIndex;
+  if(editIdx >= 0 && editingCtx.editingLogViewingItems[editIdx]){
+    const existingId = editingCtx.editingLogViewingItems[editIdx].id;
+    editingCtx.editingLogViewingItems[editIdx] = {id: existingId, ...item};
+  } else {
+    editingCtx.editingLogViewingItems.push({id:uid(), ...item});
+  }
+  editingCtx.editLogViewingItemEditIndex = -1;
   config.fields.forEach(f=>{ const el = document.getElementById(`editViewItem-${logId}-${f.key}`); if(el) el.value=''; });
+  const btn = document.getElementById(`editConfirmViewingItemBtn-${logId}`);
+  if(btn) btn.textContent = '確認加入';
   drawEditViewingItemsList(logId);
   const formEl = document.getElementById(`editViewingItemFormFields-${logId}`);
   const btnEl = document.getElementById(`editShowViewingItemFormBtn-${logId}`);
