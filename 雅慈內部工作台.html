@@ -6492,6 +6492,10 @@ function findDutyLogForDate(dutyClient, dateStr){
   if(!dutyClient || !dutyClient.serviceLogs) return null;
   return dutyClient.serviceLogs.find(l=>l.date===dateStr && l.type==='值班') || null;
 }
+function findDutyLogForDateShift(dutyClient, dateStr, shiftType){
+  if(!dutyClient || !dutyClient.serviceLogs) return null;
+  return dutyClient.serviceLogs.find(l=>l.date===dateStr && l.type==='值班' && guessShiftTypeFromLog(l)===shiftType) || null;
+}
 function guessShiftTypeFromLog(log){
   if(!log || !log.note) return '';
   if(log.note.startsWith('早班')) return '早班';
@@ -6508,21 +6512,20 @@ function renderDutyRosterGrid(){
   const daysInMonth = new Date(year, month+1, 0).getDate();
   const weekdayNames = ['日','一','二','三','四','五','六'];
   const dutyClient = getDutyRosterClient();
+  const SHIFT_TYPES = ['早班','中班','晚班'];
   let html = '';
   for(let d=1; d<=daysInMonth; d++){
     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const dow = new Date(year, month, d).getDay();
-    const existing = findDutyLogForDate(dutyClient, dateStr);
-    const currentShift = guessShiftTypeFromLog(existing);
+    const shiftsChecked = SHIFT_TYPES.filter(st=>findDutyLogForDateShift(dutyClient, dateStr, st));
     const hasMeeting = !!(dutyClient && dutyClient.serviceLogs && dutyClient.serviceLogs.find(l=>l.date===dateStr && l.type==='月會'));
-    html += `<div style="display:flex; align-items:center; gap:8px; padding:6px 4px; border-bottom:1px solid var(--line); ${existing||hasMeeting?'background:var(--stone);':''}">
+    html += `<div style="display:flex; align-items:center; gap:8px; padding:6px 4px; border-bottom:1px solid var(--line); flex-wrap:wrap; ${shiftsChecked.length||hasMeeting?'background:var(--stone);':''}">
       <div style="width:64px; font-size:12px; color:var(--ink-soft); flex-shrink:0;">${month+1}/${d}（${weekdayNames[dow]}）</div>
-      <select class="duty-day-shift-select" data-date="${dateStr}" style="flex:1;">
-        <option value="" ${currentShift===''?'selected':''}>不值班</option>
-        <option value="早班" ${currentShift==='早班'?'selected':''}>早班</option>
-        <option value="中班" ${currentShift==='中班'?'selected':''}>中班</option>
-        <option value="晚班" ${currentShift==='晚班'?'selected':''}>晚班</option>
-      </select>
+      <div style="display:flex; gap:10px; flex:1; flex-wrap:wrap;">
+        ${SHIFT_TYPES.map(st=>`<label style="display:flex; align-items:center; gap:4px; font-size:12px; white-space:nowrap;">
+          <input type="checkbox" class="duty-day-shift-cb" data-date="${dateStr}" data-shift="${st}" ${shiftsChecked.includes(st)?'checked':''}> ${st}
+        </label>`).join('')}
+      </div>
       <label style="display:flex; align-items:center; gap:4px; font-size:12px; flex-shrink:0; white-space:nowrap;">
         <input type="checkbox" class="duty-day-meeting-cb" data-date="${dateStr}" ${hasMeeting?'checked':''}> 月會
       </label>
@@ -6768,20 +6771,21 @@ function getDutyShiftInfo(dateStr, shiftType){
 }
 
 async function dutyRosterSubmit(){
-  const selects = Array.from(document.querySelectorAll('.duty-day-shift-select'));
+  const shiftCbs = Array.from(document.querySelectorAll('.duty-day-shift-cb'));
   const meetingCbs = Array.from(document.querySelectorAll('.duty-day-meeting-cb'));
-  if(selects.length===0 && meetingCbs.length===0) return;
+  if(shiftCbs.length===0 && meetingCbs.length===0) return;
 
   const dutyClient = getOrCreatePersonalScheduleClient();
 
   let addedCount = 0, updatedCount = 0, removedCount = 0;
   const toDeleteFromGcal = [];
 
-  selects.forEach(s=>{
-    const dateStr = s.dataset.date;
-    const shift = s.value;
-    const existingIdx = dutyClient.serviceLogs.findIndex(l=>l.date===dateStr && l.type==='值班');
-    if(!shift){
+  shiftCbs.forEach(cb=>{
+    const dateStr = cb.dataset.date;
+    const shift = cb.dataset.shift;
+    const checked = cb.checked;
+    const existingIdx = dutyClient.serviceLogs.findIndex(l=>l.date===dateStr && l.type==='值班' && guessShiftTypeFromLog(l)===shift);
+    if(!checked){
       if(existingIdx !== -1){
         const removed = dutyClient.serviceLogs[existingIdx];
         dutyClient.serviceLogs.splice(existingIdx,1);
