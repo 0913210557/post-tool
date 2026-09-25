@@ -5315,34 +5315,29 @@ function renderCommunities(){
         <option value="">全部區域</option>
         ${COMMUNITY_REGIONS.map(r=>`<option>${r}</option>`).join('')}
       </select>
-      <input type="month" class="filter-select" id="communityNextSendFilter" title="依下次寄送日期(年月)篩選" style="max-width:160px;">
-      <button class="btn btn-ghost btn-sm" type="button" id="communityNextSendFilterClear">清除日期篩選</button>
     </div>
     <div class="section-block"><div class="section-block-body" id="communityTableWrap"></div></div>
   `;
   document.getElementById('addCommunityBtn').onclick = ()=>openCommunityModal();
   document.getElementById('communitySearch').oninput = drawCommunityTable;
   document.getElementById('communityRegionFilter').onchange = drawCommunityTable;
-  document.getElementById('communityNextSendFilter').onchange = drawCommunityTable;
-  document.getElementById('communityNextSendFilterClear').onclick = ()=>{
-    document.getElementById('communityNextSendFilter').value = '';
-    drawCommunityTable();
-  };
   drawCommunityTable();
 }
 
 function drawCommunityTable(){
   const q = (document.getElementById('communitySearch').value||'').toLowerCase();
   const regionFilter = document.getElementById('communityRegionFilter').value;
-  const nextSendFilter = document.getElementById('communityNextSendFilter').value;
   let list = DATA.communities.filter(c=>{
     const text = [c.name, c.notes].filter(Boolean).join(' ').toLowerCase();
     const matchQ = !q || text.includes(q);
     const matchRegion = !regionFilter || c.region===regionFilter;
-    const matchNextSend = !nextSendFilter || communityNextSendDate(c) === nextSendFilter;
-    return matchQ && matchRegion && matchNextSend;
+    return matchQ && matchRegion;
   });
-  list.sort((a,b)=>(a.name||'').localeCompare(b.name||'', 'zh-Hant'));
+  list.sort((a,b)=>{
+    const da = communityNextSendDate(a) || '9999-99';
+    const db = communityNextSendDate(b) || '9999-99';
+    return da.localeCompare(db);
+  });
   const wrap = document.getElementById('communityTableWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有社區資料</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
