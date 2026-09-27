@@ -7267,9 +7267,18 @@ function openDayAgenda(dateStr){
     });
   });
   events.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  const incompleteCount = events.filter(e=>!e.completed).length;
 
   document.getElementById('dayAgendaTitle').textContent = dateStr + ' 的行程';
   document.getElementById('dayAgendaBody').innerHTML = events.length ? `
+    ${incompleteCount>0 ? `
+    <div class="section-block" style="margin-bottom:10px; padding:10px; background:var(--stone);">
+      <div style="font-size:12px; color:var(--ink-soft); margin-bottom:6px;">把這天「尚未完成」的 ${incompleteCount} 筆行程，一次改到別天（已完成的不會被搬動）：</div>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <input type="date" id="dayAgendaBulkMoveDate" class="filter-select" style="max-width:160px;">
+        <button class="btn btn-primary btn-sm" type="button" onclick="dayAgendaBulkMoveIncomplete('${dateStr}')">搬移未完成項目</button>
+      </div>
+    </div>` : ''}
     <div class="log-list">${events.map(e=>{
     const isImportant = !CALENDAR_ROUTINE_TYPES.includes(e.type);
     const lineStyle = isImportant && !e.completed ? 'color:var(--brick); font-size:15px;' : '';
@@ -7290,6 +7299,29 @@ function openDayAgenda(dateStr){
   `;
   }).join('')}</div>` : '<div class="empty-state">這天沒有行程</div>';
   document.getElementById('dayAgendaOverlay').classList.add('open');
+}
+async function dayAgendaBulkMoveIncomplete(dateStr){
+  const input = document.getElementById('dayAgendaBulkMoveDate');
+  const newDate = input ? input.value : '';
+  if(!newDate){ showToast('請先選擇要搬去的日期'); return; }
+  if(newDate === dateStr){ showToast('新日期跟原本日期一樣'); return; }
+  const touchedClientIds = new Set();
+  let moved = 0;
+  DATA.clients.forEach(c=>{
+    (c.serviceLogs||[]).forEach(l=>{
+      if(l.date === dateStr && !l.completed){
+        l.date = newDate;
+        touchedClientIds.add(c.id);
+        moved++;
+      }
+    });
+  });
+  if(moved === 0){ showToast('沒有未完成的行程可以搬移'); return; }
+  await saveType('clients');
+  touchedClientIds.forEach(id=>gcalAutoSyncClient(id));
+  showToast(`已把 ${moved} 筆未完成行程改到 ${newDate}`);
+  closeDayAgenda();
+  drawCalendar();
 }
 async function toggleLogCompleted(clientId, logId, dateStr){
   const client = DATA.clients.find(c=>c.id===clientId);
