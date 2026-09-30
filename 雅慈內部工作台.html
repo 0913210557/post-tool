@@ -5777,6 +5777,7 @@ function renderPostTool(){
           <div class="pt-step-label"><span class="pt-step-num">4</span>確認可以 → 發社團</div>
           <div class="pt-row-buttons">
             <button class="pt-btn-brass" onclick="ptCopyDraft()">複製文字內容</button>
+            <button class="pt-btn-brass" style="margin-left:8px;" onclick="ptLaunchAllGroups()">🚀 一鍵發文（複製＋開啟全部社團）</button>
           </div>
           <div class="pt-status" id="ptCopyStatus"></div>
 
@@ -5788,7 +5789,7 @@ function renderPostTool(){
           </div>
 
           <div id="ptGroupList" style="margin-top:6px;"></div>
-          <div class="pt-hint">複製文字後，點清單裡的「開啟」逐一到社團貼上發布。</div>
+          <div class="pt-hint">按「一鍵發文」會複製文案並用瀏覽器分頁依序開啟下面所有社團(記得允許彈出視窗)，每個分頁裡還是要手動貼上(Ctrl+V)、確認內容後自己按送出，這一步FB沒辦法用工具代勞。也可以只用下面清單的「開啟」一個一個來。</div>
         </div>
 
       </div>
@@ -5898,6 +5899,41 @@ function ptOpenGroupAt(i){
   if(g) window.open(g.url, '_blank');
   ptPostedGroupIds.add(i);
   ptRenderGroups();
+}
+
+async function ptLaunchAllGroups(){
+  const text = ptDraftEl.value.trim();
+  if(!text){
+    ptCopyStatusEl.textContent = '目前沒有文案可以複製，請先產生文案';
+    ptCopyStatusEl.className = 'pt-status err';
+    return;
+  }
+  if(!ptGroups.length){
+    ptCopyStatusEl.textContent = '尚未加入任何社團，請先在下面加入常發的社團網址';
+    ptCopyStatusEl.className = 'pt-status err';
+    return;
+  }
+  try{
+    await navigator.clipboard.writeText(text);
+  }catch(e){
+    ptCopyStatusEl.textContent = '複製失敗，請手動選取文字複製後再試一次';
+    ptCopyStatusEl.className = 'pt-status err';
+    return;
+  }
+  let opened = 0, blocked = 0;
+  ptGroups.forEach((g, i)=>{
+    const w = window.open(g.url, '_blank');
+    if(w) opened++; else blocked++;
+    ptPostedGroupIds.add(i);
+  });
+  ptRenderGroups();
+  if(blocked > 0){
+    ptCopyStatusEl.textContent = `已複製文案，開啟了 ${opened} 個社團分頁，${blocked} 個被瀏覽器擋掉了，請允許彈出視窗後重按一次。每個分頁記得手動貼上(Ctrl+V)並確認後自己送出。`;
+    ptCopyStatusEl.className = 'pt-status err';
+  }else{
+    ptCopyStatusEl.textContent = `已複製文案，開啟了 ${opened} 個社團分頁，到每個分頁貼上(Ctrl+V)並確認後自己送出。`;
+    ptCopyStatusEl.className = 'pt-status ok';
+  }
 }
 
 function ptOpenMapSearch(keyword){
