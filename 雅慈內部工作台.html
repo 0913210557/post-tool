@@ -4879,6 +4879,7 @@ function openNewListingModal(id){
   editingCtx = {type:'newListings', id: id||null, tempStatusLogs: (item.statusLogs||[]).map(s=>({...s, tempPhotos:[], removedPhotoKeys:[], _photosLoaded:false}))};
   document.getElementById('modalTitle').textContent = id ? '編輯反開發紀錄' : '新增反開發紀錄';
   document.getElementById('modalBody').innerHTML = `
+    ${id ? `<div class="field" style="margin-bottom:12px;"><button class="btn btn-primary btn-sm" id="nlConvertToClientBtn" type="button">📋 轉成客戶名單(內容會帶進服務紀錄)</button></div>` : ''}
     <div class="field"><label>網址</label>
       <div class="log-add-row">
         <input type="text" id="f_nlUrl" placeholder="貼物件網址" value="${esc(item.url)}" style="flex:1;">
@@ -4924,6 +4925,8 @@ function openNewListingModal(id){
   `;
   openModal();
   document.getElementById('nlAutoFillBtn').onclick = nlAutoFillFromUrl;
+  const convertBtn = document.getElementById('nlConvertToClientBtn');
+  if(convertBtn) convertBtn.onclick = ()=>convertNewListingToClient(id);
   editingCtx.newStatusLogPhotos = [];
   renderNewListingStatusLogPhotoGrid();
   renderNewListingStatusLogList();
@@ -5082,6 +5085,47 @@ async function saveNewListing(){
   await saveType('newListings');
   await syncNewListingCalendarEntry(listingId, vals.address, vals.nextFollowUpDate);
   return true;
+}
+
+async function convertNewListingToClient(listingId){
+  const item = DATA.newListings.find(l=>l.id===listingId);
+  if(!item){ showToast('請先儲存這筆反開發紀錄再轉成客戶'); return; }
+  if(!confirm(`確定要把「${item.address||item.ownerName||'這筆反開發紀錄'}」轉成客戶名單嗎？物件資料跟狀況紀錄(含照片/檔案)會一起帶進新客戶的服務紀錄，這筆反開發紀錄本身不會被刪除。`)) return;
+
+  const serviceLogs = (item.statusLogs||[]).map(s=>({
+    id: uid(), date: s.date||'', time:'', type:'反開發追蹤',
+    note: s.note||'', photoKeys: s.photoKeys||[], relatedListingId: listingId,
+  }));
+
+  const noteParts = [];
+  if(item.address) noteParts.push(`物件地址:${item.address}`);
+  if(item.askingPrice) noteParts.push(`售價:${item.askingPrice}萬`);
+  if(item.agencyCompany) noteParts.push(`仲介公司:${item.agencyCompany}`);
+  if(item.listingType) noteParts.push(`委託類型:${item.listingType}`);
+  if(item.registeredAddress) noteParts.push(`戶籍地:${item.registeredAddress}`);
+  if(item.url) noteParts.push(`網址:${item.url}`);
+
+  const newClient = {
+    id: uid(),
+    name: item.ownerName || item.mailName || item.companyName || (item.address ? `(反開發)${item.address}` : '未命名客戶'),
+    phones: item.phone ? [item.phone] : [],
+    types: [], statuses: ['追蹤中'],
+    source: item.clientSource || '反開發',
+    notes: noteParts.join('\n'),
+    birthday: '', fileDate: new Date().toISOString().slice(0,10),
+    propertyAddress: item.address || '',
+    lineNames: [], lineId: '', fb: '',
+    company: item.companyName || '',
+    idNumber: '', homeAddress: item.registeredAddress || '',
+    pastEntrustedProperties: '', clientNeeds: '', propertyRecords: [],
+    cardPhotoKeys: [], attachmentKeys: [],
+    serviceLogs,
+  };
+  DATA.clients.push(newClient);
+  await saveType('clients');
+  closeModal();
+  showToast('已轉成客戶名單，反開發的狀況紀錄已帶入服務紀錄');
+  viewClientModal(newClient.id);
 }
 
 /* ===================== 自媒體經營 Page ===================== */
