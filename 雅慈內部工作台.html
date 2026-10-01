@@ -5384,20 +5384,25 @@ function drawCommunityTable(){
   });
   const wrap = document.getElementById('communityTableWrap');
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有社區資料</div>'; return; }
+  const thisMonth = new Date().toISOString().slice(0,7);
   wrap.innerHTML = `<table><thead><tr>
     <th>社區名稱</th><th>區域</th><th>戶數</th><th>最新寄送日期</th><th>下次寄送日期</th><th></th>
   </tr></thead><tbody>
-    ${list.map(c=>`<tr class="row-hover" style="cursor:pointer;" onclick="openCommunityModal('${c.id}')">
-      <td>${esc(c.name)}</td>
-      <td>${esc(c.region||'—')}</td>
-      <td>${esc(c.totalUnits||'—')}</td>
-      <td>${esc(communityLatestSentDate(c)||'—')}</td>
-      <td>${esc(communityNextSendDate(c)||'—')}</td>
+    ${list.map(c=>{
+      const isThisMonth = communityNextSendDate(c) === thisMonth;
+      const dueStyle = isThisMonth ? 'color:var(--brick); font-weight:700;' : '';
+      return `<tr class="row-hover" style="cursor:pointer; ${dueStyle}" onclick="openCommunityModal('${c.id}')">
+      <td style="${dueStyle}">${esc(c.name)}</td>
+      <td style="${dueStyle}">${esc(c.region||'—')}</td>
+      <td style="${dueStyle}">${esc(c.totalUnits||'—')}</td>
+      <td style="${dueStyle}">${esc(communityLatestSentDate(c)||'—')}</td>
+      <td style="${dueStyle}">${esc(communityNextSendDate(c)||'—')}</td>
       <td onclick="event.stopPropagation()"><div class="row-actions">
         <button class="icon-btn" onclick="openCommunityModal('${c.id}')" title="編輯">✎</button>
         <button class="icon-btn" onclick="deleteItem('communities','${c.id}')" title="刪除">🗑</button>
       </div></td>
-    </tr>`).join('')}
+    </tr>`;
+    }).join('')}
   </tbody></table>`;
 }
 
