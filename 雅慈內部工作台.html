@@ -2371,9 +2371,9 @@ async function openClientModal(id){
     </div>
 
     <div class="field field-divider">
-      <div class="field-sub-title">其他附件(稅費試算、文件照片等)</div>
+      <div class="field-sub-title">其他附件(稅費試算、文件照片、PDF、Word、Excel等)</div>
       <div class="photo-grid" id="clientAttachmentGrid"><span class="tag-soft">載入中…</span></div>
-      <input type="file" accept="image/*" multiple id="clientAttachmentInput" style="display:none;">
+      <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple id="clientAttachmentInput" style="display:none;">
     </div>
 
     </div>
@@ -2457,8 +2457,17 @@ async function openClientModal(id){
   document.getElementById('clientAttachmentInput').onchange = async (e)=>{
     const files = Array.from(e.target.files||[]);
     for(const file of files){
-      const dataUrl = await resizeImage(file, 1400, 0.78);
-      editingCtx.attachments.push({key:null, dataUrl});
+      if(file.size > 15*1024*1024){
+        showToast(`${file.name} 超過 15MB,請壓縮後再上傳`);
+        continue;
+      }
+      if(file.type.startsWith('image/')){
+        const dataUrl = await resizeImage(file, 1400, 0.78);
+        editingCtx.attachments.push({key:null, dataUrl, fileName:file.name});
+      }else{
+        const dataUrl = await readFileAsDataUrl(file);
+        editingCtx.attachments.push({key:null, dataUrl, fileName:file.name});
+      }
     }
     e.target.value = '';
     renderAttachmentGrid();
@@ -3252,9 +3261,11 @@ async function loadPropertyRecordAlbum(recordId){
   if(!record) return;
   if(!editingCtx.recordPhotosCache[recordId]){
     editingCtx.recordPhotosCache[recordId] = { photos: [], removedKeys: [] };
-    for(const k of (record.photoKeys||[])){
+    const fileNames = record.photoFileNames || [];
+    for(let ki=0; ki<(record.photoKeys||[]).length; ki++){
+      const k = record.photoKeys[ki];
       const dataUrl = await loadStoredFile(k);
-      if(dataUrl) editingCtx.recordPhotosCache[recordId].photos.push({key:k, dataUrl});
+      if(dataUrl) editingCtx.recordPhotosCache[recordId].photos.push({key:k, dataUrl, fileName: fileNames[ki]||''});
     }
   }
   drawPropertyRecordAlbumGrid(recordId);
@@ -3265,7 +3276,7 @@ async function loadPropertyRecordAlbum(recordId){
       const files = Array.from(e.target.files||[]);
       for(const file of files){
         const dataUrl = await readFileAsDataUrl(file);
-        editingCtx.recordPhotosCache[recordId].photos.push({key:null, dataUrl});
+        editingCtx.recordPhotosCache[recordId].photos.push({key:null, dataUrl, fileName: file.name||''});
       }
       e.target.value = '';
       renderPropertyRecordList();
@@ -3285,8 +3296,8 @@ function drawPropertyRecordAlbumGrid(recordId){
         <button class="rm" onclick="removePropertyRecordPhoto('${recordId}',${idx})" title="移除">✕</button>
       </div>`;
     }
-    return `<div class="photo-chip" style="display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:22px; background:var(--stone); gap:2px; cursor:pointer;" onclick="openDataUrlInNewTab('${p.dataUrl}')" title="點擊開啟/下載">
-      <span>📄</span><span style="font-size:9px; color:var(--ink-soft);">${mimeExtFromDataUrl(p.dataUrl)||'檔案'}</span>
+    return `<div class="photo-chip" style="display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:22px; background:var(--stone); gap:2px; cursor:pointer; text-align:center; padding:4px;" onclick="openDataUrlInNewTab('${p.dataUrl}')" title="點擊開啟/下載">
+      <span>📄</span><span style="font-size:9px; color:var(--ink-soft); word-break:break-all;">${esc(p.fileName || mimeExtFromDataUrl(p.dataUrl) || '檔案')}</span>
       <button class="rm" onclick="event.stopPropagation(); removePropertyRecordPhoto('${recordId}',${idx})" title="移除">✕</button>
     </div>`;
   }).join('') + addTile;
@@ -3622,13 +3633,19 @@ async function renderAttachmentGrid(){
       editingCtx._attachmentsLoaded = true;
     }
   }
-  const addTile = `<div class="upload-btn" id="addAttachmentTile">＋<br>新增照片</div>`;
-  grid.innerHTML = editingCtx.attachments.map((p,idx)=>`
+  const addTile = `<div class="upload-btn" id="addAttachmentTile">＋<br>新增附件</div>`;
+  grid.innerHTML = editingCtx.attachments.map((p,idx)=>{
+    const isImage = p.dataUrl && p.dataUrl.startsWith('data:image/');
+    const inner = isImage
+      ? `<img src="${p.dataUrl}" style="cursor:pointer;" onclick="openDataUrlInNewTab('${p.dataUrl}')">`
+      : `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; cursor:pointer; font-size:11px; text-align:center; padding:4px; word-break:break-all;" onclick="openDataUrlInNewTab('${p.dataUrl}')">${/^data:application\/pdf/.test(p.dataUrl)?'📄':'📎'}<br>${esc(p.fileName||'檔案')}</div>`;
+    return `
     <div class="photo-chip">
-      <img src="${p.dataUrl}">
+      ${inner}
       <button class="rm" onclick="removeClientAttachment(${idx})" title="移除">✕</button>
     </div>
-  `).join('') + addTile;
+  `;
+  }).join('') + addTile;
   document.getElementById('addAttachmentTile').onclick = ()=>document.getElementById('clientAttachmentInput').click();
 }
 function removeClientAttachment(idx){
@@ -3714,6 +3731,7 @@ async function saveClient(){
       }
     }
     record.photoKeys = cache.photos.map(p=>p.key);
+    record.photoFileNames = cache.photos.map(p=>p.fileName||'');
   }
 
   if(editingCtx.id){
@@ -3878,12 +3896,13 @@ async function viewClientModal(id){
     const photosHtml = photos.length ? `<div class="photo-grid" style="margin-top:8px;">${photos.map((src,i)=>{
       if(!src) return '';
       const ext = mimeExtFromDataUrl(src) || (isVideoDataUrl(src) ? '.mp4' : '.jpg');
-      const idx = pushLightboxPhoto(src, `${item.name}-${r.category}-${i+1}${ext}`);
+      const storedName = (r.photoFileNames && r.photoFileNames[i]) || '';
+      const idx = pushLightboxPhoto(src, storedName || `${item.name}-${r.category}-${i+1}${ext}`);
       recordIndices.push(idx);
       if(isImageDataUrl(src)){
         return `<div class="photo-chip" style="cursor:pointer;" onclick="openOrDownloadFile(${idx})"><img src="${src}"></div>`;
       }
-      return `<div class="photo-chip" style="cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:22px; background:var(--stone); gap:2px;" onclick="openOrDownloadFile(${idx})" title="點擊開啟/下載"><span>📄</span><span style="font-size:9px; color:var(--ink-soft);">${ext||'檔案'}</span></div>`;
+      return `<div class="photo-chip" style="cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:22px; background:var(--stone); gap:2px; text-align:center; padding:4px;" onclick="openOrDownloadFile(${idx})" title="點擊開啟/下載"><span>📄</span><span style="font-size:9px; color:var(--ink-soft); word-break:break-all;">${esc(storedName || ext || '檔案')}</span></div>`;
     }).join('')}</div>${recordIndices.length>1 ? `<button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="downloadAllPhotos([${recordIndices.join(',')}])">⬇ 全部下載(${recordIndices.length}個)</button>` : ''}` : '';
     const priceLine = (r.askingPrice || r.bottomPrice) ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${r.askingPrice?`開價 ${esc(r.askingPrice)}萬`:''}${r.askingPrice&&r.bottomPrice?'　':''}${r.bottomPrice?`底價 ${esc(r.bottomPrice)}萬`:''}</div>` : '';
     const entrustLine = formatEntrustDateRange(r) ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">委託時間 ${esc(formatEntrustDateRange(r))}</div>` : '';
@@ -4029,12 +4048,13 @@ async function viewPropertyRecordModal(clientId, recordId){
   const photosHtml = photos.length ? `<div class="photo-grid" style="margin-top:8px;">${photos.map((src,i)=>{
     if(!src) return '';
     const ext = mimeExtFromDataUrl(src) || (isVideoDataUrl(src) ? '.mp4' : '.jpg');
-    const idx = pushLightboxPhoto(src, `${client.name}-${r.category}-${i+1}${ext}`);
+    const storedName = (r.photoFileNames && r.photoFileNames[i]) || '';
+    const idx = pushLightboxPhoto(src, storedName || `${client.name}-${r.category}-${i+1}${ext}`);
     recordIndices.push(idx);
     if(isImageDataUrl(src)){
       return `<div class="photo-chip" style="cursor:pointer;" onclick="openOrDownloadFile(${idx})"><img src="${src}"></div>`;
     }
-    return `<div class="photo-chip" style="cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:22px; background:var(--stone); gap:2px;" onclick="openOrDownloadFile(${idx})" title="點擊開啟/下載"><span>📄</span><span style="font-size:9px; color:var(--ink-soft);">${ext||'檔案'}</span></div>`;
+    return `<div class="photo-chip" style="cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:22px; background:var(--stone); gap:2px; text-align:center; padding:4px;" onclick="openOrDownloadFile(${idx})" title="點擊開啟/下載"><span>📄</span><span style="font-size:9px; color:var(--ink-soft); word-break:break-all;">${esc(storedName || ext || '檔案')}</span></div>`;
   }).join('')}</div>${recordIndices.length>1 ? `<button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="downloadAllPhotos([${recordIndices.join(',')}])">⬇ 全部下載(${recordIndices.length}個)</button>` : ''}` : '';
 
   const owners = getPropertyRecordOwners(r);
