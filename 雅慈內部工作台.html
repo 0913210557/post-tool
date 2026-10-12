@@ -1466,6 +1466,16 @@ const SERVICE_LOG_EXTRA_FIELDS = {
     {key:'party', label:'準備資料(買方/賣方)', type:'select', options:['','賣方','買方']},
   ]},
 };
+const MEETING_STORES = {
+  '平鎮店': { address:'平鎮區中豐路南勢二段175號', parking:'平鎮區南華街85巷遷居社區正對面' },
+  '龍潭店': { address:'龍潭區中山里北龍路299號', parking:'https://maps.app.goo.gl/kFGgYszj2Kpi5e6a9?g_st=il' },
+};
+const MEETING_DEFAULT_STORE = '平鎮店';
+function guessMeetingStore(extra){
+  if(extra && extra.store && MEETING_STORES[extra.store]) return extra.store;
+  if(extra && extra.address && extra.address.includes('龍潭')) return '龍潭店';
+  return MEETING_DEFAULT_STORE;
+}
 const MEETING_CHECKLISTS = {
   '賣方': ['身份證','印章','權狀','代書潤筆費1000元'],
   '買方': ['身份證','印章','10萬現金','代書潤筆費1000元'],
@@ -2749,9 +2759,12 @@ function renderLogExtraFields(){
     const defaultDate = (document.getElementById('logDate') && document.getElementById('logDate').value) || '';
     const defaultTime = (document.getElementById('logTime') && document.getElementById('logTime').value) || '';
     container.innerHTML = `
-      <div class="pt-hint" style="margin:0 0 4px;">地址 / 停車場 / 面談日期 / 面談時間 / 準備資料</div>
-      <input type="text" id="logExtra_address" placeholder="地址" value="${esc(config.fields[0].default)}" style="margin-bottom:6px;">
-      <input type="text" id="logExtra_parking" placeholder="停車場" value="${esc(config.fields[1].default)}" style="margin-bottom:6px;">
+      <div class="pt-hint" style="margin:0 0 4px;">店別 / 地址 / 停車場 / 面談日期 / 面談時間 / 準備資料</div>
+      <select id="logExtra_store" style="margin-bottom:6px;">
+        ${Object.keys(MEETING_STORES).map(n=>`<option ${n===MEETING_DEFAULT_STORE?'selected':''}>${n}</option>`).join('')}
+      </select>
+      <input type="text" id="logExtra_address" placeholder="地址" value="${esc(MEETING_STORES[MEETING_DEFAULT_STORE].address)}" style="margin-bottom:6px;">
+      <input type="text" id="logExtra_parking" placeholder="停車場" value="${esc(MEETING_STORES[MEETING_DEFAULT_STORE].parking)}" style="margin-bottom:6px;">
       <div class="field-row" style="margin-bottom:6px;">
         <input type="date" id="logExtra_meetingDate" value="${esc(defaultDate)}">
         ${timePickerHTML('logExtra_meetingTime', defaultTime)}
@@ -2768,6 +2781,14 @@ function renderLogExtraFields(){
       const mark = ()=>{ editingCtx.logDraftTouched = true; };
       el.addEventListener('input', mark);
       el.addEventListener('change', mark);
+    });
+    document.getElementById('logExtra_store').addEventListener('change', (e)=>{
+      editingCtx.logDraftTouched = true;
+      const st = MEETING_STORES[e.target.value];
+      if(st){
+        document.getElementById('logExtra_address').value = st.address;
+        document.getElementById('logExtra_parking').value = st.parking;
+      }
     });
     document.getElementById('logExtra_party').addEventListener('change', (e)=>{
       editingCtx.logDraftTouched = true;
@@ -2843,6 +2864,8 @@ function collectLogExtraFields(type){
     const dateEl = document.getElementById('logExtra_meetingDate');
     const timeEl = document.getElementById('logExtra_meetingTime');
     const partyEl = document.getElementById('logExtra_party');
+    const storeEl = document.getElementById('logExtra_store');
+    if(storeEl && storeEl.value) extra.store = storeEl.value;
     if(addressEl && addressEl.value.trim()) extra.address = addressEl.value.trim();
     if(parkingEl && parkingEl.value.trim()) extra.parking = parkingEl.value.trim();
     if(dateEl && dateEl.value) extra.meetingDate = dateEl.value;
@@ -3469,9 +3492,12 @@ function renderEditLogExtraFields(logId){
 
   if(config.special === 'meeting'){
     container.innerHTML = `
-      <div class="pt-hint" style="margin:0 0 4px;">地址 / 停車場 / 面談日期 / 面談時間 / 準備資料</div>
-      <input type="text" id="editLogExtra-${logId}-address" placeholder="地址" value="${esc(extra.address||config.fields[0].default)}" style="margin-bottom:6px;">
-      <input type="text" id="editLogExtra-${logId}-parking" placeholder="停車場" value="${esc(extra.parking||config.fields[1].default)}" style="margin-bottom:6px;">
+      <div class="pt-hint" style="margin:0 0 4px;">店別 / 地址 / 停車場 / 面談日期 / 面談時間 / 準備資料</div>
+      <select id="editLogExtra-${logId}-store" style="margin-bottom:6px;" onchange="updateEditMeetingStore('${logId}')">
+        ${Object.keys(MEETING_STORES).map(n=>`<option ${n===guessMeetingStore(extra)?'selected':''}>${n}</option>`).join('')}
+      </select>
+      <input type="text" id="editLogExtra-${logId}-address" placeholder="地址" value="${esc(extra.address||MEETING_STORES[guessMeetingStore(extra)].address)}" style="margin-bottom:6px;">
+      <input type="text" id="editLogExtra-${logId}-parking" placeholder="停車場" value="${esc(extra.parking||MEETING_STORES[guessMeetingStore(extra)].parking)}" style="margin-bottom:6px;">
       <div class="field-row" style="margin-bottom:6px;">
         <input type="date" id="editLogExtra-${logId}-meetingDate" value="${esc(extra.meetingDate||'')}">
         ${timePickerHTML('editLogExtra-'+logId+'-meetingTime', extra.meetingTime||'')}
@@ -3488,6 +3514,12 @@ function renderEditLogExtraFields(logId){
 
   container.innerHTML = `<div class="pt-hint" style="margin:0 0 4px;">${config.fields.map(f=>f.label).join(' / ')}</div>` +
     config.fields.map(f=>`<input type="${f.type||'text'}" id="editLogExtra-${logId}-${f.key}" placeholder="${esc(f.label)}" value="${esc(extra[f.key]||'')}" style="margin-bottom:6px;">`).join('');
+}
+function updateEditMeetingStore(logId){
+  const st = MEETING_STORES[document.getElementById(`editLogExtra-${logId}-store`).value];
+  if(!st) return;
+  document.getElementById(`editLogExtra-${logId}-address`).value = st.address;
+  document.getElementById(`editLogExtra-${logId}-parking`).value = st.parking;
 }
 function updateEditMeetingChecklist(logId){
   const party = document.getElementById(`editLogExtra-${logId}-party`).value;
@@ -3579,6 +3611,8 @@ async function saveLogEdit(logId){
       const dateEl = document.getElementById(`editLogExtra-${logId}-meetingDate`);
       const timeEl = document.getElementById(`editLogExtra-${logId}-meetingTime`);
       const partyEl = document.getElementById(`editLogExtra-${logId}-party`);
+      const storeEl = document.getElementById(`editLogExtra-${logId}-store`);
+      if(storeEl && storeEl.value) extra.store = storeEl.value;
       if(addressEl && addressEl.value.trim()) extra.address = addressEl.value.trim();
       if(parkingEl && parkingEl.value.trim()) extra.parking = parkingEl.value.trim();
       if(dateEl && dateEl.value) extra.meetingDate = dateEl.value;
