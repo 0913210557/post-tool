@@ -756,7 +756,12 @@ function openDataUrlInNewTab(dataUrl){
     if(!win) showToast('瀏覽器擋掉了彈出視窗,請允許彈出視窗後再試一次');
     setTimeout(()=>URL.revokeObjectURL(blobUrl), 60000);
   }catch(e){
-    window.open(dataUrl, '_blank');
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = 'file';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 }
 
@@ -3800,7 +3805,7 @@ function openOrDownloadFile(i){
   if(isImageDataUrl(p.src)){
     openLightbox(p.src, p.filename);
   }else if(/^data:application\/pdf/.test(p.src)){
-    window.open(p.src, '_blank');
+    openDataUrlInNewTab(p.src);
   }else{
     const a = document.createElement('a');
     a.href = p.src;
