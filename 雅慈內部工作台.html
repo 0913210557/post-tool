@@ -1913,6 +1913,7 @@ function drawSoldClientTable(){
   let list = allSold.filter(c=>{
     return !q || clientSearchText(c).includes(q);
   });
+  list.sort((a,b)=>(b.fileDate||'').localeCompare(a.fileDate||''));
   const countLabel = document.getElementById('soldClientCountLabel');
   if(countLabel){
     countLabel.textContent = q ? `符合條件 ${list.length} 筆(共 ${allSold.length} 筆)` : `共 ${allSold.length} 筆`;
