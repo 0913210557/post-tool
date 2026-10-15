@@ -7107,6 +7107,7 @@ function gcalRequestToken(clientId, silent){
       if(statusEl) statusEl.textContent = '已登入 Google，可以同步';
       if(btnEl) btnEl.disabled = false;
       if(!silent) showToast('已登入 Google');
+      gcalSyncUnsyncedUpcoming();
       /* Google access tokens typically expire after ~1 hour. Proactively refresh every 45 minutes so a long-open tab doesn't quietly go stale. */
       if(gcalRefreshTimer) clearInterval(gcalRefreshTimer);
       gcalRefreshTimer = setInterval(()=>{ gcalRequestToken(clientId, true); }, 45*60*1000);
@@ -7206,6 +7207,13 @@ function gcalBuildEventBody(client, l){
 }
 
 /* Silent, targeted sync for one client's logs — used to auto-sync right after a save, without needing the manual button. Does nothing if not signed in. */
+/* 登入後自動補同步：把「今天以後、還沒同步到 Google 日曆」的行程補上(例如沒登入時新增的) */
+async function gcalSyncUnsyncedUpcoming(){
+  const today = new Date().toISOString().slice(0,10);
+  const ids = DATA.clients.filter(c=>(c.serviceLogs||[]).some(l=>l.date && l.date>=today && !l.gcalEventId && !GCAL_NO_SYNC_TYPES.includes(l.type))).map(c=>c.id);
+  for(const id of ids) await gcalAutoSyncClient(id);
+}
+
 async function gcalAutoSyncClient(clientId){
   if(!gcalAccessToken || !clientId) return;
   const client = DATA.clients.find(c=>c.id===clientId);
@@ -7231,8 +7239,12 @@ async function gcalAutoSyncClient(clientId){
           body: JSON.stringify(body),
           keepalive: true
         });
-        if(!res.ok){ if(res.status===401) gcalHandleExpiredToken(); failed = true; }
-      }else{
+        if(!res.ok){
+          if(res.status===404 || res.status===410){ log.gcalEventId = null; }
+          else{ if(res.status===401) gcalHandleExpiredToken(); failed = true; }
+        }
+      }
+      if(!log.gcalEventId){
         const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
           method: 'POST',
           headers: { 'Authorization': 'Bearer ' + gcalAccessToken, 'Content-Type': 'application/json' },
@@ -7376,8 +7388,11 @@ async function gcalSyncEvents(){
             headers: { 'Authorization': 'Bearer ' + gcalAccessToken, 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
           });
-          if(res.ok) updated++; else failed++;
-        }else{
+          if(res.ok) updated++;
+          else if(res.status===404 || res.status===410){ log.gcalEventId = null; }
+          else failed++;
+        }
+        if(!log.gcalEventId){
           const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + gcalAccessToken, 'Content-Type': 'application/json' },
