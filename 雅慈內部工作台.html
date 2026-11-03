@@ -1356,8 +1356,7 @@ function renderDashboard(){
   const monthCommission = monthDeals.reduce((s,d)=>s+(Number(d.commission)||0),0);
   const monthCommunities = DATA.communities.filter(c=>communityNextSendDate(c)===thisMonth);
   const monthSocialMedia = DATA.socialMedia.filter(l=>l.date && l.date.startsWith(thisMonth));
-  const monthVideoCount = monthSocialMedia.filter(l=>(l.mediaTypes||[]).includes('video')).length;
-  const monthImageCount = monthSocialMedia.filter(l=>(l.mediaTypes||[]).includes('image')).length;
+  const monthPostCount = monthSocialMedia.length;
 
   main.innerHTML = `
     <div class="page-head">
@@ -1376,8 +1375,7 @@ function renderDashboard(){
       </div>
       <div class="stat-card" style="text-align:left;">
         <div class="stat-label" style="margin-bottom:6px;">自媒體(本月)</div>
-        <div style="display:grid; grid-template-columns:1fr auto; padding:4px 0; ${monthVideoCount===0?'color:var(--brick); font-weight:700;':''}"><span>🎬 已拍影片</span><span style="text-align:right;">${monthVideoCount}</span></div>
-        <div style="display:grid; grid-template-columns:1fr auto; padding:4px 0; ${monthImageCount===0?'color:var(--brick); font-weight:700;':''}"><span>🖼 已傳圖片</span><span style="text-align:right;">${monthImageCount}</span></div>
+        <div style="display:grid; grid-template-columns:1fr auto; padding:4px 0; ${monthPostCount===0?'color:var(--brick); font-weight:700;':''}"><span>📝 已上傳篇數</span><span style="text-align:right;">${monthPostCount}</span></div>
       </div>
       ${renderAdQuotaCard()}
     </div>
