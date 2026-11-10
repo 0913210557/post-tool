@@ -4437,8 +4437,17 @@ async function saveContent(){
 }
 
 /* ===================== Deals Page ===================== */
+function dealUnpaidAmount(d){
+  if((d.dealType||'售')==='解約') return 0;
+  const expected = dealExpectedCollection(dealActualPerformance(d), d.dealType);
+  const collected = (d.collections||[]).reduce((s,c)=>s+(Number(c.personalAmount)||0),0);
+  return Math.max(expected - collected, 0);
+}
+
 function renderDeals(){
   const main = document.getElementById('main');
+  const unpaidDeals = DATA.deals.filter(d=>dealUnpaidAmount(d)>0);
+  const totalUnpaid = unpaidDeals.reduce((sum,d)=>sum+dealUnpaidAmount(d),0);
   main.innerHTML = `
     <div class="page-head">
       <div>
@@ -4453,6 +4462,9 @@ function renderDeals(){
         </select>
         <button class="btn btn-primary" id="addDealBtn">＋ 新增成交案</button>
       </div>
+    </div>
+    <div class="stat-row" style="margin-bottom:16px;">
+      <div class="stat-card"><div class="stat-num" style="${totalUnpaid?'color:var(--brick);':''}">$${totalUnpaid.toLocaleString()}</div><div class="stat-label">尚未領(${unpaidDeals.length} 件)</div></div>
     </div>
     <div class="toolbar">
       <input class="search-input" id="dealSearch" placeholder="搜尋客戶姓名 / 案件名稱 / 物件地址 / 買方 / 賣方…">
