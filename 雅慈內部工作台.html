@@ -4446,8 +4446,6 @@ function dealUnpaidAmount(d){
 
 function renderDeals(){
   const main = document.getElementById('main');
-  const unpaidDeals = DATA.deals.filter(d=>dealUnpaidAmount(d)>0);
-  const totalUnpaid = unpaidDeals.reduce((sum,d)=>sum+dealUnpaidAmount(d),0);
   main.innerHTML = `
     <div class="page-head">
       <div>
@@ -4462,9 +4460,6 @@ function renderDeals(){
         </select>
         <button class="btn btn-primary" id="addDealBtn">＋ 新增成交案</button>
       </div>
-    </div>
-    <div class="stat-row" style="margin-bottom:16px;">
-      <div class="stat-card"><div class="stat-num" style="${totalUnpaid?'color:var(--brick);':''}">$${totalUnpaid.toLocaleString()}</div><div class="stat-label">尚未領(${unpaidDeals.length} 件)</div></div>
     </div>
     <div class="toolbar">
       <input class="search-input" id="dealSearch" placeholder="搜尋客戶姓名 / 案件名稱 / 物件地址 / 買方 / 賣方…">
@@ -4505,10 +4500,11 @@ function drawDealTable(){
 
   if(list.length===0){ wrap.innerHTML = '<div class="empty-state">還沒有成交紀錄</div>'; return; }
   wrap.innerHTML = `<table><thead><tr>
-    <th>序號</th><th>案件</th><th>客戶</th><th>物件地址</th><th>成交金額(萬)</th><th>實際業績</th><th>成交日</th><th></th>
+    <th>序號</th><th>案件</th><th>客戶</th><th>物件地址</th><th>成交金額(萬)</th><th>實際業績</th><th>尚未領</th><th>成交日</th><th></th>
   </tr></thead><tbody>
     ${list.map(d=>{
       const actualPerformance = dealActualPerformance(d);
+      const unpaid = dealUnpaidAmount(d);
       return `<tr class="row-hover" style="cursor:pointer;" onclick="viewDealModal('${d.id}')">
       <td>${esc(d._orderLabel)}</td>
       <td>${esc(d.caseName)}</td>
@@ -4516,6 +4512,7 @@ function drawDealTable(){
       <td>${esc(d.propertyAddress||'—')}</td>
       <td>${d.amount?Number(d.amount).toLocaleString():'—'}</td>
       <td>$${actualPerformance.toLocaleString()}</td>
+      <td style="${unpaid>0?'color:var(--brick); font-weight:700;':''}">${(d.dealType||'售')==='解約' ? '—' : '$'+unpaid.toLocaleString()}</td>
       <td>${esc(d.closedDate||'—')}</td>
       <td onclick="event.stopPropagation()"><div class="row-actions">
         <button class="icon-btn" onclick="openDealModal('${d.id}')" title="編輯">✎</button>
